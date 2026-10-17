@@ -8,6 +8,9 @@
 #define game_system_descriptor_count ldk_game_generated_system_descriptor_count
 #define game_system_descriptor_get ldk_game_generated_system_descriptor_get
 
+#define game_editor_callback_metadata_count ldk_game_generated_editor_callback_metadata_count
+#define game_editor_callback_metadata_get ldk_game_generated_editor_callback_metadata_get
+
 #define LDK_COMPONENT_METADATA_IMPLEMENTATION
 #include <generated_component_metadata.h>
 
@@ -17,6 +20,8 @@
 #undef game_system_metadata_get
 #undef game_system_descriptor_count
 #undef game_system_descriptor_get
+#undef game_editor_callback_metadata_count
+#undef game_editor_callback_metadata_get
 
 typedef bool (*LDKSystemDescriptorGetFn)(u32 index, LDKSystemDesc *out);
 
@@ -143,4 +148,17 @@ LDK_GAME_API bool game_register_systems(void)
 LDK_GAME_API u32 game_abi_version(void)
 {
   return LDK_GAME_ABI_VERSION;
+}
+
+/* Optional editor extensions are always described by Comet, but callback
+ * implementations are editor-only and resolved by symbol at invocation. */
+LDK_GAME_API u32 game_editor_callback_metadata_count(void)
+{
+  return ldk_game_generated_editor_callback_metadata_count();
+}
+
+LDK_GAME_API const LDKEditorCallbackMeta *
+game_editor_callback_metadata_get(u32 index)
+{
+  return ldk_game_generated_editor_callback_metadata_get(index);
 }

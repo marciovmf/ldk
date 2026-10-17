@@ -8,6 +8,9 @@
 #define game_system_descriptor_count ldk_engine_generated_system_descriptor_count
 #define game_system_descriptor_get ldk_engine_generated_system_descriptor_get
 
+#define game_editor_callback_metadata_count ldk_engine_generated_editor_callback_metadata_count
+#define game_editor_callback_metadata_get ldk_engine_generated_editor_callback_metadata_get
+
 #define LDK_COMPONENT_METADATA_IMPLEMENTATION
 #include <generated_engine_component_metadata.h>
 
@@ -17,6 +20,8 @@
 #undef game_system_metadata_get
 #undef game_system_descriptor_count
 #undef game_system_descriptor_get
+#undef game_editor_callback_metadata_count
+#undef game_editor_callback_metadata_get
 
 LDK_API u32 ldk_engine_component_metadata_count(void)
 {

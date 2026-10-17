@@ -878,6 +878,7 @@ if (OPTION_BUILD_EDITOR)
     src/editor/ldk_editor_color_picker.h
     src/editor/ldk_editor_color_picker.c
     src/editor/ldk_editor_inspector.c
+    src/editor/ldk_editor_callbacks.c
     src/editor/ldk_editor_file_explorer.c
     src/editor/ldk_editor_hierarchy_viewer.c
     src/editor/ldk_editor_profiler.c
@@ -934,13 +935,14 @@ if (OPTION_BUILD_GAME)
     TARGET game
     TYPE SHARED
     ENGINE_TARGET ldk
-    SOURCES ${LDK_GAME_SOURCES} "src/ldk_game_metadata.c"
+    SOURCES ${LDK_GAME_SOURCES} ${LDK_GAME_EDITOR_SOURCES} "src/ldk_game_metadata.c"
     INCLUDE_DIRS ${LDK_GAME_INCLUDE_DIRS}
     COMPONENT_DIRS ${LDK_GAME_COMPONENT_DIRS}
     SYSTEM_DIRS ${LDK_GAME_SYSTEM_DIRS}
     DEFINITIONS
     ${LDK_GAME_DEFINITIONS}
     LDK_GAME_DLL
+    LDK_EDITOR
     LIBRARIES ${LDK_GAME_LIBRARIES}
     OUTPUT_DIR "${OPTION_GAME_DIR}/.ldk/$<CONFIG>"
   )

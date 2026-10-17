@@ -1,6 +1,7 @@
 #include "module/ldk_rhi.h"
 #define LDK_IMPL_STDX
 #include "../ldk_stdx.h"
+#include "ldk_editor_callbacks_internal.h"
 
 #include <ldk_common.h>
 #include <ldk_game.h>
@@ -810,6 +811,12 @@ static bool on_event_frame(const LDKEvent *event, void *state)
     return true;
   }
   s_editor_update(editor, size.w, size.h, event->frame_event.delta_time);
+
+  if (editor->editor_state == LDK_EDITOR_STATE_STOPED)
+  {
+    ldki_editor_callbacks_update(ldk_game_get(),
+        &editor->current_scene_systems, event->frame_event.delta_time);
+  }
 
   LDK_PROFILE_BEGIN("Editor Grid Submit");
   ldki_editor_grid_submit(editor);

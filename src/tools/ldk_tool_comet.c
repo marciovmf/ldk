@@ -70,6 +70,15 @@ typedef struct LDKMetaSystem
   bool stateful;
 } LDKMetaSystem;
 
+typedef struct LDKMetaEditorCallback
+{
+  char symbol[128];
+  char label[128];
+  char component[128];
+  char system[128];
+  u32 flags;
+} LDKMetaEditorCallback;
+
 typedef struct LDKMetaEnum
 {
   char name[128];
@@ -93,6 +102,10 @@ typedef struct LDKMetaState
 
   LDKMetaSystem *systems;
   u32 system_count;
+
+  LDKMetaEditorCallback *editor_callbacks;
+  u32 editor_callback_count;
+  u32 editor_callback_capacity;
 
   LDKMetaEnum *enums;
   u32 enum_count;
@@ -1791,6 +1804,278 @@ static bool ldk_meta_parse_system_at(
   return ldk_meta_push_system(state, &system);
 }
 
+/* Only the two editor callback signatures are supported. Check types and
+ * argument counts independently of parameter names or pointer whitespace.
+ * This also prevents emitting an incompatible prototype into the metadata. */
+static bool ldk_meta_editor_callback_parameter_matches(
+    const char *begin, const char *end, const char *type, bool pointer)
+{
+  while (begin < end && isspace((unsigned char)*begin)) ++begin;
+  size_t length = strlen(type);
+  if ((size_t)(end - begin) < length ||
+      strncmp(begin, type, length) != 0 ||
+      (begin + length < end && ldk_meta_is_ident_char(begin[length])))
+  {
+    return false;
+  }
+  begin += length;
+  while (begin < end && isspace((unsigned char)*begin)) ++begin;
+  if (pointer)
+  {
+    if (begin >= end || *begin != '*') return false;
+    ++begin;
+    while (begin < end && isspace((unsigned char)*begin)) ++begin;
+  }
+  else if (begin < end && *begin == '*')
+  {
+    return false;
+  }
+  if (begin >= end || (!isalpha((unsigned char)*begin) && *begin != '_'))
+  {
+    return false;
+  }
+  while (begin < end && ldk_meta_is_ident_char(*begin)) ++begin;
+  while (begin < end && isspace((unsigned char)*begin)) ++begin;
+  return begin == end;
+}
+
+static bool ldk_meta_editor_callback_signature_valid(
+    const char *declaration, const char *name_begin, const char *open,
+    bool system)
+{
+  const char *end = strchr(open, ')');
+  const char *ret_end = name_begin;
+  if (!end) return false;
+  while (ret_end > declaration && isspace((unsigned char)ret_end[-1])) --ret_end;
+  const char *ret_begin = ret_end;
+  while (ret_begin > declaration && ldk_meta_is_ident_char(ret_begin[-1])) --ret_begin;
+  if ((size_t)(ret_end - ret_begin) != 4u ||
+      strncmp(ret_begin, "void", 4u) != 0)
+  {
+    return false;
+  }
+
+  const char *types[3] = {system ? "u64" : "LDKEntity",
+      system ? "void" : "float", "float"};
+  const bool pointers[3] = {false, system, false};
+  const u32 count = system ? 3u : 2u;
+  const char *start = open + 1;
+  for (u32 i = 0; i < count; ++i)
+  {
+    const char *stop = start;
+    while (stop < end && *stop != ',') ++stop;
+    if (!ldk_meta_editor_callback_parameter_matches(
+            start, stop, types[i], pointers[i]))
+    {
+      return false;
+    }
+    if (i + 1u < count)
+    {
+      if (stop >= end) return false;
+      start = stop + 1;
+    }
+    else if (stop != end)
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+/* Editor callbacks are discovered in game sources like function systems.
+ * Their names stay as strings in generated metadata: the launcher never
+ * acquires a link dependency on editor-only callback implementations. */
+static bool ldk_meta_parse_editor_callback_at(
+    LDKMetaState *state, const char *marker)
+{
+  LDKMetaEditorCallback desc = {0};
+  const char *begin = marker + strlen("//@editor_callback");
+  const char *end = strchr(begin, '\n');
+  char options[512];
+  bool have_owner = false;
+  if (!end)
+  {
+    ldk_meta_set_error(state, "unterminated //@editor_callback");
+    return false;
+  }
+  size_t length = (size_t)(end - begin);
+  if (length >= sizeof(options))
+  {
+    ldk_meta_set_error(state, "editor callback annotation is too long");
+    return false;
+  }
+  memcpy(options, begin, length);
+  options[length] = 0;
+  char *token = strtok(options, " \t\r");
+  while (token)
+  {
+    char *eq = strchr(token, '=');
+    if (!eq || !eq[1])
+    {
+      ldk_meta_set_error(state, "editor callback requires key=value");
+      return false;
+    }
+    *eq = 0;
+    const char *value = eq + 1;
+    if (strcmp(token, "component") == 0 || strcmp(token, "system") == 0)
+    {
+      if (have_owner || strlen(value) >= sizeof(desc.component))
+      {
+        ldk_meta_set_error(state, "editor callback requires one owner");
+        return false;
+      }
+      have_owner = true;
+      snprintf(strcmp(token, "component") == 0 ? desc.component : desc.system,
+          sizeof(desc.component), "%s", value);
+    }
+    else if (strcmp(token, "flags") == 0)
+    {
+      const char *at = value;
+      while (*at)
+      {
+        const char *comma = strchr(at, ',');
+        size_t part = comma ? (size_t)(comma - at) : strlen(at);
+        if (part == strlen("Manual") && strncmp(at, "Manual", part) == 0)
+        {
+          desc.flags |= 1u;
+        }
+        else if (part == strlen("OnEditorUpdate") &&
+            strncmp(at, "OnEditorUpdate", part) == 0)
+        {
+          desc.flags |= 2u;
+        }
+        else
+        {
+          ldk_meta_set_error(state, "invalid editor callback flag");
+          return false;
+        }
+        at += part;
+        if (*at == ',') ++at;
+      }
+    }
+    else if (strcmp(token, "label") == 0)
+    {
+      if (strlen(value) >= sizeof(desc.label))
+      {
+        ldk_meta_set_error(state, "editor callback label too long");
+        return false;
+      }
+      snprintf(desc.label, sizeof(desc.label), "%s", value);
+      for (char *c = desc.label; *c; ++c)
+      {
+        if (*c == '_') *c = ' ';
+      }
+    }
+    else
+    {
+      ldk_meta_set_error(state, "unknown editor callback option");
+      return false;
+    }
+    token = strtok(NULL, " \t\r");
+  }
+  if (!have_owner || desc.flags == 0u)
+  {
+    ldk_meta_set_error(state, "editor callback requires an owner and flags");
+    return false;
+  }
+  const char *declaration = end + 1;
+  while (*declaration && isspace((unsigned char)*declaration)) ++declaration;
+  const char *open = strchr(declaration, '(');
+  if (!open)
+  {
+    ldk_meta_set_error(state, "missing editor callback function");
+    return false;
+  }
+  const char *ident_end = open;
+  while (ident_end > declaration && isspace((unsigned char)ident_end[-1])) --ident_end;
+  const char *ident_begin = ident_end;
+  while (ident_begin > declaration && ldk_meta_is_ident_char(ident_begin[-1])) --ident_begin;
+  if (ident_end == ident_begin ||
+      (size_t)(ident_end - ident_begin) >= sizeof(desc.symbol))
+  {
+    ldk_meta_set_error(state, "invalid editor callback function identifier");
+    return false;
+  }
+  ldk_meta_copy_ident(desc.symbol, sizeof(desc.symbol), ident_begin, ident_end);
+  if (!ldk_meta_editor_callback_signature_valid(
+          declaration, ident_begin, open, desc.system[0] != 0))
+  {
+    snprintf(state->error, sizeof(state->error),
+        "editor callback '%s': expected void (%s)", desc.symbol,
+        desc.system[0] ? "u64 system_id, void *data, float dt" :
+            "LDKEntity entity, float dt");
+    return false;
+  }
+  if (!desc.label[0])
+  {
+    snprintf(desc.label, sizeof(desc.label), "%s", desc.symbol);
+  }
+  for (u32 i = 0; i < state->editor_callback_count; ++i)
+  {
+    if (strcmp(state->editor_callbacks[i].symbol, desc.symbol) == 0)
+    {
+      ldk_meta_set_error(state, "duplicate editor callback function");
+      return false;
+    }
+  }
+  if (state->editor_callback_count == state->editor_callback_capacity)
+  {
+    u32 next = state->editor_callback_capacity ?
+        state->editor_callback_capacity * 2u : 8u;
+    LDKMetaEditorCallback *items = realloc(state->editor_callbacks,
+        (size_t)next * sizeof(*items));
+    if (!items)
+    {
+      ldk_meta_set_error(state, "out of memory for editor callbacks");
+      return false;
+    }
+    state->editor_callbacks = items;
+    state->editor_callback_capacity = next;
+  }
+  state->editor_callbacks[state->editor_callback_count++] = desc;
+  return true;
+}
+
+static bool ldk_meta_validate_editor_callbacks(LDKMetaState *state)
+{
+  for (u32 i = 0; i < state->editor_callback_count; ++i)
+  {
+    const LDKMetaEditorCallback *cb = &state->editor_callbacks[i];
+    bool exists = false;
+    if (cb->component[0])
+    {
+      for (u32 j = 0; j < state->component_count; ++j)
+      {
+        if (strcmp(cb->component, state->components[j].type_name) == 0)
+        {
+          exists = true;
+          break;
+        }
+      }
+    }
+    else
+    {
+      for (u32 j = 0; j < state->system_count; ++j)
+      {
+        if (strcmp(cb->system, state->systems[j].symbol_name) == 0)
+        {
+          exists = true;
+          break;
+        }
+      }
+    }
+    if (!exists)
+    {
+      snprintf(state->error, sizeof(state->error),
+          "editor callback '%s': unknown %s '%s'", cb->symbol,
+          cb->component[0] ? "component" : "system",
+          cb->component[0] ? cb->component : cb->system);
+      return false;
+    }
+  }
+  return true;
+}
+
 static bool ldk_meta_parse_file(LDKMetaState* state, const char* path)
 {
   char* text = NULL;
@@ -1831,6 +2116,17 @@ static bool ldk_meta_parse_file(LDKMetaState* state, const char* path)
       return false;
     }
     cursor += strlen("//@system");
+  }
+
+  cursor = text;
+  while ((cursor = strstr(cursor, "//@editor_callback")) != NULL)
+  {
+    if (!ldk_meta_parse_editor_callback_at(state, cursor))
+    {
+      free(text);
+      return false;
+    }
+    cursor += strlen("//@editor_callback");
   }
 
   free(text);
@@ -1932,7 +2228,8 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   fprintf(out, "#include <ldk_common.h>\n");
   fprintf(out, "#include <ldk_game.h>\n");
   fprintf(out, "#include <stddef.h>\n#include <string.h>\n");
-  fprintf(out, "#include <editor/ldk_component_metadata.h>\n\n");
+  fprintf(out, "#include <editor/ldk_component_metadata.h>\n");
+  fprintf(out, "#include <editor/ldk_editor_callback.h>\n\n");
 
 
   for (i = 0; i < state->component_count; i++)
@@ -1994,6 +2291,25 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   }
   fprintf(out, "\n#define ldk_system_id(T) LDK_SYSTEM_##T\n");
   fprintf(out, "#define ldk_system_desc(T) LDK_SYSTEM_DESC_##T\n\n");
+  if (state->editor_callback_count)
+  {
+    fprintf(out, "#ifdef LDK_EDITOR\n");
+    for (i = 0; i < state->editor_callback_count; ++i)
+    {
+      const LDKMetaEditorCallback *cb = &state->editor_callbacks[i];
+      if (cb->system[0])
+      {
+        fprintf(out, "LDK_GAME_API void %s(u64 system_id, void *data, float dt);\n",
+            cb->symbol);
+      }
+      else
+      {
+        fprintf(out, "LDK_GAME_API void %s(LDKEntity entity, float dt);\n",
+            cb->symbol);
+      }
+    }
+    fprintf(out, "#endif\n\n");
+  }
   fprintf(out, "\n#ifdef LDK_COMPONENT_METADATA_IMPLEMENTATION\n\n");
   ldk_meta_write_enums(out, state);
 
@@ -2254,6 +2570,43 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   fprintf(out, "  }\n");
   fprintf(out, "}\n\n");
 
+  fprintf(out, "u32 game_editor_callback_metadata_count(void)\n");
+  fprintf(out, "{\n  return %uu;\n}\n\n", state->editor_callback_count);
+  fprintf(out, "const LDKEditorCallbackMeta *game_editor_callback_metadata_get(u32 index)\n");
+  fprintf(out, "{\n");
+  if (state->editor_callback_count)
+  {
+    fprintf(out, "  static const LDKEditorCallbackMeta callbacks[] =\n  {\n");
+    for (i = 0; i < state->editor_callback_count; ++i)
+    {
+      const LDKMetaEditorCallback *cb = &state->editor_callbacks[i];
+      fprintf(out, "    { ");
+      ldk_meta_write_c_string(out, cb->label);
+      fprintf(out, ", ");
+      ldk_meta_write_c_string(out, cb->symbol);
+      fprintf(out, ", %s, %uu, ", cb->component[0] ?
+          "LDK_EDITOR_CALLBACK_COMPONENT" : "LDK_EDITOR_CALLBACK_SYSTEM",
+          cb->flags);
+      if (cb->component[0])
+      {
+        fprintf(out, "ldk_component_type(%s), 0ULL", cb->component);
+      }
+      else
+      {
+        fprintf(out, "0u, ldk_system_id(%s)", cb->system);
+      }
+      fprintf(out, " },\n");
+    }
+    fprintf(out, "  };\n");
+    fprintf(out, "  return index < %uu ? &callbacks[index] : NULL;\n",
+        state->editor_callback_count);
+  }
+  else
+  {
+    fprintf(out, "  (void)index;\n  return NULL;\n");
+  }
+  fprintf(out, "}\n\n");
+
   fprintf(out, "#endif // LDK_COMPONENT_METADATA_IMPLEMENTATION \n");
   fprintf(out, "#endif // LDK_COMPONENTS_GENERATED_H\n");
 
@@ -2367,6 +2720,12 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
     ok = false;
   }
 
+  if (ok && !ldk_meta_validate_editor_callbacks(&state))
+  {
+    fprintf(stderr, "ldk_meta_gen: %s\n", state.error);
+    ok = false;
+  }
+
   if (ok && !ldk_meta_validate_atlas_region_fields(&state))
   {
     fprintf(stderr, "ldk_meta_gen: %s\n", state.error);
@@ -2401,6 +2760,7 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
   free(state.groups);
   free(state.systems);
   free(state.enums);
+  free(state.editor_callbacks);
 
   return ok;
 }

@@ -1,3 +1,4 @@
+#include "ldk_editor_callbacks_internal.h"
 #include <ldk_material_asset.h>
 #include <ldk_mesh_asset.h>
 #include <ldk_skybox_asset.h>
@@ -3395,7 +3396,6 @@ static bool s_editor_material_textures_editor(LDKEditorContext *editor,
       "Albedo", "Normal", "Specular", "Texture 3", "Texture 4",
       "Texture 5", "Texture 6", "Texture 7"};
   static bool expanded[LDK_MATERIAL_TEXTURE_SLOT_COUNT] = {0};
-  const LDKUIId popup_id = 0x54455841u;
   LDKUIContext *ui = &editor->ui;
   bool changed = false;
   bool textured = desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
@@ -3418,6 +3418,7 @@ static bool s_editor_material_textures_editor(LDKEditorContext *editor,
   s_editor_material_row_begin(editor, "Textures");
   ldk_ui_begin_disabled(ui, readonly || !available);
   bool open = ldk_ui_button(ui, "Add");
+  const LDKUIId popup_id = ui->last_id;
   LDKUIRect button = ldk_ui_last_bounding_rect(ui);
   ldk_ui_end_disabled(ui);
   ldk_ui_end_horizontal(ui);
@@ -4741,6 +4742,11 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       scroll = s_editor_inspector_scroll_begin(ui, scroll);
       (void)s_editor_inspector_system_draw(
           editor, game, editor->selected_system_id);
+      if (editor->editor_state == LDK_EDITOR_STATE_STOPED)
+      {
+        ldki_editor_callbacks_draw(game, ui, systems, x_handle_null(),
+            editor->selected_system_id);
+      }
       ldk_ui_end_scrollview(ui);
       s_editor_inspector_column_update(editor);
       return;
@@ -5039,6 +5045,12 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   }
 
   s_editor_inspector_add_component_draw(editor, ecs, game, entity);
+
+  if (editor->editor_state == LDK_EDITOR_STATE_STOPED)
+  {
+    ldki_editor_callbacks_draw(game, ui, &editor->current_scene_systems,
+        entity, 0u);
+  }
 
   ldk_ui_end_scrollview(ui);
   s_editor_inspector_column_update(editor);
