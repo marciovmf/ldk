@@ -1,0 +1,16 @@
+material:
+  material_texture_slots: 1
+  material_texture_0_filter: 0
+  material_texture_0_mip_filter: 0
+  material_texture_0_wrap_u: 0
+  material_texture_0_wrap_v: 0
+  material_texture_0_uv_scale_x: 8
+  material_texture_0_uv_scale_y: 8
+  material_texture_0_uv_offset_x: 0
+  material_texture_0_uv_offset_y: 0
+  material_type: 2
+  material_color: 0xffffffff
+  material_texture: "assets/textures/prototype/Orange/texture_01.png"
+  material_specular: 0
+  material_shininess: 256
+  material_emission: 0.299260139

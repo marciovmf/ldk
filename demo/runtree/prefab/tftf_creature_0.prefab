@@ -1,0 +1,158 @@
+prefab:
+  version: 1
+  root: 0
+  entities:
+    - entity: 0
+      parent: -1
+      flags: 0
+      name: "tftf_creature_0"
+      name_hash: "0xc6811a29692224d8"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.333965778, -6.70976067
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 1765322487 # TFTFCreatureComponent
+          fields:
+            enabled: true
+            motion: "TFTF_CREATURE_MOTION_WALK"
+            body_axis: "TFTF_CREATURE_BODY_VERTICAL"
+            animation_speed: 1.00000000
+            body_pulse: 0.0250000004
+            body_height: 1.00000000
+            body_pulse_speed: 2.29999995
+            body_pulse_waves: 1.00000000
+            body_sway: 0.100000001
+            body_sway_speed: 3.00000000
+            head: "TFTF_CREATURE_HEAD_LAST"
+            start_cap: "TFTF_CREATURE_CAP_ROUNDED"
+            end_cap: "TFTF_CREATURE_CAP_ROUNDED"
+            radial_segments: 6
+            segments_per_node: 3
+            movement_speed: 1.00000000
+            step_height: 3.00000000
+            step_length: 1.00000000
+            wave_amplitude: 0.500000000
+            wave_frequency: 0.500000000
+            wave_cycles: 1.00000000
+            sting_target: 2.09999990, 0.00000000, 0.00000000
+            appendage_type: "TFTF_CREATURE_APPENDAGE_TENTACLE"
+            appendage_distribution: "TFTF_CREATURE_APPENDAGE_RADIAL"
+            appendage_count: 6
+            appendage_spacing: 0.300000012
+            appendage_root_offset: -0.300000012
+            appendage_length: 1.00000000
+            appendage_reach: 1.00000000
+            appendage_knee: 0.500000000
+            appendage_tip_taper: 1.00000000
+            appendage_thickness: 0.0299999993
+            tentacle_node_0_radius: 0.300000012
+            tentacle_node_1_radius: 0.200000003
+            tentacle_node_2_radius: 0.100000001
+            tentacle_node_3_radius: 0.0179999992
+            attachment_count: 2
+            body_material: "assets/materials/tftf_creature_material_0.material"
+            appendage_material: "assets/materials/tftf_creature_material_1.material"
+            eye_material: -1
+            fang_material: -1
+            body_color: 4242986751
+            appendage_color: 255
+            eye_color: 3619988735
+            fang_color: 3940203007
+    - entity: 1
+      parent: 0
+      flags: 0
+      name: "Body Node 5"
+      name_hash: "0x017e378f25c69bd8"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 3.25000000, -0.223346353
+            local_scale: 0.434545845, 0.434545845, 0.434545845
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 3782457747 # TFTFCreatureNodeComponent
+          fields:
+            order: 5
+            min_bend_degrees: 0.00000000
+            max_bend_degrees: 155.000000
+    - entity: 2
+      parent: 0
+      flags: 0
+      name: "Body Node 4"
+      name_hash: "0x017e388f25c69d8b"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 2.59999967, 0.0569818020
+            local_scale: 0.425713748, 0.780149996, 0.780149996
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 3782457747 # TFTFCreatureNodeComponent
+          fields:
+            order: 4
+            min_bend_degrees: 0.00000000
+            max_bend_degrees: 155.000000
+    - entity: 3
+      parent: 0
+      flags: 0
+      name: "Body Node 3"
+      name_hash: "0x017e3d8f25c6a60a"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 1.94999993, 0.106456041
+            local_scale: 0.388915986, 0.388915986, 0.388915986
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 3782457747 # TFTFCreatureNodeComponent
+          fields:
+            order: 3
+            min_bend_degrees: 0.00000000
+            max_bend_degrees: 155.000000
+    - entity: 4
+      parent: 0
+      flags: 0
+      name: "Body Node 2"
+      name_hash: "0x017e3e8f25c6a7bd"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 1.29999995, 0.135402083
+            local_scale: 0.362182587, 0.362182587, 0.362182587
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 3782457747 # TFTFCreatureNodeComponent
+          fields:
+            order: 2
+            min_bend_degrees: 0.00000000
+            max_bend_degrees: 155.000000
+    - entity: 5
+      parent: 0
+      flags: 0
+      name: "Body Node 1"
+      name_hash: "0x017e3b8f25c6a2a4"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.649999976, 0.155527234
+            local_scale: 0.367968738, 0.367968738, 0.367968738
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 3782457747 # TFTFCreatureNodeComponent
+          fields:
+            order: 1
+            min_bend_degrees: 0.00000000
+            max_bend_degrees: 155.000000
+    - entity: 6
+      parent: 0
+      flags: 0
+      name: "Body Node 0"
+      name_hash: "0x017e3c8f25c6a457"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.00000000, 0.00000000
+            local_scale: 0.607031226, 0.607031226, 0.607031226
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 3782457747 # TFTFCreatureNodeComponent
+          fields:
+            order: 0
+            min_bend_degrees: 0.00000000
+            max_bend_degrees: 155.000000

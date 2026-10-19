@@ -1,0 +1,212 @@
+prefab:
+  version: 1
+  root: 0
+  entities:
+    - entity: 0
+      parent: -1
+      flags: 0
+      name: "Spore_Crawler"
+      name_hash: "0xbedd38e46385e685"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.000000, 0.000000, 0.000000
+            local_scale: 1.0, 1.0, 1.0
+            local_rotation: 0.0, 0.0, 0.0, 1.0
+        - type: 1765322487 # TFTFCreatureComponent
+          fields:
+            enabled: true
+            motion: 2
+            body_axis: 1
+            animation_speed: 1.0
+            body_pulse: 0.06
+            body_height: 0.72
+            body_pulse_speed: 2.3
+            body_pulse_waves: 0.28
+            body_sway: 0.055
+            body_sway_speed: 1.2
+            node_count: 0
+            radial_segments: 8
+            segments_per_node: 4
+            movement_speed: 0.50
+            step_height: 0.34
+            step_length: 0.70
+            wave_amplitude: 0.23
+            wave_frequency: 1.5
+            wave_cycles: 1.4
+            sting_target: 0.0, 0.0, -1.6
+            sting_arch_height: 1.7
+            appendage_type: 1
+            appendage_distribution: 0
+            appendage_count: 8
+            appendage_spacing: 0.65
+            appendage_length: 1.30
+            appendage_reach: 1.0
+            appendage_knee: 0.55
+            appendage_tip_taper: 0.12
+            appendage_thickness: 0.19
+            attachment_count: 0
+            body_material: -1
+            appendage_material: -1
+            eye_material: -1
+            fang_material: -1
+            body_color: 2457233663
+            appendage_color: 1684558335
+            eye_color: 3805656575
+            fang_color: 3872239615
+    - entity: 1
+      parent: 0
+      flags: 0
+      name: "Body Node 0"
+      name_hash: "0x17e3c8f25c6a457"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.000000, 0.100000, 1.600000
+            local_scale: 0.340000, 0.346800, 0.340000
+            local_rotation: 0.0, 0.0, 0.0, 1.0
+        - type: 3782457747 # TFTFCreatureNodeComponent
+          fields:
+            order: 0
+            min_bend_degrees: 0.0
+            max_bend_degrees: 155.0
+    - entity: 2
+      parent: 0
+      flags: 0
+      name: "Body Node 1"
+      name_hash: "0x17e3b8f25c6a2a4"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.020000, 0.150000, 0.920000
+            local_scale: 0.600000, 0.600000, 0.600000
+            local_rotation: 0.0, 0.0, 0.0, 1.0
+        - type: 3782457747 # TFTFCreatureNodeComponent
+          fields:
+            order: 1
+            min_bend_degrees: 0.0
+            max_bend_degrees: 155.0
+    - entity: 3
+      parent: 0
+      flags: 0
+      name: "Body Node 2"
+      name_hash: "0x17e3e8f25c6a7bd"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -0.060000, 0.190000, 0.250000
+            local_scale: 0.770000, 0.685300, 0.770000
+            local_rotation: 0.0, 0.0, 0.0, 1.0
+        - type: 3782457747 # TFTFCreatureNodeComponent
+          fields:
+            order: 2
+            min_bend_degrees: 0.0
+            max_bend_degrees: 155.0
+    - entity: 4
+      parent: 0
+      flags: 0
+      name: "Body Node 3"
+      name_hash: "0x17e3d8f25c6a60a"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.020000, 0.110000, -0.520000
+            local_scale: 0.630000, 0.611100, 0.630000
+            local_rotation: 0.0, 0.0, 0.0, 1.0
+        - type: 3782457747 # TFTFCreatureNodeComponent
+          fields:
+            order: 3
+            min_bend_degrees: 0.0
+            max_bend_degrees: 155.0
+    - entity: 5
+      parent: 0
+      flags: 0
+      name: "Body Node 4"
+      name_hash: "0x17e388f25c69d8b"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.030000, 0.160000, -1.250000
+            local_scale: 0.430000, 0.430000, 0.430000
+            local_rotation: 0.0, 0.0, 0.0, 1.0
+        - type: 3782457747 # TFTFCreatureNodeComponent
+          fields:
+            order: 4
+            min_bend_degrees: 0.0
+            max_bend_degrees: 155.0
+    - entity: 6
+      parent: 0
+      flags: 0
+      name: "Body Node 5"
+      name_hash: "0x17e378f25c69bd8"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.000000, 0.210000, -1.700000
+            local_scale: 0.280000, 0.280000, 0.280000
+            local_rotation: 0.0, 0.0, 0.0, 1.0
+        - type: 3782457747 # TFTFCreatureNodeComponent
+          fields:
+            order: 5
+            min_bend_degrees: 0.0
+            max_bend_degrees: 155.0
+    - entity: 7
+      parent: 5
+      flags: 0
+      name: "Left Eye"
+      name_hash: "0xb0f94f1bc16a68e5"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.000000, 0.000000, 0.000000
+            local_scale: 1.0, 1.0, 1.0
+            local_rotation: 0.0, 0.0, 0.0, 1.0
+        - type: 1836894236 # TFTFCreatureNodeAttachmentComponent
+          fields:
+            type: 0
+            size: 0.22
+            orbit_azimuth_degrees: 55.0
+            orbit_elevation_degrees: 0.0
+            yaw_degrees: 0.0
+            pitch_degrees: 0.0
+            roll_degrees: 0.0
+    - entity: 8
+      parent: 5
+      flags: 0
+      name: "Right Eye"
+      name_hash: "0xba63178fa7ffd730"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.000000, 0.000000, 0.000000
+            local_scale: 1.0, 1.0, 1.0
+            local_rotation: 0.0, 0.0, 0.0, 1.0
+        - type: 1836894236 # TFTFCreatureNodeAttachmentComponent
+          fields:
+            type: 0
+            size: 0.22
+            orbit_azimuth_degrees: -55.0
+            orbit_elevation_degrees: 0.0
+            yaw_degrees: 0.0
+            pitch_degrees: 0.0
+            roll_degrees: 0.0
+    - entity: 9
+      parent: 6
+      flags: 0
+      name: "Fang"
+      name_hash: "0x19a05c8517f8cd8f"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.000000, 0.000000, 0.000000
+            local_scale: 1.0, 1.0, 1.0
+            local_rotation: 0.0, 0.0, 0.0, 1.0
+        - type: 1836894236 # TFTFCreatureNodeAttachmentComponent
+          fields:
+            type: 1
+            size: 0.32
+            orbit_azimuth_degrees: 0.0
+            orbit_elevation_degrees: 0.0
+            yaw_degrees: 0.0
+            pitch_degrees: 0.0
+            roll_degrees: 0.0

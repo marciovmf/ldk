@@ -19,6 +19,8 @@
 #include <stdx/stdx_math.h>
 
 #include "src/component/tftf_bulb_plant_ai.h"
+#include "src/component/tftf_creature.h"
+#include "src/component/tftf_creature_node.h"
 #include "src/component/tftf_projectile.h"
 #include "src/component/tftf_player_character.h"
 #include "src/system/hello.h"
@@ -251,6 +253,13 @@ bool game_initialize(LDKGame *game)
   if (!tftf_bulb_plant_ai_component_register())
   {
     ldk_log_error("Failed to register TFTFBulbPlantAIComponent.\n");
+    return false;
+  }
+
+  if (!tftf_creature_component_register() ||
+      !tftf_creature_node_component_register())
+  {
+    ldk_log_error("Failed to register TFTF creature components.\n");
     return false;
   }
 

@@ -1,0 +1,6 @@
+material:
+  material_type: 4
+  material_color: 0xfce6d6ff
+  material_specular: 0
+  material_shininess: 32
+  material_emission: 0

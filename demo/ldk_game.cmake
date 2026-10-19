@@ -3,14 +3,23 @@ list(APPEND LDK_GAME_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/src/component/tftf_player_character.c"
   "${CMAKE_CURRENT_LIST_DIR}/src/component/tftf_bulb_plant_ai.c"
   "${CMAKE_CURRENT_LIST_DIR}/src/component/tftf_projectile.c"
+  "${CMAKE_CURRENT_LIST_DIR}/src/component/tftf_creature.c"
+  "${CMAKE_CURRENT_LIST_DIR}/src/component/tftf_creature_node.c"
   "${CMAKE_CURRENT_LIST_DIR}/src/system/island_terrain.c"
   "${CMAKE_CURRENT_LIST_DIR}/src/system/tftf_decoration_system.c"
   "${CMAKE_CURRENT_LIST_DIR}/src/system/tftf_player_character_system.c"
   "${CMAKE_CURRENT_LIST_DIR}/src/system/tftf_bulb_plant_ai_system.c"
   "${CMAKE_CURRENT_LIST_DIR}/src/system/tftf_bullet_system.c"
+  "${CMAKE_CURRENT_LIST_DIR}/src/system/tftf_creature_chain.c"
+  "${CMAKE_CURRENT_LIST_DIR}/src/system/tftf_creature_system.c"
 )
 list(APPEND LDK_GAME_INCLUDE_DIRS "")
 list(APPEND LDK_GAME_DEFINITIONS "")
 list(APPEND LDK_GAME_LIBRARIES "")
 list(APPEND LDK_GAME_COMPONENT_DIRS "${CMAKE_CURRENT_LIST_DIR}/src/component")
 list(APPEND LDK_GAME_SYSTEM_DIRS "${CMAKE_CURRENT_LIST_DIR}/src/system")
+
+# Editor-only authoring callbacks are omitted from game_static/launcher.
+list(APPEND LDK_GAME_EDITOR_SOURCES
+  "${CMAKE_CURRENT_LIST_DIR}/src/editor/tftf_creature_editor.c"
+)
