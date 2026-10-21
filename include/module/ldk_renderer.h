@@ -1984,6 +1984,18 @@ extern "C" {
       Mat4 parent_world, const Mat4 *instances, const u32 *instance_colors,
       u32 instance_count, u32 flags);
 
+  /** Persistent instance set with individual 0xRRGGBBAA tints.
+   * NULL colors use opaque white. 
+   * @group ldk.module.renderer
+   */
+  LDK_API LDKResourceInstanceSet ldk_renderer_instance_set_create_colored(
+      LDKRenderer *renderer, const Mat4 *instances, const u32 *colors,
+      u32 instance_count);
+  /** @group ldk.module.renderer */
+  LDK_API bool ldk_renderer_instance_set_update_colored(
+      LDKRenderer *renderer, LDKResourceInstanceSet instance_set,
+      const Mat4 *instances, const u32 *colors, u32 instance_count);
+
   /** Persistent world-space instances uploaded only when the set changes.
    * @param renderer Renderer receiving this request.
    * @param instances Instances used by this operation.

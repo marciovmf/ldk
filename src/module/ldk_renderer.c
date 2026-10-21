@@ -1199,7 +1199,7 @@ static bool s_renderer_instance_matrices_are_valid(
 
 static bool s_renderer_instance_set_buffers_create(LDKRenderer *renderer,
     LDKRendererInstanceSetResource *resource, const Mat4 *instances,
-    u32 instance_count, u32 capacity)
+    const u32 *instance_colors, u32 instance_count, u32 capacity)
 {
   if (capacity < instance_count || capacity > UINT32_MAX / sizeof(Mat4) ||
       capacity > UINT32_MAX / sizeof(LDKRHIColor) ||
@@ -1216,7 +1216,8 @@ static bool s_renderer_instance_set_buffers_create(LDKRenderer *renderer,
   }
   for (u32 i = 0u; i < capacity; ++i)
   {
-    colors[i] = ldk_renderer_color_from_rgba32(0xffffffffu);
+    colors[i] = ldk_renderer_color_from_rgba32(
+        instance_colors && i < instance_count ? instance_colors[i] : 0xffffffffu);
   }
 
   LDKRHIBufferDesc desc = {0};
@@ -1253,8 +1254,9 @@ static bool s_renderer_instance_set_buffers_create(LDKRenderer *renderer,
   return true;
 }
 
-LDKResourceInstanceSet ldk_renderer_instance_set_create(
-    LDKRenderer *renderer, const Mat4 *instances, u32 instance_count)
+LDKResourceInstanceSet ldk_renderer_instance_set_create_colored(
+    LDKRenderer *renderer, const Mat4 *instances,
+    const u32 *colors, u32 instance_count)
 {
   LDKResourceInstanceSet invalid = ldk_renderer_instance_set_null();
   if (renderer == NULL || !renderer->is_initialized ||
@@ -1285,7 +1287,7 @@ LDKResourceInstanceSet ldk_renderer_instance_set_create(
   LDKRendererInstanceSetResource *resource = &renderer->instance_sets[index];
   memset(resource, 0, sizeof(*resource));
   if (!s_renderer_instance_set_buffers_create(
-          renderer, resource, instances, instance_count, capacity))
+          renderer, resource, instances, colors, instance_count, capacity))
   {
     return invalid;
   }
@@ -1296,9 +1298,16 @@ LDKResourceInstanceSet ldk_renderer_instance_set_create(
   return result;
 }
 
-bool ldk_renderer_instance_set_update(LDKRenderer *renderer,
+LDKResourceInstanceSet ldk_renderer_instance_set_create(
+    LDKRenderer *renderer, const Mat4 *instances, u32 instance_count)
+{
+  return ldk_renderer_instance_set_create_colored(
+      renderer, instances, NULL, instance_count);
+}
+
+bool ldk_renderer_instance_set_update_colored(LDKRenderer *renderer,
     LDKResourceInstanceSet instance_set, const Mat4 *instances,
-    u32 instance_count)
+    const u32 *colors, u32 instance_count)
 {
   LDKRendererInstanceSetResource *resource =
       s_renderer_instance_set_get_resource(renderer, instance_set);
@@ -1329,7 +1338,7 @@ bool ldk_renderer_instance_set_update(LDKRenderer *renderer,
       capacity *= 2u;
     }
     return s_renderer_instance_set_buffers_create(
-        renderer, resource, instances, instance_count, capacity);
+        renderer, resource, instances, colors, instance_count, capacity);
   }
 
   if (!ldk_rhi_buffer_update(renderer->rhi, resource->transform_buffer, 0,
@@ -1337,8 +1346,58 @@ bool ldk_renderer_instance_set_update(LDKRenderer *renderer,
   {
     return false;
   }
+  if (colors)
+  {
+    LDKRHIColor *converted = (LDKRHIColor *)LDK_RENDERER_ALLOC(
+        (size_t)instance_count * sizeof(*converted));
+    if (!converted)
+    {
+      return false;
+    }
+    for (u32 i = 0u; i < instance_count; ++i)
+    {
+      converted[i] = ldk_renderer_color_from_rgba32(colors[i]);
+    }
+    bool updated = ldk_rhi_buffer_update(renderer->rhi,
+        resource->color_buffer, 0,
+        instance_count * (u32)sizeof(*converted), converted);
+    LDK_RENDERER_FREE(converted);
+    if (!updated)
+    {
+      return false;
+    }
+  }
+  else
+  {
+    LDKRHIColor *whites = (LDKRHIColor *)LDK_RENDERER_ALLOC(
+        (size_t)instance_count * sizeof(*whites));
+    if (!whites)
+    {
+      return false;
+    }
+    for (u32 i = 0u; i < instance_count; ++i)
+    {
+      whites[i] = ldk_renderer_color_from_rgba32(0xffffffffu);
+    }
+    bool updated = ldk_rhi_buffer_update(renderer->rhi,
+        resource->color_buffer, 0,
+        instance_count * (u32)sizeof(*whites), whites);
+    LDK_RENDERER_FREE(whites);
+    if (!updated)
+    {
+      return false;
+    }
+  }
   resource->instance_count = instance_count;
   return true;
+}
+
+bool ldk_renderer_instance_set_update(LDKRenderer *renderer,
+    LDKResourceInstanceSet instance_set, const Mat4 *instances,
+    u32 instance_count)
+{
+  return ldk_renderer_instance_set_update_colored(
+      renderer, instance_set, instances, NULL, instance_count);
 }
 
 void ldk_renderer_instance_set_destroy(

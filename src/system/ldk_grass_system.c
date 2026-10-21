@@ -1,6 +1,7 @@
 #include <system/ldk_grass_system.h>
 
 #include <ldk.h>
+#include <ldk_image.h>
 #include <ldk_mesh.h>
 #include <component/ldk_grass_interact.h>
 #include <component/ldk_transform.h>
@@ -54,6 +55,7 @@ typedef struct LDKGrassResolvedDesc
   float tilt_direction;
   rgba32 bottom_color;
   rgba32 top_color;
+  bool use_noise_color;
   float specular;
   float shininess;
   float emission;
@@ -85,6 +87,7 @@ typedef struct LDKGrassBatch
   LDKGrassBladeShape shape;
   rgba32 bottom_color;
   rgba32 top_color;
+  bool use_noise_color;
   float specular;
   float shininess;
   float emission;
@@ -96,6 +99,7 @@ typedef struct LDKGrassBatch
   bool casts_shadows;
 
   Mat4 *instances;
+  u32 *instance_colors;
   u32 instance_count;
   u32 instance_capacity;
   u32 index_count;
@@ -134,6 +138,7 @@ typedef struct LDKGrassRuntime
 {
   LDKGrassSystem *owner;
   LDKRenderer *renderer;
+  LDKImage *color_noise_image;
   LDKGrassPatchEntry *patches;
   u32 patch_count;
   u32 patch_capacity;
@@ -917,6 +922,7 @@ static bool s_blade_preset_is_valid(LDKGrassBladePreset preset)
         system->type_##index##_interaction_recovery_time;                    \
     out_desc->bottom_color = system->type_##index##_bottom_color;            \
     out_desc->top_color = system->type_##index##_top_color;                  \
+    out_desc->use_noise_color = system->type_##index##_use_noise_color;       \
     return true
 
 static bool s_type_slot_read(const LDKGrassSystem *system,
@@ -970,6 +976,7 @@ static bool s_type_slot_read(const LDKGrassSystem *system,
         desc->interaction_recovery_time;                                     \
     system->type_##index##_bottom_color = desc->bottom_color;                \
     system->type_##index##_top_color = desc->top_color;                      \
+    system->type_##index##_use_noise_color = desc->use_noise_color;          \
     return true
 
 static bool s_type_slot_write(LDKGrassSystem *system,
@@ -1039,6 +1046,19 @@ static bool s_system_config_is_valid(const LDKGrassSystem *system)
       !isfinite(system->wind_direction_degrees) ||
       !isfinite(system->wind_force) || system->wind_force < 0.0f ||
       !isfinite(system->wind_speed) || system->wind_speed < 0.0f ||
+      (x_smallstr_length(&system->color_noise_path) > 0u &&
+          (!isfinite(system->color_noise_scale) ||
+              system->color_noise_scale <= 0.0f)) ||
+      (x_smallstr_length(&system->color_noise_path) > 0u &&
+          (!isfinite(system->color_stop_1_position) ||
+              !isfinite(system->color_stop_2_position))) ||
+      (x_smallstr_length(&system->color_noise_path) > 0u &&
+          (system->color_stop_1_position < 0.0f ||
+              system->color_stop_2_position > 1.0f ||
+              (system->color_stop_1_position >=
+                      system->color_stop_2_position &&
+                      !(system->color_stop_1_position == 0.0f &&
+                          system->color_stop_2_position == 0.0f)))) ||
       !isfinite(system->specular) || system->specular < 0.0f ||
       !isfinite(system->shininess) || system->shininess < 0.0f ||
       !isfinite(system->emission) || system->emission < 0.0f)
@@ -1166,8 +1186,12 @@ static bool s_resolved_desc_build(const LDKGrassSystem *system,
   out_desc->min_tilt = deg_to_rad(system->min_tilt_degrees);
   out_desc->max_tilt = deg_to_rad(system->max_tilt_degrees);
   out_desc->tilt_direction = deg_to_rad(system->tilt_direction_degrees);
-  out_desc->bottom_color = type.bottom_color;
-  out_desc->top_color = type.top_color;
+  out_desc->use_noise_color =
+      type.use_noise_color && s_grass.color_noise_image != NULL;
+  out_desc->bottom_color = out_desc->use_noise_color
+      ? 0xffffffffu : type.bottom_color;
+  out_desc->top_color = out_desc->use_noise_color
+      ? 0xffffffffu : type.top_color;
   out_desc->specular = system->specular;
   out_desc->shininess = system->shininess;
   out_desc->emission = system->emission;
@@ -1497,6 +1521,7 @@ static bool s_batch_compatible(
          s_shape_equal(&batch->shape, &desc->shape) &&
          batch->bottom_color == desc->bottom_color &&
          batch->top_color == desc->top_color &&
+         batch->use_noise_color == desc->use_noise_color &&
          batch->specular == desc->specular &&
          batch->shininess == s_shininess_resolve(desc->shininess) &&
          batch->emission == desc->emission &&
@@ -1611,6 +1636,7 @@ static u32 s_batch_find_or_add(const LDKGrassResolvedDesc *desc)
   batch->shape = desc->shape;
   batch->bottom_color = desc->bottom_color;
   batch->top_color = desc->top_color;
+  batch->use_noise_color = desc->use_noise_color;
   batch->specular = desc->specular;
   batch->shininess = s_shininess_resolve(desc->shininess);
   batch->emission = desc->emission;
@@ -1791,8 +1817,111 @@ static bool s_batch_instances_reserve(
   }
 
   batch->instances = instances;
+  if (!s_allocation_size_is_valid(capacity, sizeof(u32)))
+  {
+    return false;
+  }
+  u32 *colors = (u32 *)realloc(
+      batch->instance_colors, (size_t)capacity * sizeof(*colors));
+  if (!colors)
+  {
+    return false;
+  }
+  batch->instance_colors = colors;
   batch->instance_capacity = capacity;
   return true;
+}
+
+static float s_noise_texel(const LDKImageInfo *image, u32 x, u32 y)
+{
+  const u8 *pixel = image->pixels +
+      ((size_t)y * image->width + x) *
+          image->channel_count * image->bytes_per_channel;
+  if (image->bytes_per_channel == 2u)
+  {
+    u16 component;
+    memcpy(&component, pixel, sizeof(component));
+    return (float)component * (1.0f / 65535.0f);
+  }
+  return (float)pixel[0] * (1.0f / 255.0f);
+}
+
+static float s_noise_sample(float x, float z)
+{
+  LDKImageInfo image;
+  if (!s_grass.color_noise_image ||
+      !ldk_image_get_info(s_grass.color_noise_image, &image) ||
+      !image.pixels || image.width == 0u || image.height == 0u)
+  {
+    return 0.5f;
+  }
+  float scale = s_grass.owner->color_noise_scale;
+  float u = x * scale - floorf(x * scale);
+  float v = z * scale - floorf(z * scale);
+  float fx = u * image.width;
+  float fy = v * image.height;
+  u32 ix = (u32)floorf(fx);
+  u32 iy = (u32)floorf(fy);
+  float tx = fx - floorf(fx);
+  float ty = fy - floorf(fy);
+  tx = tx * tx * (3.0f - 2.0f * tx);
+  ty = ty * ty * (3.0f - 2.0f * ty);
+  u32 nx = (ix + 1u) % image.width;
+  u32 ny = (iy + 1u) % image.height;
+  float a = s_noise_texel(&image, ix, iy);
+  float b = s_noise_texel(&image, nx, iy);
+  float c = s_noise_texel(&image, ix, ny);
+  float d = s_noise_texel(&image, nx, ny);
+  return (a + (b - a) * tx) +
+      ((c + (d - c) * tx) - (a + (b - a) * tx)) * ty;
+}
+
+static u8 s_noise_color_channel(u8 a, u8 b, float t)
+{
+  return (u8)((float)a + ((float)b - (float)a) * t + 0.5f);
+}
+
+static u32 s_noise_color_lerp(u32 a, u32 b, float t)
+{
+  t = fminf(fmaxf(t, 0.0f), 1.0f);
+  u32 result = 0u;
+  for (u32 shift = 0u; shift <= 24u; shift += 8u)
+  {
+    result |= (u32)s_noise_color_channel(
+        (u8)((a >> shift) & 255u), (u8)((b >> shift) & 255u), t)
+        << shift;
+  }
+  return result;
+}
+
+static u32 s_noise_color_at(float x, float z)
+{
+  const LDKGrassSystem *system = s_grass.owner;
+  float n = s_noise_sample(x, z);
+  float stop1 = system->color_stop_1_position;
+  float stop2 = system->color_stop_2_position;
+  if (stop1 == 0.0f && stop2 == 0.0f)
+  {
+    stop1 = 1.0f / 3.0f;
+    stop2 = 2.0f / 3.0f;
+  }
+  if (n <= stop1)
+  {
+    return s_noise_color_lerp(system->color_stop_0_color,
+        system->color_stop_1_color,
+        stop1 > 0.0f
+            ? n / stop1 : 0.0f);
+  }
+  if (n <= stop2)
+  {
+    return s_noise_color_lerp(system->color_stop_1_color,
+        system->color_stop_2_color,
+        (n - stop1) / (stop2 - stop1));
+  }
+  return s_noise_color_lerp(system->color_stop_2_color,
+      system->color_stop_3_color,
+      stop2 < 1.0f
+          ? (n - stop2) / (1.0f - stop2) : 1.0f);
 }
 
 static bool s_batch_rebuild(u32 batch_index)
@@ -1842,6 +1971,14 @@ static bool s_batch_rebuild(u32 batch_index)
     }
     memcpy(batch->instances + write_index, entry->instances,
         (size_t)entry->instance_count * sizeof(*entry->instances));
+    for (u32 j = 0u; j < entry->instance_count; ++j)
+    {
+      const Mat4 *m = &entry->instances[j];
+      batch->instance_colors[write_index + j] =
+          batch->use_noise_color && s_grass.color_noise_image
+              ? s_noise_color_at(m->m[12], m->m[14])
+              : 0xffffffffu;
+    }
     write_index += entry->instance_count;
   }
 
@@ -1859,16 +1996,18 @@ static bool s_batch_rebuild(u32 batch_index)
   else if (ldk_renderer_instance_set_is_valid(
                s_grass.renderer, batch->instance_set))
   {
-    if (!ldk_renderer_instance_set_update(s_grass.renderer,
-            batch->instance_set, batch->instances, write_index))
+    if (!ldk_renderer_instance_set_update_colored(s_grass.renderer,
+            batch->instance_set, batch->instances,
+            batch->instance_colors, write_index))
     {
       return false;
     }
   }
   else
   {
-    batch->instance_set = ldk_renderer_instance_set_create(
-        s_grass.renderer, batch->instances, write_index);
+    batch->instance_set = ldk_renderer_instance_set_create_colored(
+        s_grass.renderer, batch->instances,
+        batch->instance_colors, write_index);
     if (!ldk_renderer_instance_set_is_valid(
             s_grass.renderer, batch->instance_set))
     {
@@ -2388,6 +2527,19 @@ static u64 s_system_config_hash(const LDKGrassSystem *system)
   LDK_GRASS_HASH_FIELD(shininess);
   LDK_GRASS_HASH_FIELD(emission);
   LDK_GRASS_HASH_FIELD(casts_shadows);
+  LDK_GRASS_HASH_FIELD(color_noise_scale);
+  LDK_GRASS_HASH_FIELD(color_stop_1_position);
+  LDK_GRASS_HASH_FIELD(color_stop_2_position);
+  LDK_GRASS_HASH_FIELD(color_stop_0_color);
+  LDK_GRASS_HASH_FIELD(color_stop_1_color);
+  LDK_GRASS_HASH_FIELD(color_stop_2_color);
+  LDK_GRASS_HASH_FIELD(color_stop_3_color);
+  {
+    size_t len = x_smallstr_length(&system->color_noise_path);
+    s_hash_bytes(&hash, &len, sizeof(len));
+    s_hash_bytes(&hash,
+        x_smallstr_cstr(&system->color_noise_path), len);
+  }
 
 #undef LDK_GRASS_HASH_FIELD
 
@@ -2421,6 +2573,7 @@ static u64 s_system_config_hash(const LDKGrassSystem *system)
         sizeof(desc.interaction_recovery_time));
     s_hash_bytes(&hash, &desc.bottom_color, sizeof(desc.bottom_color));
     s_hash_bytes(&hash, &desc.top_color, sizeof(desc.top_color));
+    s_hash_bytes(&hash, &desc.use_noise_color, sizeof(desc.use_noise_color));
   }
 
   return hash;
@@ -2450,6 +2603,7 @@ static void s_batch_release(LDKGrassBatch *batch)
   }
 
   free(batch->instances);
+  free(batch->instance_colors);
   memset(batch, 0, sizeof(*batch));
 }
 
@@ -2472,13 +2626,58 @@ typedef struct LDKGrassPatchRebuild
   bool has_type;
 } LDKGrassPatchRebuild;
 
+static void s_color_noise_defaults(LDKGrassSystem *system)
+{
+  if (!system)
+  {
+    return;
+  }
+  if (system->color_noise_scale == 0.0f)
+  {
+    system->color_noise_scale = 0.02f;
+  }
+  if (system->color_stop_1_position == 0.0f &&
+      system->color_stop_2_position == 0.0f)
+  {
+    system->color_stop_1_position = 0.30f;
+    system->color_stop_2_position = 0.72f;
+  }
+  if (system->color_stop_0_color == 0u &&
+      system->color_stop_1_color == 0u &&
+      system->color_stop_2_color == 0u &&
+      system->color_stop_3_color == 0u)
+  {
+    system->color_stop_0_color = 0xcac279ffu;
+    system->color_stop_1_color = 0xa6ba6affu;
+    system->color_stop_2_color = 0x70ab56ffu;
+    system->color_stop_3_color = 0x427d48ffu;
+  }
+}
+
 static bool s_config_rebuild(LDKGrassSystem *system)
 {
+  s_color_noise_defaults(system);
   LDKGrassPatchRebuild *rebuilt = NULL;
+  LDKImage *old_image = s_grass.color_noise_image;
+  LDKImage *new_image = NULL;
+  if (x_smallstr_length(&system->color_noise_path) > 0u)
+  {
+    new_image = ldk_image_load(
+        x_smallstr_cstr(&system->color_noise_path));
+    if (!new_image)
+    {
+      s_grass.color_noise_image = old_image;
+      if (new_image) ldk_image_destroy(new_image);
+      return false;
+    }
+  }
+  s_grass.color_noise_image = new_image;
 
   if (!system || !s_system_config_is_valid(system) ||
       !s_batches_reserve(LDK_GRASS_TYPE_COUNT))
   {
+    s_grass.color_noise_image = old_image;
+    if (new_image) ldk_image_destroy(new_image);
     return false;
   }
 
@@ -2487,12 +2686,16 @@ static bool s_config_rebuild(LDKGrassSystem *system)
     if (!s_allocation_size_is_valid(
             s_grass.patch_count, sizeof(*rebuilt)))
     {
+      s_grass.color_noise_image = old_image;
+      if (new_image) ldk_image_destroy(new_image);
       return false;
     }
     rebuilt = (LDKGrassPatchRebuild *)calloc(
         s_grass.patch_count, sizeof(*rebuilt));
     if (!rebuilt)
     {
+      s_grass.color_noise_image = old_image;
+      if (new_image) ldk_image_destroy(new_image);
       return false;
     }
   }
@@ -2523,6 +2726,8 @@ static bool s_config_rebuild(LDKGrassSystem *system)
         free(rebuilt[j].instances);
       }
       free(rebuilt);
+      s_grass.color_noise_image = old_image;
+      if (new_image) ldk_image_destroy(new_image);
       return false;
     }
     s_patch_bounds_calculate(&item->resolved, item->instances,
@@ -2572,6 +2777,7 @@ static bool s_config_rebuild(LDKGrassSystem *system)
 
   free(rebuilt);
   s_grass.config_hash = s_system_config_hash(system);
+  if (old_image) ldk_image_destroy(old_image);
   return true;
 }
 
@@ -2989,6 +3195,7 @@ int ldk_grass_system_initialize(void *data)
   LDKGrassSystem *system = (LDKGrassSystem *)data;
   LDKRenderer *renderer = (LDKRenderer *)ldk_module_get(LDK_MODULE_RENDERER);
 
+  s_color_noise_defaults(system);
   if (!system || !renderer || s_grass.initialized ||
       !s_system_config_is_valid(system))
   {
@@ -2999,10 +3206,21 @@ int ldk_grass_system_initialize(void *data)
   s_grass.owner = system;
   s_grass.renderer = renderer;
   s_grass.interaction_texture = ldk_renderer_texture_null();
+  if (x_smallstr_length(&system->color_noise_path) > 0u)
+  {
+    s_grass.color_noise_image = ldk_image_load(
+        x_smallstr_cstr(&system->color_noise_path));
+    if (!s_grass.color_noise_image)
+    {
+      memset(&s_grass, 0, sizeof(s_grass));
+      return -1;
+    }
+  }
 
   if (!s_interaction_field_allocate() || !s_interaction_texture_create())
   {
     s_interaction_field_release();
+    ldk_image_destroy(s_grass.color_noise_image);
     memset(&s_grass, 0, sizeof(s_grass));
     return -1;
   }
@@ -3056,6 +3274,10 @@ void ldk_grass_system_terminate(void *data)
   ldk_grass_clear();
   s_batches_release_all();
   s_interaction_field_release();
+  if (s_grass.color_noise_image)
+  {
+    ldk_image_destroy(s_grass.color_noise_image);
+  }
   free(s_grass.patches);
   free(s_grass.batches);
   memset(&s_grass, 0, sizeof(s_grass));

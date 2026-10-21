@@ -112,6 +112,7 @@ typedef struct LDKGrassTypeDesc
   float interaction_recovery_time;
   rgba32 bottom_color;
   rgba32 top_color;
+  bool use_noise_color;
 } LDKGrassTypeDesc;
 
 /** Per-region state. Visual configuration comes from LDKGrassSystem.
@@ -181,6 +182,27 @@ typedef struct LDKGrassSystem
   float wind_speed;
   //@end_group
 
+  //@begin_group "Color noise"
+  /** Grayscale noise image file used for world-space color sampling. */
+  XSmallstr color_noise_path;
+  /** Noise repetitions per world unit. Must be positive. */
+  //@inspect min=0.0001
+  float color_noise_scale;
+  /** Color stops, mapped to the noise [0, 1] interval. */
+  //@inspect slider min=0 max=1
+  float color_stop_1_position;
+  //@inspect slider min=0 max=1
+  float color_stop_2_position;
+  //@inspect widget=COLOR
+  u32 color_stop_0_color;
+  //@inspect widget=COLOR
+  u32 color_stop_1_color;
+  //@inspect widget=COLOR
+  u32 color_stop_2_color;
+  //@inspect widget=COLOR
+  u32 color_stop_3_color;
+  //@end_group
+
   //@begin_group "Material"
   //@inspect slider min=0 max=1
   float specular;
@@ -216,6 +238,7 @@ typedef struct LDKGrassSystem
   u32 type_0_bottom_color;
   //@inspect widget=COLOR
   u32 type_0_top_color;
+  bool type_0_use_noise_color;
   //@end_group
 
   //@begin_group "Grass Type 1"
@@ -243,6 +266,7 @@ typedef struct LDKGrassSystem
   u32 type_1_bottom_color;
   //@inspect widget=COLOR
   u32 type_1_top_color;
+  bool type_1_use_noise_color;
   //@end_group
 
   //@begin_group "Grass Type 2"
@@ -270,6 +294,7 @@ typedef struct LDKGrassSystem
   u32 type_2_bottom_color;
   //@inspect widget=COLOR
   u32 type_2_top_color;
+  bool type_2_use_noise_color;
   //@end_group
 
   //@begin_group "Grass Type 3"
@@ -297,6 +322,7 @@ typedef struct LDKGrassSystem
   u32 type_3_bottom_color;
   //@inspect widget=COLOR
   u32 type_3_top_color;
+  bool type_3_use_noise_color;
   //@end_group
 
   //@begin_group "Grass Type 4"
@@ -324,6 +350,7 @@ typedef struct LDKGrassSystem
   u32 type_4_bottom_color;
   //@inspect widget=COLOR
   u32 type_4_top_color;
+  bool type_4_use_noise_color;
   //@end_group
 
   //@begin_group "Grass Type 5"
@@ -351,6 +378,7 @@ typedef struct LDKGrassSystem
   u32 type_5_bottom_color;
   //@inspect widget=COLOR
   u32 type_5_top_color;
+  bool type_5_use_noise_color;
   //@end_group
 
   //@begin_group "Grass Type 6"
@@ -378,6 +406,7 @@ typedef struct LDKGrassSystem
   u32 type_6_bottom_color;
   //@inspect widget=COLOR
   u32 type_6_top_color;
+  bool type_6_use_noise_color;
   //@end_group
 
   //@begin_group "Grass Type 7"
@@ -405,6 +434,7 @@ typedef struct LDKGrassSystem
   u32 type_7_bottom_color;
   //@inspect widget=COLOR
   u32 type_7_top_color;
+  bool type_7_use_noise_color;
   //@end_group
 
   //@begin_group "Grass Type 8"
@@ -432,6 +462,7 @@ typedef struct LDKGrassSystem
   u32 type_8_bottom_color;
   //@inspect widget=COLOR
   u32 type_8_top_color;
+  bool type_8_use_noise_color;
   //@end_group
 
   //@begin_group "Grass Type 9"
@@ -459,6 +490,7 @@ typedef struct LDKGrassSystem
   u32 type_9_bottom_color;
   //@inspect widget=COLOR
   u32 type_9_top_color;
+  bool type_9_use_noise_color;
   //@end_group
 
   //@begin_group "Grass Type 10"
@@ -486,6 +518,7 @@ typedef struct LDKGrassSystem
   u32 type_10_bottom_color;
   //@inspect widget=COLOR
   u32 type_10_top_color;
+  bool type_10_use_noise_color;
   //@end_group
 
   //@begin_group "Grass Type 11"
@@ -513,6 +546,7 @@ typedef struct LDKGrassSystem
   u32 type_11_bottom_color;
   //@inspect widget=COLOR
   u32 type_11_top_color;
+  bool type_11_use_noise_color;
   //@end_group
 
   //@begin_group "Grass Type 12"
@@ -540,6 +574,7 @@ typedef struct LDKGrassSystem
   u32 type_12_bottom_color;
   //@inspect widget=COLOR
   u32 type_12_top_color;
+  bool type_12_use_noise_color;
   //@end_group
 
   //@begin_group "Grass Type 13"
@@ -567,6 +602,7 @@ typedef struct LDKGrassSystem
   u32 type_13_bottom_color;
   //@inspect widget=COLOR
   u32 type_13_top_color;
+  bool type_13_use_noise_color;
   //@end_group
 
   //@begin_group "Grass Type 14"
@@ -594,6 +630,7 @@ typedef struct LDKGrassSystem
   u32 type_14_bottom_color;
   //@inspect widget=COLOR
   u32 type_14_top_color;
+  bool type_14_use_noise_color;
   //@end_group
 
   //@begin_group "Grass Type 15"
@@ -621,6 +658,7 @@ typedef struct LDKGrassSystem
   u32 type_15_bottom_color;
   //@inspect widget=COLOR
   u32 type_15_top_color;
+  bool type_15_use_noise_color;
   //@end_group
 
 } LDKGrassSystem;
