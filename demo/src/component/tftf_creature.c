@@ -23,9 +23,6 @@ static TFTFCreatureComponent s_tftf_creature_defaults(void)
   c.movement_speed = 0.45f;
   c.step_height = .30f;
   c.step_length = .65f;
-  c.wave_amplitude = 0.23f;
-  c.wave_frequency = 1.5f;
-  c.wave_cycles = 1.4f;
   c.sting_speed = 1.0f;
   c.sting_hold_time = 0.0f;
   c.sting_return_speed = 1.0f;
@@ -39,18 +36,10 @@ static TFTFCreatureComponent s_tftf_creature_defaults(void)
   c.appendage_knee = .45f;
   c.appendage_tip_taper = .12f;
   c.appendage_thickness = 0.16f;
-  c.tentacle_node_0_radius = 0.50f;
-  c.tentacle_node_1_radius = 0.33f;
-  c.tentacle_node_2_radius = 0.14f;
-  c.tentacle_node_3_radius = 0.018f;
   c.body_color = 0x877466ffu;
   c.appendage_color = 0x706957ffu;
-  c.eye_color = 0xd7c4a4ffu;
-  c.fang_color = 0xeadab9ffu;
   c.body_material = ldk_asset_material_null();
   c.appendage_material = ldk_asset_material_null();
-  c.eye_material = ldk_asset_material_null();
-  c.fang_material = ldk_asset_material_null();
   return c;
 }
 
@@ -71,11 +60,6 @@ TFTFCreatureComponent tftf_creature_make_worm(void)
       {0.0f, 2.88f, -0.95f}, {0.4f, 0.4f, 0.4f}, 0.0f, 155.0f};
   c.nodes[5] = (TFTFCreatureNode){
       {0.0f, 2.24f, -1.18f}, {0.32f, 0.32f, 0.32f}, 0.0f, 155.0f};
-  c.attachment_count = 2u;
-  c.attachments[0] = (TFTFCreatureAttachment){
-      TFTF_CREATURE_ATTACHMENT_EYE, 3u, .22f, 30, 0, 0, 0, 0};
-  c.attachments[1] = (TFTFCreatureAttachment){
-      TFTF_CREATURE_ATTACHMENT_FANG, 5u, .35f, 0, 0, 0, 0, 0};
   return c;
 }
 
@@ -95,33 +79,16 @@ TFTFCreatureComponent tftf_creature_make_snail(void)
       {0.0f, 0.58f, -0.7f}, {0.34f, 0.34f, 0.34f}, 0.0f, 155.0f};
   c.nodes[4] = (TFTFCreatureNode){
       {0.0f, 0.8f, -1.1f}, {0.24f, 0.24f, 0.24f}, 0.0f, 155.0f};
-  c.attachment_count = 2u;
-  c.attachments[0] = (TFTFCreatureAttachment){
-      TFTF_CREATURE_ATTACHMENT_EYE, 4u, .18f, 30, 0, 0, 0, 0};
-  c.attachments[1] = (TFTFCreatureAttachment){
-      TFTF_CREATURE_ATTACHMENT_EYE, 4u, .18f, -30, 0, 0, 0, 0};
-  return c;
-}
-
-TFTFCreatureComponent tftf_creature_make_tentacled(void)
-{
-  TFTFCreatureComponent c = tftf_creature_make_snail();
-  c.motion = TFTF_CREATURE_MOTION_WALK;
-  c.appendage_type = TFTF_CREATURE_APPENDAGE_TENTACLE;
-  c.appendage_count = 6u;
-  c.appendage_length = 1.55f;
-  c.appendage_thickness = .20f;
-  c.body_height = .35f;
-  c.body_pulse = .06f;
-  c.body_sway = .07f;
-  c.attachment_count = 0u;
   return c;
 }
 
 TFTFCreatureComponent tftf_creature_make_legged(void)
 {
-  TFTFCreatureComponent c = tftf_creature_make_tentacled();
+  TFTFCreatureComponent c = tftf_creature_make_snail();
+  c.motion = TFTF_CREATURE_MOTION_WALK;
+  c.body_sway = .07f;
   c.appendage_type = TFTF_CREATURE_APPENDAGE_LEG;
+  c.appendage_count = 6u;
   c.appendage_length = 1.25f;
   c.appendage_reach = 1.0f;
   c.appendage_thickness = .18f;

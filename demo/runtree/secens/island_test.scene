@@ -17,9 +17,9 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 5.98848820, 10.0000010
+            local_position: -4.57763672e-05, 3.69860888, 6.97421265
             local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.170395315, 0.00000000, 0.00000000, 0.985375822
+            local_rotation: -0.227972552, 0.00000000, 0.00000000, 0.973667622
         - type: 4294967293 # LDKCamera
           fields:
             projection: 0
@@ -339,10 +339,10 @@ scene:
             movement_speed: 1.00000000
             step_height: 0.500000000
             step_length: 1.00000000
-            wave_amplitude: 0.500000000
-            wave_frequency: 0.500000000
-            wave_cycles: 1.00000000
             sting_speed: 1.00000000
+            sting_hold_time: 0.00000000
+            sting_return_speed: 1.00000000
+            sting_interval: 0.00000000
             sting_target: 2.09999990, 0.00000000, 0.00000000
             appendage_type: "TFTF_CREATURE_APPENDAGE_LEG"
             appendage_distribution: "TFTF_CREATURE_APPENDAGE_RADIAL"
@@ -354,19 +354,10 @@ scene:
             appendage_knee: 0.500000000
             appendage_tip_taper: 1.00000000
             appendage_thickness: 0.0299999993
-            tentacle_node_0_radius: 0.300000012
-            tentacle_node_1_radius: 0.200000003
-            tentacle_node_2_radius: 0.100000001
-            tentacle_node_3_radius: 0.0179999992
-            attachment_count: 2
             body_material: "assets/materials/tftf_creature_material_0.material"
             appendage_material: "assets/materials/tftf_creature_material_1.material"
-            eye_material: -1
-            fang_material: -1
             body_color: 4242986751
             appendage_color: 255
-            eye_color: 3619988735
-            fang_color: 3940203007
         - type: 4294967283 # LDKGrassInteractComponent
           fields:
             enabled: true
@@ -807,7 +798,7 @@ scene:
         material: "assets/tftf_island.material"
     - id: "0x6c6b73765b687a9a"
       data:
-        radius: 8
+        radius: 20
         deep_water_decoration_0_mesh: -1
         deep_water_decoration_0_material: -1
         deep_water_decoration_0_min_count: 0

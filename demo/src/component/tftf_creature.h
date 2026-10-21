@@ -45,8 +45,7 @@ typedef enum TFTFCreatureEndCap
 typedef enum TFTFCreatureAppendageType
 {
   TFTF_CREATURE_APPENDAGE_NONE = 0,
-  TFTF_CREATURE_APPENDAGE_LEG,
-  TFTF_CREATURE_APPENDAGE_TENTACLE
+  TFTF_CREATURE_APPENDAGE_LEG
 } TFTFCreatureAppendageType;
 
 //@enum
@@ -55,13 +54,6 @@ typedef enum TFTFCreatureAppendageDistribution
   TFTF_CREATURE_APPENDAGE_BILATERAL = 0,
   TFTF_CREATURE_APPENDAGE_RADIAL
 } TFTFCreatureAppendageDistribution;
-
-//@enum
-typedef enum TFTFCreatureAttachmentType
-{
-  TFTF_CREATURE_ATTACHMENT_EYE = 0,
-  TFTF_CREATURE_ATTACHMENT_FANG
-} TFTFCreatureAttachmentType;
 
 /* Anatomical coordinates are relative to the creature entity. Node order,
  * not height, defines the continuous body chain. */
@@ -73,18 +65,6 @@ typedef struct TFTFCreatureNode
   float min_bend_degrees;
   float max_bend_degrees;
 } TFTFCreatureNode;
-
-typedef struct TFTFCreatureAttachment
-{
-  TFTFCreatureAttachmentType type;
-  u32 node_index;
-  float size;
-  float orbit_azimuth_degrees;
-  float orbit_elevation_degrees;
-  float yaw_degrees;
-  float pitch_degrees;
-  float roll_degrees;
-} TFTFCreatureAttachment;
 
 //@component
 typedef struct TFTFCreatureComponent
@@ -134,12 +114,6 @@ typedef struct TFTFCreatureComponent
   float step_height;
   //@inspect min=0
   float step_length;
-  //@inspect min=0
-  float wave_amplitude;
-  //@inspect min=0
-  float wave_frequency;
-  //@inspect min=0
-  float wave_cycles;
   /* Forward strike speed multiplier; 1 = 1.98 seconds to reach the target.
    * Zero freezes the forward motion. */
   //@inspect min=0
@@ -161,7 +135,7 @@ typedef struct TFTFCreatureComponent
   Vec3 sting_target;
   //@end_group
 
-  //@begin_group "Appendages"
+  //@begin_group "Legs"
   TFTFCreatureAppendageType appendage_type;
   TFTFCreatureAppendageDistribution appendage_distribution;
   //@inspect min=0 max=8
@@ -183,32 +157,9 @@ typedef struct TFTFCreatureComponent
   float appendage_thickness;
   //@end_group
 
-  /* Automatic locomotor tentacles are four volume controls, from the
-   * attachment at the body (node 0) to the free tip (node 3).
-   * These are actual radii in creature-local units, independent of the
-   * thickness/taper settings used by conventional legs. */
-  //@begin_group "Tentacle Volumes"
-  //@inspect min=0.005
-  float tentacle_node_0_radius;
-  //@inspect min=0.005
-  float tentacle_node_1_radius;
-  //@inspect min=0.005
-  float tentacle_node_2_radius;
-  //@inspect min=0.005
-  float tentacle_node_3_radius;
-  //@end_group
-
-  //@begin_group "Attachments"
-  //@inspect min=0 max=16
-  u32 attachment_count;
-  TFTFCreatureAttachment attachments[TFTF_CREATURE_MAX_ATTACHMENTS];
-  //@end_group
-
   //@begin_group "Materials"
   LDKAssetMaterial body_material;
   LDKAssetMaterial appendage_material;
-  LDKAssetMaterial eye_material;
-  LDKAssetMaterial fang_material;
   //@end_group
 
   //@begin_group "Appearance"
@@ -216,16 +167,11 @@ typedef struct TFTFCreatureComponent
   u32 body_color;
   //@inspect widget=COLOR
   u32 appendage_color;
-  //@inspect widget=COLOR
-  u32 eye_color;
-  //@inspect widget=COLOR
-  u32 fang_color;
   //@end_group
 } TFTFCreatureComponent;
 
 TFTFCreatureComponent tftf_creature_make_worm(void);
 TFTFCreatureComponent tftf_creature_make_snail(void);
-TFTFCreatureComponent tftf_creature_make_tentacled(void);
 TFTFCreatureComponent tftf_creature_make_legged(void);
 bool tftf_creature_component_register(void);
 

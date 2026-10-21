@@ -1,0 +1,234 @@
+prefab:
+  version: 1
+  root: 0
+  entities:
+    - entity: 0
+      parent: -1
+      flags: 0
+      name: "venus_flytrap_monster.001"
+      name_hash: "0xa51ed017ec3f695f"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -7.76990080, 0.0203838944, 3.68355322
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.720068872, 0.0117453001, 0.0113153663, 0.693710923
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/smile_plant.mesh"
+            mesh_index: 20
+            casts_shadows: true
+            billboard: false
+            materials:
+              - slot: 0
+                material_asset: "assets/tftf_island.material"
+              - slot: 1
+                material_type: 4
+                material_color: 0xffffffff
+                material_specular: 0
+                material_shininess: 32
+                material_emission: 0
+              - slot: 2
+                material_type: 4
+                material_color: 0xffffffff
+                material_specular: 0
+                material_shininess: 32
+                material_emission: 0
+    - entity: 1
+      parent: 0
+      flags: 0
+      name: "teeth_game_7000.obj.011"
+      name_hash: "0xca0ec4bf52d2a521"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -0.0478692055, 0.0410315990, 0.220111325
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/smile_plant.mesh"
+            mesh_index: 11
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+    - entity: 2
+      parent: 0
+      flags: 0
+      name: "teeth_game_7000.obj.012"
+      name_hash: "0xca0ec1bf52d2a008"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -0.0478692055, 0.0410315990, 0.220111325
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/smile_plant.mesh"
+            mesh_index: 12
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+    - entity: 3
+      parent: 0
+      flags: 0
+      name: "teeth_game_7000.obj.013"
+      name_hash: "0xca0ec2bf52d2a1bb"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -0.0478692055, 0.0410315990, 0.220111325
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/smile_plant.mesh"
+            mesh_index: 13
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+    - entity: 4
+      parent: 0
+      flags: 0
+      name: "teeth_game_7000.obj.014"
+      name_hash: "0xca0ec7bf52d2aa3a"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -0.0478692055, 0.0410315990, 0.220111325
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/smile_plant.mesh"
+            mesh_index: 14
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+    - entity: 5
+      parent: 0
+      flags: 0
+      name: "teeth_game_7000.obj.015"
+      name_hash: "0xca0ec8bf52d2abed"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -0.0478692055, 0.0410315990, 0.220111325
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/smile_plant.mesh"
+            mesh_index: 15
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+    - entity: 6
+      parent: 0
+      flags: 0
+      name: "teeth_game_7000.obj.016"
+      name_hash: "0xca0ec5bf52d2a6d4"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -0.0478692055, 0.0410315990, 0.220111325
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/smile_plant.mesh"
+            mesh_index: 16
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+    - entity: 7
+      parent: 0
+      flags: 0
+      name: "teeth_game_7000.obj.017"
+      name_hash: "0xca0ec6bf52d2a887"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -0.0478692055, 0.0410315990, 0.220111325
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/smile_plant.mesh"
+            mesh_index: 17
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+    - entity: 8
+      parent: 0
+      flags: 0
+      name: "teeth_game_7000.obj.018"
+      name_hash: "0xca0ebbbf52d295d6"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -0.0478692055, 0.0410315990, 0.220111325
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/smile_plant.mesh"
+            mesh_index: 18
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+    - entity: 9
+      parent: 0
+      flags: 0
+      name: "teeth_game_7000.obj.019"
+      name_hash: "0xca0ebcbf52d29789"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -0.0478692055, 0.0410315990, 0.220111325
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/smile_plant.mesh"
+            mesh_index: 19
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0

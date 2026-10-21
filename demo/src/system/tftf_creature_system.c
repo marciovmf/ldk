@@ -20,16 +20,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define TFTF_CREATURE_PART_COUNT 4u
+#define TFTF_CREATURE_PART_COUNT 2u
 #define TFTF_CREATURE_MAX_PATH 112u
 #define TFTF_CREATURE_PI 3.14159265358979323846f
 
 typedef enum TFTFCreaturePart
 {
   TFTF_CREATURE_PART_BODY = 0,
-  TFTF_CREATURE_PART_APPENDAGE,
-  TFTF_CREATURE_PART_EYE,
-  TFTF_CREATURE_PART_FANG
+  TFTF_CREATURE_PART_APPENDAGE
 } TFTFCreaturePart;
 
 typedef struct TFTFCreatureGeometry
@@ -93,8 +91,14 @@ typedef struct TFTFCreatureInstance
   TFTFCreatureFootState feet[TFTF_CREATURE_MAX_APPENDAGES];
   bool has_config;
   TFTFCreatureComponent last_config;
-  bool has_tentacle_signature;
-  u64 last_tentacle_signature;
+  /* Runtime node transforms are driven as bones; keep their authored rest
+   * state separately so the next frame never consumes the animated pose. */
+  u32 rest_count;
+  LDKEntity rest_entities[TFTF_CREATURE_MAX_NODES];
+  Vec3 rest_positions[TFTF_CREATURE_MAX_NODES];
+  Quat rest_rotations[TFTF_CREATURE_MAX_NODES];
+  u64 last_chain_signature;
+  bool has_chain_signature;
   TFTFCreatureGeometry parts[TFTF_CREATURE_PART_COUNT];
 } TFTFCreatureInstance;
 
@@ -163,47 +167,12 @@ static void s_resolve_body_nodes(LDKEntity owner, TFTFCreatureComponent *c,
   if (count)
   {
     c->node_count = count;
-    /* Attachments are children of their anatomical node, not indexed arrays.
-     * Reordering or removing a node cannot move its eye onto another node. */
-    c->attachment_count = 0u;
     for (u32 i = 0; i < count; ++i)
     {
       c->nodes[i] = ordered_nodes[i];
       if (out_entities)
       {
         out_entities[i] = ordered_entities[i];
-      }
-      const LDKTransform *node_tf = ldk_ecs_component_get_const(
-          ordered_entities[i], LDK_COMPONENT_TYPE_TRANSFORM);
-      LDKEntity attachment_entity = node_tf ? node_tf->first_child
-          : x_handle_null();
-      while (!x_handle_is_null(attachment_entity))
-      {
-        const LDKTransform *attachment_tf = ldk_ecs_component_get_const(
-            attachment_entity, LDK_COMPONENT_TYPE_TRANSFORM);
-        if (!attachment_tf)
-        {
-          break;
-        }
-        LDKEntity next_attachment = attachment_tf->next_sibling;
-        const TFTFCreatureNodeAttachmentComponent *a =
-            ldk_ecs_component_get_const(attachment_entity,
-                ldk_component_type(TFTFCreatureNodeAttachmentComponent));
-        if (a && c->attachment_count < TFTF_CREATURE_MAX_ATTACHMENTS)
-        {
-          TFTFCreatureAttachment *dst =
-              &c->attachments[c->attachment_count++];
-          *dst = (TFTFCreatureAttachment){0};
-          dst->type = a->type;
-          dst->node_index = i;
-          dst->size = fmaxf(.01f, a->size);
-          dst->orbit_azimuth_degrees = a->orbit_azimuth_degrees;
-          dst->orbit_elevation_degrees = a->orbit_elevation_degrees;
-          dst->yaw_degrees = a->yaw_degrees;
-          dst->pitch_degrees = a->pitch_degrees;
-          dst->roll_degrees = a->roll_degrees;
-        }
-        attachment_entity = next_attachment;
       }
     }
   }
@@ -461,152 +430,140 @@ static bool s_body_path(const TFTFCreatureComponent *c, const Vec3 *nodes,
       points, sizes, out_count);
 }
 
-/* A tentacle is authored as four Transform volumes beneath an entity
- * attached to one body node. Geometry is expressed in creature-local space.
- * Keeping this resolved data separate from gameplay state makes it suitable
- * for both OnEditorUpdate and runtime rendering. */
-typedef struct TFTFCreatureTentacleResolved
+/* Each attached chain is made from the SAME node entities as the body.
+ * Parent node transforms are supplied from the resolved pose, not by
+ * reading potentially stale runtime scenegraph matrices. */
+typedef struct TFTFCreatureResolvedChain
 {
-  u32 parent_index;
-  Vec3 centers[TFTF_CREATURE_TENTACLE_NODE_COUNT];
-  Vec3 scales[TFTF_CREATURE_TENTACLE_NODE_COUNT];
-} TFTFCreatureTentacleResolved;
+  u32 count;
+  TFTFCreatureEndCap start_cap;
+  TFTFCreatureEndCap end_cap;
+  Vec3 centers[TFTF_CREATURE_MAX_NODES];
+  Vec3 scales[TFTF_CREATURE_MAX_NODES];
+} TFTFCreatureResolvedChain;
 
-static u64 s_tentacle_hash(u64 hash, const void *source, size_t bytes)
+static u64 s_chain_hash(u64 hash, const void *source, size_t bytes)
 {
   const u8 *data = source;
   for (size_t i = 0u; i < bytes; ++i)
-  {
     hash = (hash ^ (u64)data[i]) * 1099511628211ull;
-  }
   return hash;
 }
 
-/* The shared skin takes axis-aligned ellipsoid semiaxes. Transform the
- * authored volume and derive corresponding extents, including parent scale. */
-static Vec3 s_tentacle_ellipsoid_extents(Mat4 transform, Vec3 scale)
+static Vec3 s_chain_extents(Mat4 transform, Vec3 scale)
 {
-  Vec3 x = mat4_mul_dir(transform, vec3_make(scale.x, 0, 0));
-  Vec3 y = mat4_mul_dir(transform, vec3_make(0, scale.y, 0));
-  Vec3 z = mat4_mul_dir(transform, vec3_make(0, 0, scale.z));
+  const Vec3 x = mat4_mul_dir(transform, vec3_make(scale.x, 0, 0));
+  const Vec3 y = mat4_mul_dir(transform, vec3_make(0, scale.y, 0));
+  const Vec3 z = mat4_mul_dir(transform, vec3_make(0, 0, scale.z));
   return vec3_make(
       fmaxf(.001f, sqrtf(x.x*x.x + y.x*y.x + z.x*z.x)),
       fmaxf(.001f, sqrtf(x.y*x.y + y.y*y.y + z.y*z.y)),
-      fmaxf(.001f, sqrtf(x.z*x.z + y.z*y.z + z.z*z.z)));
+      fmaxf(.001f, sqrtf(x.z*x.z + y.z*y.y + z.z*z.z)));
 }
 
-static u32 s_resolve_tentacles(const TFTFCreatureComponent *creature,
-    const LDKEntity *body_entities,
-    TFTFCreatureTentacleResolved *result, u64 *out_signature)
+static void s_collect_chains_from_node(LDKEntity parent_node,
+    Mat4 parent_matrix, TFTFCreatureResolvedChain *result,
+    u32 *count, u32 depth, u64 *signature)
 {
-  u32 count = 0u;
-  u64 signature = 14695981039346656037ull;
-  for (u32 i = 0u; i < creature->node_count; ++i)
+  if (depth >= TFTF_CREATURE_MAX_CHAIN_DEPTH ||
+      *count >= TFTF_CREATURE_MAX_CHAINS) return;
+  const LDKTransform *parent = ldk_ecs_component_get_const(
+      parent_node, LDK_COMPONENT_TYPE_TRANSFORM);
+  LDKEntity child = parent ? parent->first_child : x_handle_null();
+  while (!x_handle_is_null(child) && *count < TFTF_CREATURE_MAX_CHAINS)
   {
-    const LDKTransform *parent = ldk_ecs_component_get_const(
-        body_entities[i], LDK_COMPONENT_TYPE_TRANSFORM);
-    if (!parent)
+    const LDKTransform *chain_tf = ldk_ecs_component_get_const(
+        child, LDK_COMPONENT_TYPE_TRANSFORM);
+    if (!chain_tf) break;
+    const LDKEntity next_chain = chain_tf->next_sibling;
+    const TFTFCreatureChainComponent *chain = ldk_ecs_component_get_const(
+        child, ldk_component_type(TFTFCreatureChainComponent));
+    if (chain && chain->enabled)
     {
-      continue;
-    }
-    LDKEntity tentacle_entity = parent->first_child;
-    while (!x_handle_is_null(tentacle_entity))
-    {
-      const LDKTransform *tentacle_tf = ldk_ecs_component_get_const(
-          tentacle_entity, LDK_COMPONENT_TYPE_TRANSFORM);
-      if (!tentacle_tf)
+      const Mat4 chain_matrix = mat4_mul(parent_matrix, mat4_compose(
+          chain_tf->local_position, chain_tf->local_rotation,
+          chain_tf->local_scale));
+      LDKEntity ordered[TFTF_CREATURE_MAX_NODES] = {0};
+      const LDKTransform *ordered_tf[TFTF_CREATURE_MAX_NODES] = {0};
+      u32 keys[TFTF_CREATURE_MAX_NODES] = {0};
+      u32 n = 0u;
+      LDKEntity joint = chain_tf->first_child;
+      while (!x_handle_is_null(joint))
       {
-        break;
+        const LDKTransform *jt = ldk_ecs_component_get_const(
+            joint, LDK_COMPONENT_TYPE_TRANSFORM);
+        if (!jt) break;
+        const LDKEntity next_joint = jt->next_sibling;
+        const TFTFCreatureNodeComponent *node = ldk_ecs_component_get_const(
+            joint, ldk_component_type(TFTFCreatureNodeComponent));
+        if (node && n < TFTF_CREATURE_MAX_NODES)
+        {
+          u32 at = n;
+          while (at > 0u && (keys[at - 1u] > node->order ||
+              (keys[at - 1u] == node->order &&
+               ordered[at - 1u].index > joint.index)))
+          {
+            ordered[at] = ordered[at - 1u];
+            ordered_tf[at] = ordered_tf[at - 1u];
+            keys[at] = keys[at - 1u];
+            --at;
+          }
+          ordered[at] = joint;
+          ordered_tf[at] = jt;
+          keys[at] = node->order;
+          ++n;
+        }
+        joint = next_joint;
       }
-      const LDKEntity next_tentacle = tentacle_tf->next_sibling;
-      const TFTFCreatureTentacleComponent *tentacle =
-          ldk_ecs_component_get_const(tentacle_entity,
-              ldk_component_type(TFTFCreatureTentacleComponent));
-      if (tentacle && tentacle->enabled &&
-          count < TFTF_CREATURE_MAX_TENTACLES)
+      if (n >= 2u)
       {
-        TFTFCreatureTentacleResolved resolved = {0};
-        resolved.parent_index = i;
-        bool found[TFTF_CREATURE_TENTACLE_NODE_COUNT] = {0};
-        Mat4 parent_matrix = mat4_compose(creature->nodes[i].position,
-            parent->local_rotation, parent->local_scale);
-        Mat4 tentacle_matrix = mat4_mul(parent_matrix,
-            mat4_compose(tentacle_tf->local_position,
-                tentacle_tf->local_rotation, tentacle_tf->local_scale));
-        LDKEntity node_entity = tentacle_tf->first_child;
-        while (!x_handle_is_null(node_entity))
+        TFTFCreatureResolvedChain *dst = &result[(*count)++];
+        *dst = (TFTFCreatureResolvedChain){0};
+        dst->count = n;
+        dst->start_cap = chain->start_cap;
+        dst->end_cap = chain->end_cap;
+        for (u32 i = 0u; i < n; ++i)
         {
-          const LDKTransform *node_tf = ldk_ecs_component_get_const(
-              node_entity, LDK_COMPONENT_TYPE_TRANSFORM);
-          if (!node_tf)
-          {
-            break;
-          }
-          const LDKEntity next_node = node_tf->next_sibling;
-          const TFTFCreatureTentacleNodeComponent *node =
-              ldk_ecs_component_get_const(node_entity,
-                  ldk_component_type(TFTFCreatureTentacleNodeComponent));
-          if (node && node->order < TFTF_CREATURE_TENTACLE_NODE_COUNT &&
-              !found[node->order])
-          {
-            const u32 at = node->order;
-            found[at] = true;
-            resolved.centers[at] = mat4_mul_point(
-                tentacle_matrix, node_tf->local_position);
-            resolved.scales[at] = s_tentacle_ellipsoid_extents(
-                mat4_mul(tentacle_matrix,
-                    mat4_from_quat(node_tf->local_rotation)),
-                node_tf->local_scale);
-          }
-          node_entity = next_node;
+          const LDKTransform *tf = ordered_tf[i];
+          const Mat4 node_matrix = mat4_mul(chain_matrix, mat4_compose(
+              tf->local_position, tf->local_rotation, tf->local_scale));
+          dst->centers[i] = mat4_mul_point(
+              chain_matrix, tf->local_position);
+          dst->scales[i] = s_chain_extents(mat4_mul(chain_matrix,
+              mat4_from_quat(tf->local_rotation)),
+              vec3_make(fabsf(tf->local_scale.x),
+                        fabsf(tf->local_scale.y),
+                        fabsf(tf->local_scale.z)));
+          (void)node_matrix;
+          s_collect_chains_from_node(ordered[i], node_matrix, result,
+              count, depth + 1u, signature);
         }
-        bool complete = true;
-        for (u32 j = 0u; j < TFTF_CREATURE_TENTACLE_NODE_COUNT; ++j)
-        {
-          complete = complete && found[j];
-        }
-        if (complete)
-        {
-          signature = s_tentacle_hash(signature, &resolved,
-              sizeof(resolved));
-          result[count++] = resolved;
-        }
+        *signature = s_chain_hash(*signature, dst, sizeof(*dst));
       }
-      tentacle_entity = next_tentacle;
     }
+    child = next_chain;
   }
-  signature = s_tentacle_hash(signature, &count, sizeof(count));
-  *out_signature = signature;
-  return count;
 }
 
-static bool s_render_tentacles(const TFTFCreatureComponent *c,
-    TFTFCreatureInstance *instance, const Vec3 *animated_body,
-    const TFTFCreatureTentacleResolved *tentacles, u32 count)
+static bool s_render_chains(const TFTFCreatureComponent *c,
+    TFTFCreatureInstance *instance,
+    const TFTFCreatureResolvedChain *chains, u32 count)
 {
-  for (u32 t = 0u; t < count; ++t)
+  for (u32 i = 0u; i < count; ++i)
   {
-    const TFTFCreatureTentacleResolved *tentacle = &tentacles[t];
-    Vec3 centers[TFTF_CREATURE_TENTACLE_NODE_COUNT];
-    const Vec3 delta = vec3_sub(animated_body[tentacle->parent_index],
-        c->nodes[tentacle->parent_index].position);
-    for (u32 i = 0u; i < TFTF_CREATURE_TENTACLE_NODE_COUNT; ++i)
-    {
-      centers[i] = vec3_add(tentacle->centers[i], delta);
-    }
+    const TFTFCreatureResolvedChain *chain = &chains[i];
     Vec3 points[TFTF_CREATURE_MAX_PATH];
     Vec3 sizes[TFTF_CREATURE_MAX_PATH];
     u32 path_count = 0u;
-    if (!s_chain_path(centers, tentacle->scales,
-            TFTF_CREATURE_TENTACLE_NODE_COUNT, c->segments_per_node,
-            false, true,
+    if (!s_chain_path(chain->centers, chain->scales, chain->count,
+            c->segments_per_node,
+            chain->start_cap == TFTF_CREATURE_CAP_POINTED,
+            chain->end_cap == TFTF_CREATURE_CAP_POINTED,
             points, sizes, &path_count) ||
         !s_skin(&instance->parts[TFTF_CREATURE_PART_APPENDAGE],
             points, NULL, NULL, sizes, path_count,
             c->radial_segments, c->appendage_color))
-    {
       return false;
-    }
   }
   return true;
 }
@@ -897,128 +854,6 @@ static void s_animate_body(const TFTFCreatureComponent *c,
 
 }
 
-static bool s_sphere(TFTFCreatureGeometry *g, Vec3 center,
-    float radius, u32 color)
-{
-  const u32 lat=6u,lon=10u;
-  u32 base=g->vertex_count;
-  for(u32 i=0;i<=lat;++i)
-  {
-    float y=cosf(TFTF_CREATURE_PI*(float)i/(float)lat);
-    float r=sinf(TFTF_CREATURE_PI*(float)i/(float)lat);
-    for(u32 j=0;j<=lon;++j)
-    {
-      float a=2*TFTF_CREATURE_PI*(float)j/(float)lon;
-      Vec3 pos=vec3_add(center,vec3_make(radius*r*cosf(a),radius*y,radius*r*sinf(a)));
-      if(!s_geometry_vertex(g,pos,vec2_make((float)j/lon,(float)i/lat),color))return false;
-    }
-  }
-  for(u32 i=0;i<lat;++i)for(u32 j=0;j<lon;++j)
-  {
-    u32 a=base+i*(lon+1u)+j,b=a+1u,c=a+lon+1u,d=c+1u;
-    if(!s_geometry_triangle(g,a,b,d)||!s_geometry_triangle(g,a,d,c))return false;
-  }
-  return true;
-}
-
-static bool s_fang(TFTFCreatureGeometry *g,Vec3 root,Vec3 dir,
-    float size, float roll, u32 color)
-{
-  const u32 sides=6u;
-  Vec3 up=fabsf(dir.y)<.9f?vec3_make(0,1,0):vec3_make(0,0,1);
-  Vec3 side=s_safe_norm(vec3_cross(dir,up),vec3_make(1,0,0));
-  Vec3 other=s_safe_norm(vec3_cross(dir,side),vec3_make(0,0,1));
-  float a_roll = roll*TFTF_CREATURE_PI/180.0f;
-  Vec3 bend = vec3_add(vec3_mul(up,cosf(a_roll)),
-      vec3_mul(side,sinf(a_roll)));
-  u32 base=g->vertex_count;
-  for(u32 k=0;k<3u;++k)
-  {
-    float t=(float)k/2.0f;
-    Vec3 center=vec3_add(root,vec3_add(vec3_mul(dir,size*1.9f*t),
-        vec3_mul(bend,sinf(TFTF_CREATURE_PI*t)*size*.22f)));
-    float rad=size*.30f*(1-t)+.001f;
-    for(u32 j=0;j<sides;++j)
-    {
-      float a=2*TFTF_CREATURE_PI*(float)j/(float)sides;
-      Vec3 p=vec3_add(center,vec3_add(vec3_mul(side,rad*cosf(a)),
-          vec3_mul(other,rad*sinf(a))));
-      if(!s_geometry_vertex(g,p,vec2_make((float)j/sides,t),color))return false;
-    }
-  }
-  for(u32 k=0;k<2u;++k)for(u32 j=0;j<sides;++j)
-  {
-    u32 a=base+k*sides+j,b=base+k*sides+(j+1u)%sides;
-    if(!s_geometry_triangle(g,a,a+sides,b+sides)||
-       !s_geometry_triangle(g,a,b+sides,b))return false;
-  }
-  return true;
-}
-
-static bool s_attachments(const TFTFCreatureComponent *c,const Vec3 *nodes,
-    TFTFCreatureInstance *ins)
-{
-  for(u32 i=0;i<c->attachment_count&&i<TFTF_CREATURE_MAX_ATTACHMENTS;++i)
-  {
-    const TFTFCreatureAttachment *a=&c->attachments[i];
-    if(a->node_index>=c->node_count||a->size<=0)continue;
-    u32 n=a->node_index;
-    Vec3 before=nodes[n?n-1u:n];
-    Vec3 after=nodes[n+1u<c->node_count?n+1u:n];
-    Vec3 tangent=s_safe_norm(vec3_sub(after,before),vec3_make(0,1,0));
-    Vec3 side=s_safe_norm(vec3_cross(tangent,vec3_make(0,0,1)),vec3_make(1,0,0));
-    Vec3 other=s_safe_norm(vec3_cross(tangent,side),vec3_make(0,0,1));
-    float az=a->orbit_azimuth_degrees*TFTF_CREATURE_PI/180.0f;
-    float el=a->orbit_elevation_degrees*TFTF_CREATURE_PI/180.0f;
-    Vec3 direction=a->type==TFTF_CREATURE_ATTACHMENT_FANG?tangent:side;
-    /* Orbital position in node local frame, not world-space axes. */
-    direction=vec3_add(vec3_mul(direction,cosf(az)),
-        vec3_mul(a->type==TFTF_CREATURE_ATTACHMENT_FANG?other:tangent,sinf(az)));
-    direction=s_safe_norm(vec3_add(vec3_mul(direction,cosf(el)),
-        vec3_mul(other,sinf(el))),direction);
-    Vec3 surface=vec3_add(nodes[n],vec3_mul(direction,
-        s_ellipsoid_radius(c->nodes[n].scale, direction)));
-    /* Local yaw/pitch rotate its axis, without changing the attachment orbit. */
-    float yaw=a->yaw_degrees*TFTF_CREATURE_PI/180.0f;
-    float pitch=a->pitch_degrees*TFTF_CREATURE_PI/180.0f;
-    Vec3 aim=s_safe_norm(vec3_add(vec3_mul(direction,cosf(yaw)*cosf(pitch)),
-        vec3_add(vec3_mul(side,sinf(yaw)*cosf(pitch)),
-                 vec3_mul(other,sinf(pitch)))),direction);
-    if(a->type==TFTF_CREATURE_ATTACHMENT_EYE)
-    {
-      Vec3 center = vec3_add(surface, vec3_mul(direction, a->size*.85f));
-      TFTFCreatureGeometry *eye = &ins->parts[TFTF_CREATURE_PART_EYE];
-      if (!s_sphere(eye, center, a->size, c->eye_color))
-      {
-        return false;
-      }
-      Vec3 iris = vec3_add(center, vec3_mul(aim, a->size*.89f));
-      if (!s_sphere(eye, iris, a->size*.39f, 0x809172ffu))
-      {
-        return false;
-      }
-      Vec3 pupil = vec3_add(iris, vec3_mul(aim, a->size*.31f));
-      if (!s_sphere(eye, pupil, a->size*.21f, 0x222624ffu))
-      {
-        return false;
-      }
-      /* Off-center highlight also makes attachment roll visible. */
-      float roll = a->roll_degrees*TFTF_CREATURE_PI/180.0f;
-      Vec3 glint_dir = vec3_add(vec3_mul(side, cosf(roll)),
-          vec3_mul(other, sinf(roll)));
-      Vec3 glint = vec3_add(pupil, vec3_mul(glint_dir, a->size*.09f));
-      glint = vec3_add(glint, vec3_mul(aim, a->size*.17f));
-      if (!s_sphere(eye, glint, a->size*.055f, 0xe6ddcbffu))
-      {
-        return false;
-      }
-    }
-    else if(!s_fang(&ins->parts[TFTF_CREATURE_PART_FANG],surface,aim,
-          a->size,a->roll_degrees,c->fang_color))return false;
-  }
-  return true;
-}
-
 /* The Creature Lab's interleaved ring order (offset gait):
  * 8 legs => E1 D3 E2 D4 E3 D1 E4 D2. E is the even slot. */
 static u32 s_gait_order_index(u32 count, u32 serial)
@@ -1062,28 +897,6 @@ static Vec3 s_foot_advance(Vec3 from, Vec3 to, float distance)
   return vec3_add(from, vec3_mul(delta, distance / length));
 }
 
-/* Resolve the four authored radii for automatic locomotor tentacles.
- * Fields absent from older prefabs deserialize to zero: use the default
- * for each missing radius independently, so editing a single node works.
- * Conventional two-segment legs do not use this profile. */
-static void s_tentacle_volume_sizes(const TFTFCreatureComponent *c,
-    Vec3 sizes[4])
-{
-  const float defaults[4] = {0.50f, 0.33f, 0.14f, 0.018f};
-  const float configured[4] = {
-      c->tentacle_node_0_radius,
-      c->tentacle_node_1_radius,
-      c->tentacle_node_2_radius,
-      c->tentacle_node_3_radius
-  };
-  for (u32 j = 0u; j < 4u; ++j)
-  {
-    const float radius = isfinite(configured[j]) && configured[j] > 0.0f
-        ? fmaxf(0.005f, configured[j]) : defaults[j];
-    sizes[j] = vec3_make(radius, radius, radius);
-  }
-}
-
 /* A stride is initiated by support error, not by an animation phase.
  * Several feet may swing concurrently. The gait cursor only chooses which
  * eligible foot starts next; the swing lifetime belongs to that foot. */
@@ -1091,7 +904,7 @@ static bool s_appendages(const TFTFCreatureComponent *c,
     TFTFCreatureInstance *ins, const Vec3 *nodes, Mat4 world, float dt)
 {
   u32 count = c->appendage_count;
-  if (c->appendage_type == TFTF_CREATURE_APPENDAGE_NONE || count == 0u)
+  if (c->appendage_type != TFTF_CREATURE_APPENDAGE_LEG || count == 0u)
   {
     return true;
   }
@@ -1099,19 +912,7 @@ static bool s_appendages(const TFTFCreatureComponent *c,
       ? TFTF_CREATURE_MAX_APPENDAGES : count;
   const u32 pairs = (count + 1u) / 2u;
   const bool walking = c->motion == TFTF_CREATURE_MOTION_WALK;
-  const bool tentacle =
-      c->appendage_type == TFTF_CREATURE_APPENDAGE_TENTACLE;
-  Vec3 tentacle_sizes[4] = {0};
-  if (tentacle)
-  {
-    s_tentacle_volume_sizes(c, tentacle_sizes);
-  }
-  /* The penultimate node is the locomotor tentacle's contact point. A
-   * locomotor tentacle slides its support with a low, rounded movement,
-   * rather than lifting the thin terminal node like a walking foot. */
-  const float swing_height = tentacle
-      ? fminf(fmaxf(0.0f, c->step_height) * .25f, .075f)
-      : c->step_height;
+  const float swing_height = c->step_height;
   const Vec3 up = vec3_make(0, 1, 0);
   const Vec3 forward = vec3_make(0, 0, -1);
   const Vec3 lateral = vec3_make(1, 0, 0);
@@ -1339,7 +1140,7 @@ static bool s_appendages(const TFTFCreatureComponent *c,
       }
       const float phase = s_clamp(foot->swing_elapsed /
           fmaxf(1e-4f, foot->swing_duration), 0.0f, 1.0f);
-      const float move_phase = tentacle ? s_smooth(phase) : phase;
+      const float move_phase = phase;
       Vec3 tip = vec3_lerp(foot->swing_start_world,
           foot->swing_target_world, move_phase);
       tip.y += swing_height * sinf(TFTF_CREATURE_PI * move_phase);
@@ -1407,7 +1208,7 @@ static bool s_appendages(const TFTFCreatureComponent *c,
         displacement.y = 0.0f;
         const float rough_distance = vec3_len(displacement);
         const float arc = TFTF_CREATURE_PI * swing_height;
-        const float rough_duration = fmaxf(tentacle ? .22f : .0f,
+        const float rough_duration = fmaxf(0.0f,
             sqrtf(rough_distance * rough_distance + arc * arc) / foot_speed);
         Vec3 lead = vec3_mul(world_velocity, rough_duration * .85f +
             cadence_interval * .25f);
@@ -1457,7 +1258,7 @@ static bool s_appendages(const TFTFCreatureComponent *c,
           {
             const float length = vec3_len(vec3_sub(
                 goal, foot->planted_world));
-            foot->swing_duration = fmaxf(tentacle ? .22f : .08f,
+            foot->swing_duration = fmaxf(.08f,
                 sqrtf(length * length + arc * arc) / foot_speed);
             foot->swing_start_world = foot->planted_world;
             foot->swing_target_world = goal;
@@ -1519,58 +1320,6 @@ static bool s_appendages(const TFTFCreatureComponent *c,
         return false;
       }
     }
-    else
-    {
-      /* Node 2 is the actual moving ground support. Node 3 is a thin free
-       * extension which lies near the ground and never acts as a foot target.
-       * Build a low centerline so the distal half rests horizontally rather
-       * than standing on the very tip like a conventional articulated leg. */
-      const float phase_time = ins->time * c->wave_frequency *
-          2.0f * TFTF_CREATURE_PI + (float)i * 1.43f;
-      Vec3 along_ground = vec3_sub(tip, root);
-      along_ground.y = 0.0f;
-      along_ground = s_safe_norm(along_ground, outwards[i]);
-      const Vec3 wave_side = s_safe_norm(
-          vec3_cross(up, along_ground), outwards[i]);
-      const float wave = c->wave_amplitude;
-      const Vec3 support = vec3_add(tip,
-          vec3_mul(up, tentacle_sizes[2].y));
-      Vec3 middle = vec3_add(vec3_lerp(root, support, .77f),
-          vec3_mul(wave_side,
-              wave * .16f * sinf(phase_time - c->wave_cycles)));
-      /* The penultimate two large volumes rest close to the support plane.
-       * Keep their skin from sinking through it when the root is low. */
-      middle.y = fmaxf(middle.y, tip.y + tentacle_sizes[1].y);
-      const float distal_length = fmaxf(.14f,
-          fminf(.50f, tentacle_sizes[2].x * 1.6f));
-      const Vec3 free_tip = vec3_add(tip,
-          vec3_add(vec3_mul(along_ground, distal_length),
-              vec3_add(vec3_mul(wave_side,
-                  wave * .08f * sinf(phase_time + 1.8f)),
-                  vec3_mul(up, tentacle_sizes[3].y * 1.15f))));
-      const Vec3 control[4] = {
-          root,
-          middle,
-          support,
-          free_tip
-      };
-      /* Independent authored sphere volumes: thick root, low intermediate
-       * support, and a thin distal tip. */
-      Vec3 sampled_points[TFTF_CREATURE_MAX_PATH];
-      Vec3 sampled_sizes[TFTF_CREATURE_MAX_PATH];
-      u32 sample_count = 0u;
-      const u32 divisions = c->segments_per_node >= 1u &&
-          c->segments_per_node <= 10u ? c->segments_per_node : 3u;
-      if (!s_chain_path(control, tentacle_sizes, 4u, divisions,
-              false, true,
-              sampled_points, sampled_sizes, &sample_count) ||
-          !s_skin(&ins->parts[TFTF_CREATURE_PART_APPENDAGE],
-              sampled_points, NULL, NULL, sampled_sizes, sample_count,
-              c->radial_segments, c->appendage_color))
-      {
-        return false;
-      }
-    }
   }
   return true;
 }
@@ -1591,8 +1340,23 @@ static void s_part_release(LDKRenderer *renderer,TFTFCreatureGeometry *g)
   memset(g,0,sizeof(*g));
 }
 
+static void s_restore_node_transforms(TFTFCreatureInstance *ins)
+{
+  for (u32 i = 0u; i < ins->rest_count; ++i)
+  {
+    if (!ldk_ecs_component_get_const(ins->rest_entities[i],
+            ldk_component_type(TFTFCreatureNodeComponent))) continue;
+    (void)ldk_transform_set_local_position(
+        ins->rest_entities[i], ins->rest_positions[i]);
+    (void)ldk_transform_set_local_rotation(
+        ins->rest_entities[i], ins->rest_rotations[i]);
+  }
+  ins->rest_count = 0u;
+}
+
 static void s_instance_release(LDKRenderer *renderer,TFTFCreatureInstance *ins)
 {
+  s_restore_node_transforms(ins);
   for(u32 j=0;j<TFTF_CREATURE_PART_COUNT;++j)s_part_release(renderer,&ins->parts[j]);
 }
 
@@ -1701,6 +1465,8 @@ static void s_render_creature_group(const LDKEntityGroup *group,
     {
       continue;
     }
+    TFTFCreatureInstance *ins = s_instance_get(pool, entity);
+    if (!ins) continue;
     TFTFCreatureComponent resolved = *source;
     LDKEntity body_entities[TFTF_CREATURE_MAX_NODES] = {0};
     s_resolve_body_nodes(entity, &resolved, body_entities);
@@ -1709,13 +1475,47 @@ static void s_render_creature_group(const LDKEntityGroup *group,
        c->node_count>TFTF_CREATURE_MAX_NODES||c->radial_segments<4u||
        c->radial_segments>16u||c->segments_per_node<1u||
        c->segments_per_node>10u)continue;
-    TFTFCreatureTentacleResolved tentacles[TFTF_CREATURE_MAX_TENTACLES];
-    u64 tentacle_signature = 0u;
-    const u32 tentacle_count = s_resolve_tentacles(c, body_entities,
-        tentacles, &tentacle_signature);
-    TFTFCreatureInstance *ins=s_instance_get(pool, entity);
-    if(!ins)continue;
+
     ins->seen = true;
+    if (!preview)
+    {
+      bool topology_changed = ins->rest_count != c->node_count;
+      for (u32 j = 0u; j < c->node_count && !topology_changed; ++j)
+      {
+        topology_changed = ins->rest_entities[j].index !=
+                body_entities[j].index ||
+            ins->rest_entities[j].version != body_entities[j].version;
+      }
+      if (topology_changed)
+      {
+        /* New play session or new anatomical topology. */
+        ins->rest_count = c->node_count;
+        for (u32 j = 0u; j < c->node_count; ++j)
+        {
+          ins->rest_entities[j] = body_entities[j];
+          ins->rest_positions[j] = c->nodes[j].position;
+          const LDKTransform *tf = ldk_ecs_component_get_const(
+              body_entities[j], LDK_COMPONENT_TYPE_TRANSFORM);
+          ins->rest_rotations[j] = tf ? tf->local_rotation :
+              (Quat){0, 0, 0, 1};
+        }
+      }
+      else
+      {
+        for (u32 j = 0u; j < c->node_count; ++j)
+          resolved.nodes[j].position = ins->rest_positions[j];
+      }
+    }
+    else
+    {
+      for (u32 j = 0u; j < c->node_count; ++j)
+      {
+        const LDKTransform *tf = ldk_ecs_component_get_const(
+            body_entities[j], LDK_COMPONENT_TYPE_TRANSFORM);
+        ins->rest_rotations[j] = tf ? tf->local_rotation :
+            (Quat){0, 0, 0, 1};
+      }
+    }
     /* Edit preview never mutates transforms or advances the game simulation. */
     const float update_dt = (preview || ldk_game_instance_is_paused()) ? 0.0f :
         (isfinite(dt) && dt > 0.0f && dt < .25f ? dt : 0.0f);
@@ -1759,15 +1559,32 @@ static void s_render_creature_group(const LDKEntityGroup *group,
         memcmp(&ins->last_world, &world, sizeof(world)) != 0;
     bool is_animating = update_dt > 0.0f &&
         (c->motion != TFTF_CREATURE_MOTION_IDLE || c->body_pulse != 0.0f ||
-         c->body_sway != 0.0f ||
-         (c->appendage_type == TFTF_CREATURE_APPENDAGE_TENTACLE &&
-          c->appendage_count != 0u && c->wave_amplitude != 0.0f));
-    bool tentacles_changed = !ins->has_tentacle_signature ||
-        ins->last_tentacle_signature != tentacle_signature;
-    bool geometry_updated = config_changed || is_animating ||
-        tentacles_changed ||
+         c->body_sway != 0.0f);
+    /* Detect edits to any nested chain even while the creature is idle.
+     * Hash a rest-space representation; runtime movement is tracked by
+     * is_animating and does not change the authored chain signature. */
+    TFTFCreatureResolvedChain rest_chains[TFTF_CREATURE_MAX_CHAINS] = {0};
+    u32 rest_chain_count = 0u;
+    u64 chain_signature = 14695981039346656037ull;
+    for (u32 j = 0u; j < c->node_count; ++j)
+    {
+      if (x_handle_is_null(body_entities[j])) continue;
+      const LDKTransform *tf = ldk_ecs_component_get_const(
+          body_entities[j], LDK_COMPONENT_TYPE_TRANSFORM);
+      if (!tf) continue;
+      const Mat4 rest_matrix = mat4_compose(c->nodes[j].position,
+          ins->rest_rotations[j], tf->local_scale);
+      s_collect_chains_from_node(body_entities[j], rest_matrix,
+          rest_chains, &rest_chain_count, 0u, &chain_signature);
+    }
+    chain_signature = s_chain_hash(chain_signature,
+        &rest_chain_count, sizeof(rest_chain_count));
+    const bool chains_changed = !ins->has_chain_signature ||
+        ins->last_chain_signature != chain_signature;
+    bool geometry_updated = config_changed || is_animating || chains_changed ||
         (world_changed && c->appendage_count != 0u &&
             c->appendage_type != TFTF_CREATURE_APPENDAGE_NONE);
+    Vec3 nodes[TFTF_CREATURE_MAX_NODES] = {0};
     if (geometry_updated)
     {
       if (!ins->has_config ||
@@ -1788,7 +1605,7 @@ static void s_render_creature_group(const LDKEntityGroup *group,
         memset(ins->feet, 0, sizeof(ins->feet));
         ins->step_clock = 0.0f;
         ins->next_step_serial = 0u;
-            }
+      }
       const float animation_dt =
           update_dt * fmaxf(0.0f, c->animation_speed);
       ins->time += animation_dt;
@@ -1815,7 +1632,6 @@ static void s_render_creature_group(const LDKEntityGroup *group,
         ins->parts[j].vertex_count=0;
         ins->parts[j].index_count=0;
       }
-      Vec3 nodes[TFTF_CREATURE_MAX_NODES];
       s_animate_body(c,ins,nodes);
       Vec3 path[TFTF_CREATURE_MAX_PATH];
       Vec3 sizes[TFTF_CREATURE_MAX_PATH];
@@ -1837,14 +1653,37 @@ static void s_render_creature_group(const LDKEntityGroup *group,
       /* Leg physics uses real frame time; only actual movement_speed
        * determines the locomotion rate. */
       if (ok) ok = s_appendages(c, ins, nodes, world, update_dt);
-      if (ok) ok = s_render_tentacles(c, ins, nodes, tentacles,
-          tentacle_count);
-      if(ok)ok=s_attachments(c,nodes,ins);
+      if (ok)
+      {
+        TFTFCreatureResolvedChain chains[TFTF_CREATURE_MAX_CHAINS] = {0};
+        u32 chain_count = 0u;
+        u64 signature = 14695981039346656037ull;
+        for (u32 j = 0u; j < c->node_count; ++j)
+        {
+          const LDKTransform *tf = ldk_ecs_component_get_const(
+              body_entities[j], LDK_COMPONENT_TYPE_TRANSFORM);
+          if (!tf) continue;
+          const Vec3 rest_direction = s_safe_norm(vec3_sub(
+              c->nodes[j + 1u < c->node_count ? j + 1u : j].position,
+              c->nodes[j > 0u ? j - 1u : j].position),
+              vec3_make(0, 1, 0));
+          const Vec3 moved_direction = s_safe_norm(vec3_sub(
+              nodes[j + 1u < c->node_count ? j + 1u : j],
+              nodes[j > 0u ? j - 1u : j]), rest_direction);
+          const Quat rot = quat_mul(quat_from_to(rest_direction,
+              moved_direction), ins->rest_rotations[j]);
+          const Mat4 node_matrix = mat4_compose(nodes[j], rot,
+              tf->local_scale);
+          s_collect_chains_from_node(body_entities[j], node_matrix,
+              chains, &chain_count, 0u, &signature);
+        }
+        ok = s_render_chains(c, ins, chains, chain_count);
+      }
       if(!ok)continue;
     }
     bool upload_ok = true;
     const LDKAssetMaterial materials[TFTF_CREATURE_PART_COUNT]={
-        c->body_material,c->appendage_material,c->eye_material,c->fang_material};
+        c->body_material,c->appendage_material};
     for(u32 j=0;j<TFTF_CREATURE_PART_COUNT;++j)
     {
       TFTFCreatureGeometry *g=&ins->parts[j];
@@ -1860,14 +1699,33 @@ static void s_render_creature_group(const LDKEntityGroup *group,
       }
       (void)ldk_renderer_submit_mesh(renderer, g->mesh, g->material, world);
     }
+    if (!preview && geometry_updated)
+    {
+      for (u32 j = 0u; j < c->node_count; ++j)
+      {
+        if (x_handle_is_null(body_entities[j])) continue;
+        const Vec3 rest_dir = s_safe_norm(vec3_sub(
+            c->nodes[j + 1u < c->node_count ? j + 1u : j].position,
+            c->nodes[j > 0u ? j - 1u : j].position),
+            vec3_make(0, 1, 0));
+        const Vec3 pose_dir = s_safe_norm(vec3_sub(
+            nodes[j + 1u < c->node_count ? j + 1u : j],
+            nodes[j > 0u ? j - 1u : j]), rest_dir);
+        const Quat rotated = quat_mul(quat_from_to(rest_dir, pose_dir),
+            ins->rest_rotations[j]);
+        (void)ldk_transform_set_local_position(body_entities[j], nodes[j]);
+        (void)ldk_transform_set_local_rotation(body_entities[j], rotated);
+      }
+      (void)ldk_scenegraph_update_entity(entity);
+    }
     if (upload_ok && geometry_updated)
     {
       ins->last_config = *c;
       ins->has_config = true;
       ins->last_world = world;
       ins->has_world = true;
-      ins->last_tentacle_signature = tentacle_signature;
-      ins->has_tentacle_signature = true;
+      ins->last_chain_signature = chain_signature;
+      ins->has_chain_signature = true;
     }
   }
   /* Destroy resources when an entity disappears from the queried group. */

@@ -114,11 +114,23 @@ static TFTFCreatureEditorChainCache *s_editor_chain_cache(LDKEntity creature)
   return unused;
 }
 
+/* Estimate each node's local bone axis from its neighboring joints. */
+static Vec3 s_editor_node_axis(const Vec3 *pose, u32 count, u32 i)
+{
+  const Vec3 delta = vec3_sub(
+      pose[i + 1u < count ? i + 1u : i],
+      pose[i > 0u ? i - 1u : i]);
+  return vec3_len2(delta) > 1e-10f
+      ? vec3_norm(delta) : vec3_make(0.0f, 1.0f, 0.0f);
+}
+
 static bool s_editor_chain_apply(LDKEntity entity, void *user)
 {
   (void)user;
   if (!ldk_ecs_component_get_const(entity,
-          ldk_component_type(TFTFCreatureComponent)))
+          ldk_component_type(TFTFCreatureComponent)) &&
+      !ldk_ecs_component_get_const(entity,
+          ldk_component_type(TFTFCreatureChainComponent)))
   {
     return true;
   }
@@ -194,8 +206,20 @@ static bool s_editor_chain_apply(LDKEntity entity, void *user)
         (size_t)count * sizeof(*pose.nodes));
     (void)tftf_creature_chain_solve(&cache->chain, &pose,
         nodes[moving].position, moving);
+    /* The attached entities follow each bone's bend, not just its joint
+     * position. Rotate by the change of centerline tangent, preserving
+     * any manually authored orientation (including twist). */
     for (u32 i = 0u; i < count; ++i)
     {
+      const Vec3 from = s_editor_node_axis(cache->previous, count, i);
+      const Vec3 to = s_editor_node_axis(pose.nodes, count, i);
+      const LDKTransform *tf = ldk_ecs_component_get_const(
+          nodes[i].entity, LDK_COMPONENT_TYPE_TRANSFORM);
+      if (tf && vec3_len2(vec3_sub(from, to)) > 1e-10f)
+      {
+        (void)ldk_transform_set_local_rotation(nodes[i].entity,
+            quat_mul(quat_from_to(from, to), tf->local_rotation));
+      }
       if (vec3_len2(vec3_sub(pose.nodes[i], nodes[i].position)) > 1e-10f)
       {
         (void)ldk_transform_set_local_position(nodes[i].entity,
@@ -335,29 +359,6 @@ static void s_editor_node_remove(LDKEntity creature, u32 index)
   s_editor_nodes_renumber(nodes, at);
 }
 
-static bool s_editor_attachment_add(LDKEntity parent,
-    TFTFCreatureAttachmentType type)
-{
-  LDKEntity attachment = ldk_ecs_entity_create();
-  if (x_handle_is_null(attachment))
-  {
-    return false;
-  }
-  TFTFCreatureNodeAttachmentComponent data = {0};
-  data.type = type;
-  data.size = type == TFTF_CREATURE_ATTACHMENT_EYE ? .22f : .35f;
-  if (!ldk_scenegraph_set_parent(attachment, parent) ||
-      !ldk_ecs_component_add(attachment,
-          ldk_component_type(TFTFCreatureNodeAttachmentComponent), &data))
-  {
-    ldk_ecs_entity_destroy(attachment);
-    return false;
-  }
-  (void)ldk_ecs_entity_name_set(attachment,
-      type == TFTF_CREATURE_ATTACHMENT_EYE ? "Eye" : "Fang");
-  return true;
-}
-
 /* Manual actions use the common void(LDKEntity, float) signature. */
 //@editor_callback component=TFTFCreatureComponent flags=Manual label=Add_Body_Node
 LDK_GAME_API void tftf_editor_add_body_node(LDKEntity entity, float dt)
@@ -394,8 +395,10 @@ LDK_GAME_API void tftf_editor_remove_body_node(LDKEntity entity, float dt)
   (void)dt;
   const LDKEntity parent = ldk_scenegraph_get_parent(entity);
   if (x_handle_is_null(parent) ||
-      !ldk_ecs_component_get_const(parent,
-          ldk_component_type(TFTFCreatureComponent)))
+      (!ldk_ecs_component_get_const(parent,
+          ldk_component_type(TFTFCreatureComponent)) &&
+       !ldk_ecs_component_get_const(parent,
+          ldk_component_type(TFTFCreatureChainComponent))))
   {
     return;
   }
@@ -412,28 +415,6 @@ LDK_GAME_API void tftf_editor_remove_body_node(LDKEntity entity, float dt)
   }
 }
 
-//@editor_callback component=TFTFCreatureNodeComponent flags=Manual label=Add_Eye
-LDK_GAME_API void tftf_editor_add_eye(LDKEntity entity, float dt)
-{
-  (void)dt;
-  if (ldk_ecs_component_get_const(entity,
-          ldk_component_type(TFTFCreatureNodeComponent)))
-  {
-    (void)s_editor_attachment_add(entity, TFTF_CREATURE_ATTACHMENT_EYE);
-  }
-}
-
-//@editor_callback component=TFTFCreatureNodeComponent flags=Manual label=Add_Fang
-LDK_GAME_API void tftf_editor_add_fang(LDKEntity entity, float dt)
-{
-  (void)dt;
-  if (ldk_ecs_component_get_const(entity,
-          ldk_component_type(TFTFCreatureNodeComponent)))
-  {
-    (void)s_editor_attachment_add(entity, TFTF_CREATURE_ATTACHMENT_FANG);
-  }
-}
-
 /* System-scope preview executes once per stopped editor frame, irrespective
  * of Inspector selection. It does not invoke the runtime ECS system. */
 //@editor_callback system=TFTFCreatureSystem flags=OnEditorUpdate label=Creature_Preview
@@ -447,74 +428,103 @@ LDK_GAME_API void tftf_editor_creature_preview(
   tftf_creature_editor_preview_update();
 }
 
-/* Limit authored tentacles to the renderer's fixed per-creature capacity. */
-static u32 s_editor_tentacle_count(LDKEntity creature)
+typedef struct TFTFCreatureEditorChainCount
 {
-  const LDKTransform *root = ldk_ecs_component_get_const(
-      creature, LDK_COMPONENT_TYPE_TRANSFORM);
-  u32 count = 0u;
-  LDKEntity body = root ? root->first_child : x_handle_null();
-  while (!x_handle_is_null(body))
+  LDKEntity creature;
+  u32 count;
+} TFTFCreatureEditorChainCount;
+
+static bool s_editor_chain_count_one(LDKEntity entity, void *user)
+{
+  TFTFCreatureEditorChainCount *counter = user;
+  if (!ldk_ecs_component_get_const(entity,
+          ldk_component_type(TFTFCreatureChainComponent)))
   {
-    const LDKTransform *body_tf = ldk_ecs_component_get_const(
-        body, LDK_COMPONENT_TYPE_TRANSFORM);
-    if (!body_tf)
+    return true;
+  }
+  LDKEntity parent = ldk_scenegraph_get_parent(entity);
+  for (u32 depth = 0u; depth <= 2u * TFTF_CREATURE_MAX_CHAIN_DEPTH + 2u;
+       ++depth)
+  {
+    if (x_handle_is_null(parent))
     {
       break;
     }
-    const LDKEntity next_body = body_tf->next_sibling;
-    if (ldk_ecs_component_get_const(body,
-            ldk_component_type(TFTFCreatureNodeComponent)))
+    if (s_editor_entity_equal(parent, counter->creature))
     {
-      LDKEntity child = body_tf->first_child;
-      while (!x_handle_is_null(child))
-      {
-        const LDKTransform *tf = ldk_ecs_component_get_const(
-            child, LDK_COMPONENT_TYPE_TRANSFORM);
-        if (!tf)
-        {
-          break;
-        }
-        const LDKEntity next = tf->next_sibling;
-        if (ldk_ecs_component_get_const(child,
-                ldk_component_type(TFTFCreatureTentacleComponent)))
-        {
-          ++count;
-        }
-        child = next;
-      }
+      ++counter->count;
+      break;
     }
-    body = next_body;
+    parent = ldk_scenegraph_get_parent(parent);
   }
-  return count;
+  return true;
 }
 
-/* A tentacle is attached to a body node, not to the creature's root. */
-//@editor_callback component=TFTFCreatureNodeComponent flags=Manual label=Add_Tentacle
-LDK_GAME_API void tftf_editor_add_tentacle(LDKEntity entity, float dt)
+/* Refuse changes that would silently exceed the renderer's chain limits. */
+static bool s_editor_chain_can_add(LDKEntity node)
+{
+  LDKEntity owner = node;
+  u32 depth = 0u;
+  while (!x_handle_is_null(owner))
+  {
+    if (ldk_ecs_component_get_const(owner,
+            ldk_component_type(TFTFCreatureComponent)))
+    {
+      TFTFCreatureEditorChainCount counter = {0};
+      counter.creature = owner;
+      (void)ldk_ecs_entity_foreach(s_editor_chain_count_one, &counter);
+      return depth / 2u < TFTF_CREATURE_MAX_CHAIN_DEPTH &&
+          counter.count < TFTF_CREATURE_MAX_CHAINS;
+    }
+    owner = ldk_scenegraph_get_parent(owner);
+    ++depth;
+  }
+  return false;
+}
+
+/* A chain can be added under ANY node, including nodes belonging to
+ * secondary chains. Regular LDK entities may also be reparented there. */
+//@editor_callback component=TFTFCreatureNodeComponent flags=Manual label=Add_Chain
+LDK_GAME_API void tftf_editor_add_chain(LDKEntity entity, float dt)
 {
   (void)dt;
-  const LDKEntity parent = ldk_scenegraph_get_parent(entity);
-  if (x_handle_is_null(parent) ||
-      !ldk_ecs_component_get_const(parent,
-          ldk_component_type(TFTFCreatureComponent)))
+  if (ldk_ecs_component_get_const(entity,
+          ldk_component_type(TFTFCreatureNodeComponent)) &&
+      s_editor_chain_can_add(entity))
   {
-    return;
-  }
-  if (s_editor_tentacle_count(parent) < TFTF_CREATURE_MAX_TENTACLES)
-  {
-    (void)tftf_creature_tentacle_create(entity);
+    (void)tftf_creature_chain_create(entity);
   }
 }
 
-//@editor_callback component=TFTFCreatureTentacleComponent flags=Manual label=Remove_Tentacle
-LDK_GAME_API void tftf_editor_remove_tentacle(LDKEntity entity, float dt)
+//@editor_callback component=TFTFCreatureChainComponent flags=Manual label=Add_Node
+LDK_GAME_API void tftf_editor_add_chain_node(LDKEntity entity, float dt)
+{
+  (void)dt;
+  if (ldk_ecs_component_get_const(entity,
+          ldk_component_type(TFTFCreatureChainComponent)))
+  {
+    (void)s_editor_node_append(entity, TFTF_CREATURE_BODY_HORIZONTAL);
+  }
+}
+
+//@editor_callback component=TFTFCreatureChainComponent flags=Manual label=Remove_Last_Node
+LDK_GAME_API void tftf_editor_remove_last_chain_node(LDKEntity entity, float dt)
 {
   (void)dt;
   if (!ldk_ecs_component_get_const(entity,
-          ldk_component_type(TFTFCreatureTentacleComponent)))
+          ldk_component_type(TFTFCreatureChainComponent))) return;
+  TFTFCreatureEditorNode nodes[TFTF_CREATURE_MAX_NODES];
+  const u32 count = s_editor_nodes_get(entity, nodes, TFTF_CREATURE_MAX_NODES);
+  if (count > 2u) s_editor_node_remove(entity, count - 1u);
+}
+
+//@editor_callback component=TFTFCreatureChainComponent flags=Manual label=Remove_Chain
+LDK_GAME_API void tftf_editor_remove_chain(LDKEntity entity, float dt)
+{
+  (void)dt;
+  if (ldk_ecs_component_get_const(entity,
+          ldk_component_type(TFTFCreatureChainComponent)))
   {
-    return;
+    s_editor_entity_subtree_destroy(entity);
   }
-  s_editor_entity_subtree_destroy(entity);
 }
