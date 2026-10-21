@@ -146,8 +146,8 @@ scene:
         - type: 4294967283 # LDKGrassInteractComponent
           fields:
             enabled: true
-            radius: 0.500000000
-            strength: 1.00000000
+            radius: 0.300000012
+            strength: 30.0000000
     - entity: 3
       parent: -1
       flags: 0
@@ -320,7 +320,7 @@ scene:
         specular: 0.00000000
         shininess: 1.00000000
         emission: 0.143549964
-        casts_shadows: true
+        casts_shadows: false
         type_0_name: "dry_grass"
         type_0_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_0_density: 6.00000000
@@ -338,13 +338,13 @@ scene:
         type_1_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_1_density: 50.0000000
         type_1_clumping: 0.00000000
-        type_1_clump_radius: 0.00000000
-        type_1_min_height: 0.699999988
-        type_1_max_height: 0.750000000
-        type_1_blade_width: 0.119999997
-        type_1_curvature: 0.0878619477
-        type_1_wind_strength: 0.0920977890
-        type_1_interaction_recovery_time: 7.94997168
+        type_1_clump_radius: 3.00000000
+        type_1_min_height: 1.00000000
+        type_1_max_height: 1.00000000
+        type_1_blade_width: 0.200000003
+        type_1_curvature: 0.00000000
+        type_1_wind_strength: 0.171109781
+        type_1_interaction_recovery_time: 16.0000000
         type_1_bottom_color: 3201866751
         type_1_top_color: 3201866751
         type_2_name: "forest_grass"
