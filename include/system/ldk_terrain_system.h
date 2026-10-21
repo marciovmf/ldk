@@ -105,6 +105,16 @@ typedef struct LDKTerrainSystem
   //@begin_group "Appearance"
   LDKAssetMaterial material;
   LDKAssetTextureAtlas texture_atlas;
+  //@begin_group "Color Noise"
+  /** Grayscale texture, sampled in world XZ like GrassSystem. Empty disables. */
+  LDKAssetImage color_noise_texture;
+  /** Noise UV repetitions per world unit. Match GrassSystem for alignment. */
+  //@inspect min=0.000001
+  float color_noise_scale;
+  /** Strength of per-surface color variation (0 disables). */
+  //@inspect slider min=0 max=1
+  float color_noise_strength;
+  //@end_group
   //@inspect min=1 max=8
   u32 surface_count;
   //@end_group
@@ -116,7 +126,13 @@ typedef struct LDKTerrainSystem
   //@inspect slider min=0 max=1
   float surface_0_blend_width;
   //@inspect widget=COLOR
-  rgba32 surface_0_color;
+  u32 surface_0_color;
+  /** Color at noise value 0; zero initializes to the base surface color. */
+  //@inspect widget=COLOR
+  u32 surface_0_noise_low_color;
+  /** Color at noise value 1; zero initializes to the base surface color. */
+  //@inspect widget=COLOR
+  u32 surface_0_noise_high_color;
   /* Stable atlas region ID (0 means no sprite). */
   //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
   u64 surface_0_sprite_id;
@@ -131,7 +147,13 @@ typedef struct LDKTerrainSystem
   //@inspect slider min=0 max=1
   float surface_1_blend_width;
   //@inspect widget=COLOR
-  rgba32 surface_1_color;
+  u32 surface_1_color;
+  /** Color at noise value 0; zero initializes to the base surface color. */
+  //@inspect widget=COLOR
+  u32 surface_1_noise_low_color;
+  /** Color at noise value 1; zero initializes to the base surface color. */
+  //@inspect widget=COLOR
+  u32 surface_1_noise_high_color;
   /* Stable atlas region ID (0 means no sprite). */
   //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
   u64 surface_1_sprite_id;
@@ -146,7 +168,13 @@ typedef struct LDKTerrainSystem
   //@inspect slider min=0 max=1
   float surface_2_blend_width;
   //@inspect widget=COLOR
-  rgba32 surface_2_color;
+  u32 surface_2_color;
+  /** Color at noise value 0; zero initializes to the base surface color. */
+  //@inspect widget=COLOR
+  u32 surface_2_noise_low_color;
+  /** Color at noise value 1; zero initializes to the base surface color. */
+  //@inspect widget=COLOR
+  u32 surface_2_noise_high_color;
   /* Stable atlas region ID (0 means no sprite). */
   //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
   u64 surface_2_sprite_id;
@@ -161,7 +189,13 @@ typedef struct LDKTerrainSystem
   //@inspect slider min=0 max=1
   float surface_3_blend_width;
   //@inspect widget=COLOR
-  rgba32 surface_3_color;
+  u32 surface_3_color;
+  /** Color at noise value 0; zero initializes to the base surface color. */
+  //@inspect widget=COLOR
+  u32 surface_3_noise_low_color;
+  /** Color at noise value 1; zero initializes to the base surface color. */
+  //@inspect widget=COLOR
+  u32 surface_3_noise_high_color;
   /* Stable atlas region ID (0 means no sprite). */
   //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
   u64 surface_3_sprite_id;
@@ -176,7 +210,13 @@ typedef struct LDKTerrainSystem
   //@inspect slider min=0 max=1
   float surface_4_blend_width;
   //@inspect widget=COLOR
-  rgba32 surface_4_color;
+  u32 surface_4_color;
+  /** Color at noise value 0; zero initializes to the base surface color. */
+  //@inspect widget=COLOR
+  u32 surface_4_noise_low_color;
+  /** Color at noise value 1; zero initializes to the base surface color. */
+  //@inspect widget=COLOR
+  u32 surface_4_noise_high_color;
   /* Stable atlas region ID (0 means no sprite). */
   //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
   u64 surface_4_sprite_id;
@@ -191,7 +231,13 @@ typedef struct LDKTerrainSystem
   //@inspect slider min=0 max=1
   float surface_5_blend_width;
   //@inspect widget=COLOR
-  rgba32 surface_5_color;
+  u32 surface_5_color;
+  /** Color at noise value 0; zero initializes to the base surface color. */
+  //@inspect widget=COLOR
+  u32 surface_5_noise_low_color;
+  /** Color at noise value 1; zero initializes to the base surface color. */
+  //@inspect widget=COLOR
+  u32 surface_5_noise_high_color;
   /* Stable atlas region ID (0 means no sprite). */
   //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
   u64 surface_5_sprite_id;
@@ -206,7 +252,13 @@ typedef struct LDKTerrainSystem
   //@inspect slider min=0 max=1
   float surface_6_blend_width;
   //@inspect widget=COLOR
-  rgba32 surface_6_color;
+  u32 surface_6_color;
+  /** Color at noise value 0; zero initializes to the base surface color. */
+  //@inspect widget=COLOR
+  u32 surface_6_noise_low_color;
+  /** Color at noise value 1; zero initializes to the base surface color. */
+  //@inspect widget=COLOR
+  u32 surface_6_noise_high_color;
   /* Stable atlas region ID (0 means no sprite). */
   //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
   u64 surface_6_sprite_id;
@@ -221,7 +273,13 @@ typedef struct LDKTerrainSystem
   //@inspect slider min=0 max=1
   float surface_7_blend_width;
   //@inspect widget=COLOR
-  rgba32 surface_7_color;
+  u32 surface_7_color;
+  /** Color at noise value 0; zero initializes to the base surface color. */
+  //@inspect widget=COLOR
+  u32 surface_7_noise_low_color;
+  /** Color at noise value 1; zero initializes to the base surface color. */
+  //@inspect widget=COLOR
+  u32 surface_7_noise_high_color;
   /* Stable atlas region ID (0 means no sprite). */
   //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
   u64 surface_7_sprite_id;

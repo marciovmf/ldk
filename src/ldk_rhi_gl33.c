@@ -930,6 +930,7 @@ static char const *LDK_RHI_GL33_TERRAIN_PASS_FRAGMENT_SHADER =
     "#version 330 core\n" LDK_GL33_LIGHTING_GLSL
     "in vec3 v_normal;\n"
     "in vec2 v_uv;\n"
+    "in vec4 v_color;\n"
     "in vec4 v_instance_color;\n"
     "layout(std140) uniform LDK_UBO_2\n"
     "{\n"
@@ -972,6 +973,7 @@ static char const *LDK_RHI_GL33_TERRAIN_PASS_FRAGMENT_SHADER =
     "    color = mix(color, ldk_terrain_surface(i), t);\n"
     "  }\n"
     "  color *= u_material_color * v_instance_color;\n"
+    "  color.rgb *= mix(vec3(1.0), 2.0 * v_color.rgb, v_color.a);\n"
     "  vec3 diffuse;\n"
     "  vec3 specular;\n"
     "  vec3 normal = v_normal / max(length(v_normal), 1e-6);\n"

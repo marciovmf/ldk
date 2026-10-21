@@ -6,6 +6,7 @@
 #include <component/ldk_grass_interact.h>
 #include <component/ldk_transform.h>
 #include <module/ldk_ecs.h>
+#include <module/ldk_asset_manager.h>
 #include <module/ldk_renderer.h>
 #include <module/ldk_scenegraph.h>
 
@@ -1046,13 +1047,13 @@ static bool s_system_config_is_valid(const LDKGrassSystem *system)
       !isfinite(system->wind_direction_degrees) ||
       !isfinite(system->wind_force) || system->wind_force < 0.0f ||
       !isfinite(system->wind_speed) || system->wind_speed < 0.0f ||
-      (x_smallstr_length(&system->color_noise_path) > 0u &&
+      (!x_handle_is_null(system->color_noise_texture.h) &&
           (!isfinite(system->color_noise_scale) ||
               system->color_noise_scale <= 0.0f)) ||
-      (x_smallstr_length(&system->color_noise_path) > 0u &&
+      (!x_handle_is_null(system->color_noise_texture.h) &&
           (!isfinite(system->color_stop_1_position) ||
               !isfinite(system->color_stop_2_position))) ||
-      (x_smallstr_length(&system->color_noise_path) > 0u &&
+      (!x_handle_is_null(system->color_noise_texture.h) &&
           (system->color_stop_1_position < 0.0f ||
               system->color_stop_2_position > 1.0f ||
               (system->color_stop_1_position >=
@@ -2534,11 +2535,16 @@ static u64 s_system_config_hash(const LDKGrassSystem *system)
   LDK_GRASS_HASH_FIELD(color_stop_1_color);
   LDK_GRASS_HASH_FIELD(color_stop_2_color);
   LDK_GRASS_HASH_FIELD(color_stop_3_color);
+  LDK_GRASS_HASH_FIELD(color_noise_texture);
   {
-    size_t len = x_smallstr_length(&system->color_noise_path);
-    s_hash_bytes(&hash, &len, sizeof(len));
-    s_hash_bytes(&hash,
-        x_smallstr_cstr(&system->color_noise_path), len);
+    LDKAssetManager *assets = (LDKAssetManager *)ldk_module_get(
+        LDK_MODULE_ASSET_MANAGER);
+    LDKAssetHandle handle = {system->color_noise_texture.h};
+    const LDKAssetInfo *info = assets &&
+        !x_handle_is_null(system->color_noise_texture.h)
+        ? ldk_asset_get_info_const(assets, handle) : NULL;
+    u64 revision = info ? info->source_revision : 0u;
+    s_hash_bytes(&hash, &revision, sizeof(revision));
   }
 
 #undef LDK_GRASS_HASH_FIELD
@@ -2654,22 +2660,29 @@ static void s_color_noise_defaults(LDKGrassSystem *system)
   }
 }
 
+static LDKImage *s_color_noise_resolve(const LDKGrassSystem *system)
+{
+  LDKAssetManager *assets = (LDKAssetManager *)ldk_module_get(
+      LDK_MODULE_ASSET_MANAGER);
+  const LDKAssetImageData *data;
+  if (!assets || x_handle_is_null(system->color_noise_texture.h))
+  {
+    return NULL;
+  }
+  data = ldk_asset_manager_image_get_const(
+      assets, system->color_noise_texture);
+  return data && !data->is_missing ? data->image : NULL;
+}
+
 static bool s_config_rebuild(LDKGrassSystem *system)
 {
   s_color_noise_defaults(system);
   LDKGrassPatchRebuild *rebuilt = NULL;
   LDKImage *old_image = s_grass.color_noise_image;
-  LDKImage *new_image = NULL;
-  if (x_smallstr_length(&system->color_noise_path) > 0u)
+  LDKImage *new_image = s_color_noise_resolve(system);
+  if (!x_handle_is_null(system->color_noise_texture.h) && !new_image)
   {
-    new_image = ldk_image_load(
-        x_smallstr_cstr(&system->color_noise_path));
-    if (!new_image)
-    {
-      s_grass.color_noise_image = old_image;
-      if (new_image) ldk_image_destroy(new_image);
-      return false;
-    }
+    return false;
   }
   s_grass.color_noise_image = new_image;
 
@@ -2677,7 +2690,7 @@ static bool s_config_rebuild(LDKGrassSystem *system)
       !s_batches_reserve(LDK_GRASS_TYPE_COUNT))
   {
     s_grass.color_noise_image = old_image;
-    if (new_image) ldk_image_destroy(new_image);
+    
     return false;
   }
 
@@ -2687,7 +2700,7 @@ static bool s_config_rebuild(LDKGrassSystem *system)
             s_grass.patch_count, sizeof(*rebuilt)))
     {
       s_grass.color_noise_image = old_image;
-      if (new_image) ldk_image_destroy(new_image);
+      
       return false;
     }
     rebuilt = (LDKGrassPatchRebuild *)calloc(
@@ -2695,7 +2708,7 @@ static bool s_config_rebuild(LDKGrassSystem *system)
     if (!rebuilt)
     {
       s_grass.color_noise_image = old_image;
-      if (new_image) ldk_image_destroy(new_image);
+      
       return false;
     }
   }
@@ -2727,7 +2740,7 @@ static bool s_config_rebuild(LDKGrassSystem *system)
       }
       free(rebuilt);
       s_grass.color_noise_image = old_image;
-      if (new_image) ldk_image_destroy(new_image);
+      
       return false;
     }
     s_patch_bounds_calculate(&item->resolved, item->instances,
@@ -2777,7 +2790,7 @@ static bool s_config_rebuild(LDKGrassSystem *system)
 
   free(rebuilt);
   s_grass.config_hash = s_system_config_hash(system);
-  if (old_image) ldk_image_destroy(old_image);
+
   return true;
 }
 
@@ -3206,21 +3219,18 @@ int ldk_grass_system_initialize(void *data)
   s_grass.owner = system;
   s_grass.renderer = renderer;
   s_grass.interaction_texture = ldk_renderer_texture_null();
-  if (x_smallstr_length(&system->color_noise_path) > 0u)
+  s_grass.color_noise_image = s_color_noise_resolve(system);
+  if (!x_handle_is_null(system->color_noise_texture.h) &&
+      !s_grass.color_noise_image)
   {
-    s_grass.color_noise_image = ldk_image_load(
-        x_smallstr_cstr(&system->color_noise_path));
-    if (!s_grass.color_noise_image)
-    {
-      memset(&s_grass, 0, sizeof(s_grass));
-      return -1;
-    }
+    memset(&s_grass, 0, sizeof(s_grass));
+    return -1;
   }
 
   if (!s_interaction_field_allocate() || !s_interaction_texture_create())
   {
     s_interaction_field_release();
-    ldk_image_destroy(s_grass.color_noise_image);
+
     memset(&s_grass, 0, sizeof(s_grass));
     return -1;
   }
@@ -3274,10 +3284,6 @@ void ldk_grass_system_terminate(void *data)
   ldk_grass_clear();
   s_batches_release_all();
   s_interaction_field_release();
-  if (s_grass.color_noise_image)
-  {
-    ldk_image_destroy(s_grass.color_noise_image);
-  }
   free(s_grass.patches);
   free(s_grass.batches);
   memset(&s_grass, 0, sizeof(s_grass));

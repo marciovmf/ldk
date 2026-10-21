@@ -32,6 +32,9 @@ typedef struct LDKTerrainRuntime
   u64 source_revision;
   u64 geometry_hash;
   u64 appearance_hash;
+  LDKImage *color_noise_image;
+  LDKAssetImage color_noise_loaded_asset;
+  u64 color_noise_revision;
 
   LDKAssetMaterial material_asset;
   u64 material_revision;
@@ -64,6 +67,160 @@ static bool s_asset_image_equal(LDKAssetImage a, LDKAssetImage b)
 static bool s_asset_material_equal(LDKAssetMaterial a, LDKAssetMaterial b)
 {
   return a.h.index == b.h.index && a.h.version == b.h.version;
+}
+
+/* Keep sampling identical to GrassSystem: world XZ, repeating bilinear
+ * grayscale, with smoothstep interpolation. This modulates only brightness. */
+static float s_color_noise_texel(const LDKImageInfo *image, u32 x, u32 y)
+{
+  const u8 *pixel = image->pixels +
+      ((size_t)y * image->width + x) *
+          image->channel_count * image->bytes_per_channel;
+  if (image->bytes_per_channel == 2u)
+  {
+    u16 value;
+    memcpy(&value, pixel, sizeof(value));
+    return (float)value * (1.0f / 65535.0f);
+  }
+  return (float)pixel[0] * (1.0f / 255.0f);
+}
+
+static float s_color_noise_sample(const LDKTerrainSystem *system,
+    float x, float z)
+{
+  LDKImageInfo image;
+  if (!s_runtime.color_noise_image ||
+      !ldk_image_get_info(s_runtime.color_noise_image, &image) ||
+      !image.pixels || !image.width || !image.height ||
+      !image.channel_count || !image.bytes_per_channel)
+    return 0.5f;
+
+  float scale = system->color_noise_scale;
+  float u = x * scale - floorf(x * scale);
+  float v = z * scale - floorf(z * scale);
+  float fx = u * image.width;
+  float fy = v * image.height;
+  u32 ix = (u32)floorf(fx);
+  u32 iy = (u32)floorf(fy);
+  float tx = fx - floorf(fx);
+  float ty = fy - floorf(fy);
+  tx = tx * tx * (3.0f - 2.0f * tx);
+  ty = ty * ty * (3.0f - 2.0f * ty);
+  u32 nx = (ix + 1u) % image.width;
+  u32 ny = (iy + 1u) % image.height;
+  float a = s_color_noise_texel(&image, ix, iy);
+  float b = s_color_noise_texel(&image, nx, iy);
+  float c = s_color_noise_texel(&image, ix, ny);
+  float d = s_color_noise_texel(&image, nx, ny);
+  return (a + (b - a) * tx) +
+      ((c + (d - c) * tx) - (a + (b - a) * tx)) * ty;
+}
+
+static float s_surface_min_height(const LDKTerrainSystem *s, u32 i);
+static float s_surface_blend_width(const LDKTerrainSystem *s, u32 i);
+static rgba32 s_surface_color(const LDKTerrainSystem *s, u32 i);
+static rgba32 s_surface_noise_low(const LDKTerrainSystem *s, u32 i);
+static rgba32 s_surface_noise_high(const LDKTerrainSystem *s, u32 i);
+
+static float s_color_channel(rgba32 color, u32 shift)
+{
+  return (float)(((u32)color >> shift) & 255u) / 255.0f;
+}
+
+static float s_palette_channel(rgba32 base, rgba32 low, rgba32 high,
+    float noise, u32 shift)
+{
+  float a = s_color_channel(base, shift);
+  float target = noise < 0.5f
+      ? s_color_channel(low, shift) +
+          (a - s_color_channel(low, shift)) * (noise * 2.0f)
+      : a + (s_color_channel(high, shift) - a) * ((noise - 0.5f) * 2.0f);
+  return target;
+}
+
+/* Compute a single vertex modulation from the same height-based surface
+ * weights used by the terrain shader. The per-surface palette is evaluated
+ * before mixing, preserving smooth biome transitions. */
+static u32 s_color_noise_vertex_color(const LDKTerrainSystem *system,
+    float x, float y, float z)
+{
+  if (!s_runtime.color_noise_image || system->color_noise_strength <= 0.0f)
+    return 0xffffff00u;
+
+  float noise = s_color_noise_sample(system, x, z);
+  float original[3] = {0};
+  float varied[3] = {0};
+  const u32 shifts[3] = {24u, 16u, 8u};
+
+  for (u32 i = 0; i < system->surface_count; ++i)
+  {
+    rgba32 base = s_surface_color(system, i);
+    rgba32 low = s_surface_noise_low(system, i);
+    rgba32 high = s_surface_noise_high(system, i);
+    float t = 1.0f;
+    if (i > 0u)
+    {
+      float threshold = system->height_offset +
+          s_surface_min_height(system, i) * system->height_scale;
+      float width = s_surface_blend_width(system, i) * system->height_scale;
+      if (width > 0.000001f)
+      {
+        t = fmaxf(0.0f, fminf(1.0f,
+            (y - (threshold - width)) / width));
+        t = t * t * (3.0f - 2.0f * t);
+      }
+      else
+        t = y >= threshold ? 1.0f : 0.0f;
+    }
+    for (u32 k = 0; k < 3u; ++k)
+    {
+      float b = s_color_channel(base, shifts[k]);
+      float v = s_palette_channel(base, low, high, noise, shifts[k]);
+      original[k] += (b - original[k]) * t;
+      varied[k] += (v - varied[k]) * t;
+    }
+  }
+
+  u32 packed = 0xffu;
+  for (u32 k = 0; k < 3u; ++k)
+  {
+    /* The renderer decodes vertex colors from sRGB to linear, then
+     * multiplies by 2. Encode the multiplier accordingly. */
+    float base = original[k] * original[k];
+    float target = varied[k] * varied[k];
+    float factor = (1.0f - system->color_noise_strength) +
+        system->color_noise_strength *
+            (base > 0.000001f ? target / base : 1.0f);
+    float encoded = powf(fminf(fmaxf(factor * 0.5f, 0.0f), 1.0f),
+        1.0f / 2.2f);
+    packed |= (u32)(encoded * 255.0f + 0.5f) << shifts[k];
+  }
+  return packed;
+}
+
+static bool s_color_noise_refresh(LDKTerrainSystem *system,
+    LDKAssetManager *assets)
+{
+  LDKAssetHandle generic = {system->color_noise_texture.h};
+  const LDKAssetInfo *info = !x_handle_is_null(generic.h)
+      ? ldk_asset_get_info_const(assets, generic) : NULL;
+  u64 revision = info ? info->source_revision : 0u;
+  const LDKAssetImageData *data = !x_handle_is_null(generic.h)
+      ? ldk_asset_manager_image_get_const(assets, system->color_noise_texture)
+      : NULL;
+  LDKImage *image = data && !data->is_missing ? data->image : NULL;
+  if (!x_handle_is_null(generic.h) && !image)
+    return false;
+  if (s_asset_image_equal(s_runtime.color_noise_loaded_asset,
+        system->color_noise_texture) &&
+      s_runtime.color_noise_revision == revision &&
+      s_runtime.color_noise_image == image)
+    return true;
+  s_runtime.color_noise_image = image;
+  s_runtime.color_noise_loaded_asset = system->color_noise_texture;
+  s_runtime.color_noise_revision = revision;
+  s_runtime.geometry_hash = 0u;
+  return true;
 }
 
 static float s_surface_min_height(const LDKTerrainSystem *s, u32 i)
@@ -110,6 +267,38 @@ static rgba32 s_surface_color(const LDKTerrainSystem *s, u32 i)
   case 5: return s->surface_5_color;
   case 6: return s->surface_6_color;
   case 7: return s->surface_7_color;
+  default: return LDK_RGBA32(0xffffffffu);
+  }
+}
+
+static rgba32 s_surface_noise_low(const LDKTerrainSystem *s, u32 i)
+{
+  switch (i)
+  {
+  case 0: return s->surface_0_noise_low_color;
+  case 1: return s->surface_1_noise_low_color;
+  case 2: return s->surface_2_noise_low_color;
+  case 3: return s->surface_3_noise_low_color;
+  case 4: return s->surface_4_noise_low_color;
+  case 5: return s->surface_5_noise_low_color;
+  case 6: return s->surface_6_noise_low_color;
+  case 7: return s->surface_7_noise_low_color;
+  default: return LDK_RGBA32(0xffffffffu);
+  }
+}
+
+static rgba32 s_surface_noise_high(const LDKTerrainSystem *s, u32 i)
+{
+  switch (i)
+  {
+  case 0: return s->surface_0_noise_high_color;
+  case 1: return s->surface_1_noise_high_color;
+  case 2: return s->surface_2_noise_high_color;
+  case 3: return s->surface_3_noise_high_color;
+  case 4: return s->surface_4_noise_high_color;
+  case 5: return s->surface_5_noise_high_color;
+  case 6: return s->surface_6_noise_high_color;
+  case 7: return s->surface_7_noise_high_color;
   default: return LDK_RGBA32(0xffffffffu);
   }
 }
@@ -183,6 +372,59 @@ static void s_surface_defaults(LDKTerrainSystem *system)
       *scale = vec2_make(1.0f, 1.0f);
     if (color && *color == 0u)
       *color = LDK_RGBA32(0xffffffffu);
+    /* Empty palette colors inherit the surface's base color. */
+    switch (i)
+    {
+    case 0:
+      if (system->surface_0_noise_low_color == 0u)
+        system->surface_0_noise_low_color = *color;
+      if (system->surface_0_noise_high_color == 0u)
+        system->surface_0_noise_high_color = *color;
+      break;
+    case 1:
+      if (system->surface_1_noise_low_color == 0u)
+        system->surface_1_noise_low_color = *color;
+      if (system->surface_1_noise_high_color == 0u)
+        system->surface_1_noise_high_color = *color;
+      break;
+    case 2:
+      if (system->surface_2_noise_low_color == 0u)
+        system->surface_2_noise_low_color = *color;
+      if (system->surface_2_noise_high_color == 0u)
+        system->surface_2_noise_high_color = *color;
+      break;
+    case 3:
+      if (system->surface_3_noise_low_color == 0u)
+        system->surface_3_noise_low_color = *color;
+      if (system->surface_3_noise_high_color == 0u)
+        system->surface_3_noise_high_color = *color;
+      break;
+    case 4:
+      if (system->surface_4_noise_low_color == 0u)
+        system->surface_4_noise_low_color = *color;
+      if (system->surface_4_noise_high_color == 0u)
+        system->surface_4_noise_high_color = *color;
+      break;
+    case 5:
+      if (system->surface_5_noise_low_color == 0u)
+        system->surface_5_noise_low_color = *color;
+      if (system->surface_5_noise_high_color == 0u)
+        system->surface_5_noise_high_color = *color;
+      break;
+    case 6:
+      if (system->surface_6_noise_low_color == 0u)
+        system->surface_6_noise_low_color = *color;
+      if (system->surface_6_noise_high_color == 0u)
+        system->surface_6_noise_high_color = *color;
+      break;
+    case 7:
+      if (system->surface_7_noise_low_color == 0u)
+        system->surface_7_noise_low_color = *color;
+      if (system->surface_7_noise_high_color == 0u)
+        system->surface_7_noise_high_color = *color;
+      break;
+    }
+
   }
 }
 
@@ -193,6 +435,12 @@ static bool s_config_is_valid(const LDKTerrainSystem *system)
       !isfinite(system->height_scale) || system->height_scale <= 0.0f ||
       !isfinite(system->height_offset) ||
       !isfinite(system->origin_x) || !isfinite(system->origin_z) ||
+      !isfinite(system->color_noise_scale) ||
+      !isfinite(system->color_noise_strength) ||
+      system->color_noise_strength < 0.0f ||
+      system->color_noise_strength > 1.0f ||
+      (!x_handle_is_null(system->color_noise_texture.h) &&
+       system->color_noise_scale <= 0.0f) ||
       system->chunk_size == 0u ||
       system->surface_count == 0u ||
       system->surface_count > LDK_TERRAIN_SURFACE_COUNT)
@@ -351,6 +599,23 @@ static u64 s_geometry_hash(const LDKTerrainSystem *s)
   h=s_hash_bytes(h,&s->chunk_size,sizeof(s->chunk_size));
   h=s_hash_bytes(h,&s->heightmap,sizeof(s->heightmap));
   h=s_hash_bytes(h,&s_runtime.source_revision,sizeof(s_runtime.source_revision));
+  h=s_hash_bytes(h,&s->color_noise_texture,sizeof(s->color_noise_texture));
+  h=s_hash_bytes(h,&s_runtime.color_noise_revision,sizeof(s_runtime.color_noise_revision));
+  h=s_hash_bytes(h,&s->color_noise_scale,sizeof(s->color_noise_scale));
+  h=s_hash_bytes(h,&s->color_noise_strength,sizeof(s->color_noise_strength));
+  for (u32 i = 0; i < s->surface_count; ++i)
+  {
+    rgba32 base = s_surface_color(s, i);
+    rgba32 low = s_surface_noise_low(s, i);
+    rgba32 high = s_surface_noise_high(s, i);
+    float min_height = s_surface_min_height(s, i);
+    float blend_width = s_surface_blend_width(s, i);
+    h = s_hash_bytes(h, &base, sizeof(base));
+    h = s_hash_bytes(h, &low, sizeof(low));
+    h = s_hash_bytes(h, &high, sizeof(high));
+    h = s_hash_bytes(h, &min_height, sizeof(min_height));
+    h = s_hash_bytes(h, &blend_width, sizeof(blend_width));
+  }
   return h;
 }
 
@@ -447,7 +712,8 @@ static bool s_chunks_rebuild(LDKTerrainSystem *system, LDKRenderer *renderer)
           vertices[vi].position=vec3_make(wx,wy,wz);
           vertices[vi].normal=s_vertex_normal(system,gx,gy);
           vertices[vi].uv=vec2_make(wx,wz);
-          vertices[vi].color=LDK_RGBA32(0xffffffffu);
+          vertices[vi].color = LDK_RGBA32(
+              s_color_noise_vertex_color(system, wx, wy, wz));
           if(wx<bmin.x)bmin.x=wx; if(wy<bmin.y)bmin.y=wy; if(wz<bmin.z)bmin.z=wz;
           if(wx>bmax.x)bmax.x=wx; if(wy>bmax.y)bmax.y=wy; if(wz>bmax.z)bmax.z=wz;
         }
@@ -715,6 +981,7 @@ void ldk_terrain_system_update(
   LDKRenderer *renderer=(LDKRenderer*)ldk_module_get(LDK_MODULE_RENDERER);
   LDKAssetManager *assets=(LDKAssetManager*)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
   if(!renderer||!assets) return;
+  if(!s_color_noise_refresh(system,assets)) return;
 
   LDKAssetHandle generic={system->heightmap.h};
   const LDKAssetInfo *asset_info=!x_handle_is_null(system->heightmap.h)

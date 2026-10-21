@@ -8,6 +8,7 @@
 #define LDK_GRASS_H
 
 #include <ldk_common.h>
+#include <ldk_asset.h>
 #include <module/ldk_system.h>
 #include <stdx/stdx_math.h>
 #include <stdx/stdx_string.h>
@@ -184,7 +185,7 @@ typedef struct LDKGrassSystem
 
   //@begin_group "Color noise"
   /** Grayscale noise image file used for world-space color sampling. */
-  XSmallstr color_noise_path;
+  LDKAssetImage color_noise_texture;
   /** Noise repetitions per world unit. Must be positive. */
   //@inspect min=0.0001
   float color_noise_scale;
