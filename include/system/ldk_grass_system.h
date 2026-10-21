@@ -98,6 +98,10 @@ typedef struct LDKGrassTypeDesc
   XSmallstr name;
   LDKGrassBladePreset blade_preset;
   float density;
+  /** Tendency to grow near other blades: 0 = uniform, 1 = clustered. */
+  float clumping;
+  /** Maximum distance from a clump root, in world units. */
+  float clump_radius;
   float min_height;
   float max_height;
   float blade_width;
@@ -192,6 +196,10 @@ typedef struct LDKGrassSystem
   LDKGrassBladePreset type_0_blade_preset;
   //@inspect min=0
   float type_0_density;
+  //@inspect slider min=0 max=1
+  float type_0_clumping;
+  //@inspect slider min=0 max=3
+  float type_0_clump_radius;
   //@inspect min=0
   float type_0_min_height;
   //@inspect min=0
@@ -215,6 +223,10 @@ typedef struct LDKGrassSystem
   LDKGrassBladePreset type_1_blade_preset;
   //@inspect min=0
   float type_1_density;
+  //@inspect slider min=0 max=1
+  float type_1_clumping;
+  //@inspect slider min=0 max=3
+  float type_1_clump_radius;
   //@inspect min=0
   float type_1_min_height;
   //@inspect min=0
@@ -238,6 +250,10 @@ typedef struct LDKGrassSystem
   LDKGrassBladePreset type_2_blade_preset;
   //@inspect min=0
   float type_2_density;
+  //@inspect slider min=0 max=1
+  float type_2_clumping;
+  //@inspect slider min=0 max=3
+  float type_2_clump_radius;
   //@inspect min=0
   float type_2_min_height;
   //@inspect min=0
@@ -261,6 +277,10 @@ typedef struct LDKGrassSystem
   LDKGrassBladePreset type_3_blade_preset;
   //@inspect min=0
   float type_3_density;
+  //@inspect slider min=0 max=1
+  float type_3_clumping;
+  //@inspect slider min=0 max=3
+  float type_3_clump_radius;
   //@inspect min=0
   float type_3_min_height;
   //@inspect min=0
@@ -284,6 +304,10 @@ typedef struct LDKGrassSystem
   LDKGrassBladePreset type_4_blade_preset;
   //@inspect min=0
   float type_4_density;
+  //@inspect slider min=0 max=1
+  float type_4_clumping;
+  //@inspect slider min=0 max=3
+  float type_4_clump_radius;
   //@inspect min=0
   float type_4_min_height;
   //@inspect min=0
@@ -307,6 +331,10 @@ typedef struct LDKGrassSystem
   LDKGrassBladePreset type_5_blade_preset;
   //@inspect min=0
   float type_5_density;
+  //@inspect slider min=0 max=1
+  float type_5_clumping;
+  //@inspect slider min=0 max=3
+  float type_5_clump_radius;
   //@inspect min=0
   float type_5_min_height;
   //@inspect min=0
@@ -330,6 +358,10 @@ typedef struct LDKGrassSystem
   LDKGrassBladePreset type_6_blade_preset;
   //@inspect min=0
   float type_6_density;
+  //@inspect slider min=0 max=1
+  float type_6_clumping;
+  //@inspect slider min=0 max=3
+  float type_6_clump_radius;
   //@inspect min=0
   float type_6_min_height;
   //@inspect min=0
@@ -353,6 +385,10 @@ typedef struct LDKGrassSystem
   LDKGrassBladePreset type_7_blade_preset;
   //@inspect min=0
   float type_7_density;
+  //@inspect slider min=0 max=1
+  float type_7_clumping;
+  //@inspect slider min=0 max=3
+  float type_7_clump_radius;
   //@inspect min=0
   float type_7_min_height;
   //@inspect min=0
@@ -376,6 +412,10 @@ typedef struct LDKGrassSystem
   LDKGrassBladePreset type_8_blade_preset;
   //@inspect min=0
   float type_8_density;
+  //@inspect slider min=0 max=1
+  float type_8_clumping;
+  //@inspect slider min=0 max=3
+  float type_8_clump_radius;
   //@inspect min=0
   float type_8_min_height;
   //@inspect min=0
@@ -399,6 +439,10 @@ typedef struct LDKGrassSystem
   LDKGrassBladePreset type_9_blade_preset;
   //@inspect min=0
   float type_9_density;
+  //@inspect slider min=0 max=1
+  float type_9_clumping;
+  //@inspect slider min=0 max=3
+  float type_9_clump_radius;
   //@inspect min=0
   float type_9_min_height;
   //@inspect min=0
@@ -422,6 +466,10 @@ typedef struct LDKGrassSystem
   LDKGrassBladePreset type_10_blade_preset;
   //@inspect min=0
   float type_10_density;
+  //@inspect slider min=0 max=1
+  float type_10_clumping;
+  //@inspect slider min=0 max=3
+  float type_10_clump_radius;
   //@inspect min=0
   float type_10_min_height;
   //@inspect min=0
@@ -445,6 +493,10 @@ typedef struct LDKGrassSystem
   LDKGrassBladePreset type_11_blade_preset;
   //@inspect min=0
   float type_11_density;
+  //@inspect slider min=0 max=1
+  float type_11_clumping;
+  //@inspect slider min=0 max=3
+  float type_11_clump_radius;
   //@inspect min=0
   float type_11_min_height;
   //@inspect min=0
@@ -468,6 +520,10 @@ typedef struct LDKGrassSystem
   LDKGrassBladePreset type_12_blade_preset;
   //@inspect min=0
   float type_12_density;
+  //@inspect slider min=0 max=1
+  float type_12_clumping;
+  //@inspect slider min=0 max=3
+  float type_12_clump_radius;
   //@inspect min=0
   float type_12_min_height;
   //@inspect min=0
@@ -491,6 +547,10 @@ typedef struct LDKGrassSystem
   LDKGrassBladePreset type_13_blade_preset;
   //@inspect min=0
   float type_13_density;
+  //@inspect slider min=0 max=1
+  float type_13_clumping;
+  //@inspect slider min=0 max=3
+  float type_13_clump_radius;
   //@inspect min=0
   float type_13_min_height;
   //@inspect min=0
@@ -514,6 +574,10 @@ typedef struct LDKGrassSystem
   LDKGrassBladePreset type_14_blade_preset;
   //@inspect min=0
   float type_14_density;
+  //@inspect slider min=0 max=1
+  float type_14_clumping;
+  //@inspect slider min=0 max=3
+  float type_14_clump_radius;
   //@inspect min=0
   float type_14_min_height;
   //@inspect min=0
@@ -537,6 +601,10 @@ typedef struct LDKGrassSystem
   LDKGrassBladePreset type_15_blade_preset;
   //@inspect min=0
   float type_15_density;
+  //@inspect slider min=0 max=1
+  float type_15_clumping;
+  //@inspect slider min=0 max=3
+  float type_15_clump_radius;
   //@inspect min=0
   float type_15_min_height;
   //@inspect min=0

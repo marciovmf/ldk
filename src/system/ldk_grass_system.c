@@ -45,6 +45,8 @@ typedef struct LDKGrassResolvedDesc
   LDKGrassPlane plane;
   LDKGrassBladeShape shape;
   float density;
+  float clumping;
+  float clump_radius;
   float min_height;
   float max_height;
   float min_tilt;
@@ -904,6 +906,8 @@ static bool s_blade_preset_is_valid(LDKGrassBladePreset preset)
     out_desc->name = system->type_##index##_name;                            \
     out_desc->blade_preset = system->type_##index##_blade_preset;            \
     out_desc->density = system->type_##index##_density;                      \
+    out_desc->clumping = system->type_##index##_clumping;                    \
+    out_desc->clump_radius = system->type_##index##_clump_radius;            \
     out_desc->min_height = system->type_##index##_min_height;                \
     out_desc->max_height = system->type_##index##_max_height;                \
     out_desc->blade_width = system->type_##index##_blade_width;              \
@@ -955,6 +959,8 @@ static bool s_type_slot_read(const LDKGrassSystem *system,
     system->type_##index##_name = desc->name;                                \
     system->type_##index##_blade_preset = desc->blade_preset;                \
     system->type_##index##_density = desc->density;                          \
+    system->type_##index##_clumping = desc->clumping;                        \
+    system->type_##index##_clump_radius = desc->clump_radius;                \
     system->type_##index##_min_height = desc->min_height;                    \
     system->type_##index##_max_height = desc->max_height;                    \
     system->type_##index##_blade_width = desc->blade_width;                  \
@@ -1005,6 +1011,9 @@ static bool s_type_desc_is_valid(const LDKGrassTypeDesc *desc)
   return desc && x_smallstr_length(&desc->name) > 0u &&
          s_blade_preset_is_valid(desc->blade_preset) &&
          isfinite(desc->density) && desc->density >= 0.0f &&
+         isfinite(desc->clumping) && desc->clumping >= 0.0f &&
+         desc->clumping <= 1.0f &&
+         isfinite(desc->clump_radius) && desc->clump_radius >= 0.0f &&
          isfinite(desc->min_height) && desc->min_height > 0.0f &&
          isfinite(desc->max_height) && desc->max_height >= desc->min_height &&
          isfinite(desc->blade_width) && desc->blade_width > 0.0f &&
@@ -1150,6 +1159,8 @@ static bool s_resolved_desc_build(const LDKGrassSystem *system,
     return false;
   }
   out_desc->density = type.density * patch->density_scale;
+  out_desc->clumping = type.clumping;
+  out_desc->clump_radius = type.clump_radius;
   out_desc->min_height = type.min_height;
   out_desc->max_height = type.max_height;
   out_desc->min_tilt = deg_to_rad(system->min_tilt_degrees);
@@ -1198,6 +1209,97 @@ static u32 s_random_state(u32 seed)
   value *= 0x846ca68bu;
   value ^= value >> 16u;
   return value ? value : 0x6d2b79f5u;
+}
+
+/* Concentrate grass in world-space patches, independent of the number
+ * of blades belonging to an individual LDKGrassPatch. The normalized
+ * Gaussian kernels preserve the average density across a large area. */
+static float s_clumping_density_at(float x, float z)
+{
+  const float cell_size = 3.0f;
+  const float sigma = 0.65f;
+  const float inv_sigma2 = 1.0f / (sigma * sigma);
+  const float amplitude =
+      cell_size * cell_size / (2.0f * LDK_GRASS_PI * sigma * sigma);
+  int cell_x = (int)floorf(x / cell_size);
+  int cell_z = (int)floorf(z / cell_size);
+  float weight = 0.0f;
+
+  for (int dz = -2; dz <= 2; ++dz)
+  {
+    for (int dx = -2; dx <= 2; ++dx)
+    {
+      int ix = cell_x + dx;
+      int iz = cell_z + dz;
+      u32 state = s_random_state(
+          (u32)ix * 0x9e3779b9u ^ (u32)iz * 0x85ebca6bu ^ 0x73d45b91u);
+      float cx = ((float)ix + 0.15f + 0.70f * s_random_unit(&state)) * cell_size;
+      float cz = ((float)iz + 0.15f + 0.70f * s_random_unit(&state)) * cell_size;
+      float rx = x - cx;
+      float rz = z - cz;
+      weight += expf(-0.5f * (rx * rx + rz * rz) * inv_sigma2);
+    }
+  }
+  return amplitude * weight;
+}
+
+/* World-space clump identity. Both patch density and blade placement use
+ * the same deterministic centers; clump_radius never enters this choice. */
+static Vec2 s_clump_center(int cell_x, int cell_z)
+{
+  const float cell_size = 3.0f;
+  u32 state = s_random_state(
+      (u32)cell_x * 0x9e3779b9u ^
+      (u32)cell_z * 0x85ebca6bu ^ 0x73d45b91u);
+  return vec2_make(
+      ((float)cell_x + 0.15f + 0.70f * s_random_unit(&state)) * cell_size,
+      ((float)cell_z + 0.15f + 0.70f * s_random_unit(&state)) * cell_size);
+}
+
+/* Select a center based on the existing density kernels, without consulting
+ * clump_radius. Neighboring patches therefore share the same clump roots. */
+static Vec2 s_clump_center_at(float x, float z, u32 *random)
+{
+  const float cell_size = 3.0f;
+  const float inv_sigma2 = 1.0f / (0.65f * 0.65f);
+  int cell_x = (int)floorf(x / cell_size);
+  int cell_z = (int)floorf(z / cell_size);
+  float total = 0.0f;
+  Vec2 chosen = vec2_make(x, z);
+
+  for (int dz = -2; dz <= 2; ++dz)
+  {
+    for (int dx = -2; dx <= 2; ++dx)
+    {
+      Vec2 center = s_clump_center(cell_x + dx, cell_z + dz);
+      float rx = x - center.x;
+      float rz = z - center.y;
+      float weight = expf(-0.5f * (rx * rx + rz * rz) * inv_sigma2);
+      total += weight;
+      if (s_random_unit(random) * total < weight)
+      {
+        chosen = center;
+      }
+    }
+  }
+  return chosen;
+}
+
+static float s_clumping_patch_weight(const LDKGrassPlane *plane)
+{
+  static const float samples[5][2] = {
+      {0.5f, 0.5f}, {0.2f, 0.2f}, {0.8f, 0.2f},
+      {0.2f, 0.8f}, {0.8f, 0.8f}};
+  float result = 0.0f;
+
+  for (u32 i = 0u; i < 5u; ++i)
+  {
+    Vec3 point = vec3_add(plane->origin,
+        vec3_add(vec3_mul(plane->axis_u, samples[i][0]),
+            vec3_mul(plane->axis_v, samples[i][1])));
+    result += s_clumping_density_at(point.x, point.z);
+  }
+  return result * 0.2f;
 }
 
 static bool s_topology_is_valid(LDKGrassBladeTopology topology)
@@ -1254,6 +1356,9 @@ static bool s_desc_is_valid(
       !s_vec3_is_finite(desc->plane.axis_u) ||
       !s_vec3_is_finite(desc->plane.axis_v) ||
       !isfinite(desc->density) || desc->density < 0.0f ||
+      !isfinite(desc->clumping) || desc->clumping < 0.0f ||
+      desc->clumping > 1.0f ||
+      !isfinite(desc->clump_radius) || desc->clump_radius < 0.0f ||
       !isfinite(desc->min_height) || desc->min_height <= 0.0f ||
       !isfinite(desc->max_height) ||
       desc->max_height < desc->min_height ||
@@ -1543,6 +1648,15 @@ static bool s_patch_instances_generate(const LDKGrassResolvedDesc *desc,
   *out_count = 0u;
   random = s_random_state(desc->seed);
   expected_count = (double)area * (double)desc->density;
+  if (desc->clumping > 0.0f)
+  {
+    float weight = s_clumping_patch_weight(&desc->plane);
+    expected_count *= (double)(1.0f + desc->clumping * (weight - 1.0f));
+    if (expected_count > (double)UINT32_MAX - 1.0)
+    {
+      return false;
+    }
+  }
   count = (u32)floor(expected_count);
   if ((double)s_random_unit(&random) < expected_count - (double)count)
   {
@@ -1569,6 +1683,36 @@ static bool s_patch_instances_generate(const LDKGrassResolvedDesc *desc,
   {
     float u = s_random_unit(&random);
     float v = s_random_unit(&random);
+    if (desc->clumping > 0.0f &&
+        s_random_unit(&random) < desc->clumping)
+    {
+      Vec3 sample = vec3_add(desc->plane.origin,
+          vec3_add(vec3_mul(desc->plane.axis_u, u),
+              vec3_mul(desc->plane.axis_v, v)));
+      Vec2 center = s_clump_center_at(sample.x, sample.z, &random);
+      float theta = s_random_unit(&random) * 2.0f * LDK_GRASS_PI;
+      float distance = desc->clump_radius * sqrtf(s_random_unit(&random));
+      Vec3 target = vec3_make(center.x + cosf(theta) * distance,
+          sample.y, center.y + sinf(theta) * distance);
+      Vec3 offset = vec3_sub(target, desc->plane.origin);
+      Vec3 axis_u = desc->plane.axis_u;
+      Vec3 axis_v = desc->plane.axis_v;
+      float uu = vec3_dot(axis_u, axis_u);
+      float uv = vec3_dot(axis_u, axis_v);
+      float vv = vec3_dot(axis_v, axis_v);
+      float det = uu * vv - uv * uv;
+
+      /* Map the shared world-space clump center back onto this patch's
+       * plane. Do not clamp to patch borders: doing so would break clumps
+       * that span multiple patches, especially at radius zero. */
+      if (det > STDXM_EPS)
+      {
+        float du = vec3_dot(offset, axis_u);
+        float dv = vec3_dot(offset, axis_v);
+        u = (du * vv - dv * uv) / det;
+        v = (dv * uu - du * uv) / det;
+      }
+    }
     float height = desc->min_height +
         (desc->max_height - desc->min_height) * s_random_unit(&random);
     float angle = s_random_unit(&random) * 2.0f * LDK_GRASS_PI;
@@ -2266,6 +2410,8 @@ static u64 s_system_config_hash(const LDKGrassSystem *system)
     s_hash_bytes(&hash, x_smallstr_cstr(&desc.name), name_length);
     s_hash_bytes(&hash, &desc.blade_preset, sizeof(desc.blade_preset));
     s_hash_bytes(&hash, &desc.density, sizeof(desc.density));
+    s_hash_bytes(&hash, &desc.clumping, sizeof(desc.clumping));
+    s_hash_bytes(&hash, &desc.clump_radius, sizeof(desc.clump_radius));
     s_hash_bytes(&hash, &desc.min_height, sizeof(desc.min_height));
     s_hash_bytes(&hash, &desc.max_height, sizeof(desc.max_height));
     s_hash_bytes(&hash, &desc.blade_width, sizeof(desc.blade_width));
@@ -2439,6 +2585,8 @@ void ldk_grass_type_desc_defaults(LDKGrassTypeDesc *out_desc)
   memset(out_desc, 0, sizeof(*out_desc));
   out_desc->blade_preset = LDK_GRASS_BLADE_PRESET_THIN;
   out_desc->density = 1.0f;
+  out_desc->clumping = 0.0f;
+  out_desc->clump_radius = 0.5f;
   out_desc->min_height = 0.8f;
   out_desc->max_height = 1.0f;
   out_desc->blade_width = 0.10f;

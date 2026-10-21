@@ -320,12 +320,14 @@ scene:
         specular: 0.00000000
         shininess: 1.00000000
         emission: 0.143549964
-        casts_shadows: false
+        casts_shadows: true
         type_0_name: "dry_grass"
         type_0_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_0_density: 6.00000000
+        type_0_clumping: 0.00000000
+        type_0_clump_radius: 0.00000000
         type_0_min_height: 0.200000003
-        type_0_max_height: 1.00000000
+        type_0_max_height: 2.00000000
         type_0_blade_width: 0.0299999993
         type_0_curvature: 0.500000000
         type_0_wind_strength: 0.00000000
@@ -335,6 +337,8 @@ scene:
         type_1_name: "grass"
         type_1_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_1_density: 50.0000000
+        type_1_clumping: 0.00000000
+        type_1_clump_radius: 0.00000000
         type_1_min_height: 0.699999988
         type_1_max_height: 0.750000000
         type_1_blade_width: 0.119999997
@@ -345,18 +349,22 @@ scene:
         type_1_top_color: 3201866751
         type_2_name: "forest_grass"
         type_2_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
-        type_2_density: 0.400000006
+        type_2_density: 1.00000000
+        type_2_clumping: 0.796886981
+        type_2_clump_radius: 0.435556054
         type_2_min_height: 0.300000012
-        type_2_max_height: 0.500000000
-        type_2_blade_width: 0.0199999996
-        type_2_curvature: 0.0790977031
-        type_2_wind_strength: 0.289439470
+        type_2_max_height: 0.800000012
+        type_2_blade_width: 0.0599999987
+        type_2_curvature: 0.416546315
+        type_2_wind_strength: 0.380340666
         type_2_interaction_recovery_time: 0.848392248
         type_2_bottom_color: 4294443263
         type_2_top_color: 4294902015
         type_3_name: "thorn_grass"
         type_3_blade_preset: "LDK_GRASS_BLADE_PRESET_THORNY"
         type_3_density: 18.0000000
+        type_3_clumping: 0.00000000
+        type_3_clump_radius: 0.00000000
         type_3_min_height: 0.500000000
         type_3_max_height: 0.850000024
         type_3_blade_width: 0.119999997
@@ -368,6 +376,8 @@ scene:
         type_4_name: "shallow_grass"
         type_4_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_4_density: 0.0799999982
+        type_4_clumping: 0.00000000
+        type_4_clump_radius: 0.00000000
         type_4_min_height: 0.0599999987
         type_4_max_height: 0.119999997
         type_4_blade_width: 0.00800000038
@@ -379,6 +389,8 @@ scene:
         type_5_name: ""
         type_5_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_5_density: 0.00000000
+        type_5_clumping: 0.00000000
+        type_5_clump_radius: 0.00000000
         type_5_min_height: 0.00000000
         type_5_max_height: 0.00000000
         type_5_blade_width: 0.00000000
@@ -390,6 +402,8 @@ scene:
         type_6_name: ""
         type_6_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_6_density: 0.00000000
+        type_6_clumping: 0.00000000
+        type_6_clump_radius: 0.00000000
         type_6_min_height: 0.00000000
         type_6_max_height: 0.00000000
         type_6_blade_width: 0.00000000
@@ -401,6 +415,8 @@ scene:
         type_7_name: ""
         type_7_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_7_density: 0.00000000
+        type_7_clumping: 0.00000000
+        type_7_clump_radius: 0.00000000
         type_7_min_height: 0.00000000
         type_7_max_height: 0.00000000
         type_7_blade_width: 0.00000000
@@ -412,6 +428,8 @@ scene:
         type_8_name: ""
         type_8_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_8_density: 0.00000000
+        type_8_clumping: 0.00000000
+        type_8_clump_radius: 0.00000000
         type_8_min_height: 0.00000000
         type_8_max_height: 0.00000000
         type_8_blade_width: 0.00000000
@@ -423,6 +441,8 @@ scene:
         type_9_name: ""
         type_9_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_9_density: 0.00000000
+        type_9_clumping: 0.00000000
+        type_9_clump_radius: 0.00000000
         type_9_min_height: 0.00000000
         type_9_max_height: 0.00000000
         type_9_blade_width: 0.00000000
@@ -434,6 +454,8 @@ scene:
         type_10_name: ""
         type_10_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_10_density: 0.00000000
+        type_10_clumping: 0.00000000
+        type_10_clump_radius: 0.00000000
         type_10_min_height: 0.00000000
         type_10_max_height: 0.00000000
         type_10_blade_width: 0.00000000
@@ -445,6 +467,8 @@ scene:
         type_11_name: ""
         type_11_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_11_density: 0.00000000
+        type_11_clumping: 0.00000000
+        type_11_clump_radius: 0.00000000
         type_11_min_height: 0.00000000
         type_11_max_height: 0.00000000
         type_11_blade_width: 0.00000000
@@ -456,6 +480,8 @@ scene:
         type_12_name: ""
         type_12_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_12_density: 0.00000000
+        type_12_clumping: 0.00000000
+        type_12_clump_radius: 0.00000000
         type_12_min_height: 0.00000000
         type_12_max_height: 0.00000000
         type_12_blade_width: 0.00000000
@@ -467,6 +493,8 @@ scene:
         type_13_name: ""
         type_13_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_13_density: 0.00000000
+        type_13_clumping: 0.00000000
+        type_13_clump_radius: 0.00000000
         type_13_min_height: 0.00000000
         type_13_max_height: 0.00000000
         type_13_blade_width: 0.00000000
@@ -478,6 +506,8 @@ scene:
         type_14_name: ""
         type_14_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_14_density: 0.00000000
+        type_14_clumping: 0.00000000
+        type_14_clump_radius: 0.00000000
         type_14_min_height: 0.00000000
         type_14_max_height: 0.00000000
         type_14_blade_width: 0.00000000
@@ -489,6 +519,8 @@ scene:
         type_15_name: ""
         type_15_blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
         type_15_density: 0.00000000
+        type_15_clumping: 0.00000000
+        type_15_clump_radius: 0.00000000
         type_15_min_height: 0.00000000
         type_15_max_height: 0.00000000
         type_15_blade_width: 0.00000000
@@ -620,201 +652,6 @@ scene:
         elevation: 0.100000001
         forward_offset: 4.00000000
         material: "assets/tftf_island.material"
-    - id: "0x6c6b73765b687a9a"
-      data:
-        radius: 8
-        deep_water_decoration_0_mesh: -1
-        deep_water_decoration_0_min_count: 0
-        deep_water_decoration_0_max_count: 0
-        deep_water_decoration_1_mesh: -1
-        deep_water_decoration_1_min_count: 0
-        deep_water_decoration_1_max_count: 0
-        deep_water_decoration_2_mesh: -1
-        deep_water_decoration_2_min_count: 0
-        deep_water_decoration_2_max_count: 0
-        deep_water_decoration_3_mesh: -1
-        deep_water_decoration_3_min_count: 0
-        deep_water_decoration_3_max_count: 0
-        deep_water_decoration_4_mesh: -1
-        deep_water_decoration_4_min_count: 0
-        deep_water_decoration_4_max_count: 0
-        deep_water_decoration_5_mesh: -1
-        deep_water_decoration_5_min_count: 0
-        deep_water_decoration_5_max_count: 0
-        deep_water_decoration_6_mesh: -1
-        deep_water_decoration_6_min_count: 0
-        deep_water_decoration_6_max_count: 0
-        deep_water_decoration_7_mesh: -1
-        deep_water_decoration_7_min_count: 0
-        deep_water_decoration_7_max_count: 0
-        shallow_water_decoration_0_mesh: -1
-        shallow_water_decoration_0_min_count: 0
-        shallow_water_decoration_0_max_count: 0
-        shallow_water_decoration_1_mesh: -1
-        shallow_water_decoration_1_min_count: 0
-        shallow_water_decoration_1_max_count: 0
-        shallow_water_decoration_2_mesh: -1
-        shallow_water_decoration_2_min_count: 0
-        shallow_water_decoration_2_max_count: 0
-        shallow_water_decoration_3_mesh: -1
-        shallow_water_decoration_3_min_count: 0
-        shallow_water_decoration_3_max_count: 0
-        shallow_water_decoration_4_mesh: -1
-        shallow_water_decoration_4_min_count: 0
-        shallow_water_decoration_4_max_count: 0
-        shallow_water_decoration_5_mesh: -1
-        shallow_water_decoration_5_min_count: 0
-        shallow_water_decoration_5_max_count: 0
-        shallow_water_decoration_6_mesh: -1
-        shallow_water_decoration_6_min_count: 0
-        shallow_water_decoration_6_max_count: 0
-        shallow_water_decoration_7_mesh: -1
-        shallow_water_decoration_7_min_count: 0
-        shallow_water_decoration_7_max_count: 0
-        shore_decoration_0_mesh: -1
-        shore_decoration_0_min_count: 0
-        shore_decoration_0_max_count: 0
-        shore_decoration_1_mesh: -1
-        shore_decoration_1_min_count: 0
-        shore_decoration_1_max_count: 0
-        shore_decoration_2_mesh: -1
-        shore_decoration_2_min_count: 0
-        shore_decoration_2_max_count: 0
-        shore_decoration_3_mesh: -1
-        shore_decoration_3_min_count: 0
-        shore_decoration_3_max_count: 0
-        shore_decoration_4_mesh: -1
-        shore_decoration_4_min_count: 0
-        shore_decoration_4_max_count: 0
-        shore_decoration_5_mesh: -1
-        shore_decoration_5_min_count: 0
-        shore_decoration_5_max_count: 0
-        shore_decoration_6_mesh: -1
-        shore_decoration_6_min_count: 0
-        shore_decoration_6_max_count: 0
-        shore_decoration_7_mesh: -1
-        shore_decoration_7_min_count: 0
-        shore_decoration_7_max_count: 0
-        dry_decoration_0_mesh: -1
-        dry_decoration_0_min_count: 0
-        dry_decoration_0_max_count: 0
-        dry_decoration_1_mesh: -1
-        dry_decoration_1_min_count: 0
-        dry_decoration_1_max_count: 0
-        dry_decoration_2_mesh: -1
-        dry_decoration_2_min_count: 0
-        dry_decoration_2_max_count: 0
-        dry_decoration_3_mesh: -1
-        dry_decoration_3_min_count: 0
-        dry_decoration_3_max_count: 0
-        dry_decoration_4_mesh: -1
-        dry_decoration_4_min_count: 0
-        dry_decoration_4_max_count: 0
-        dry_decoration_5_mesh: -1
-        dry_decoration_5_min_count: 0
-        dry_decoration_5_max_count: 0
-        dry_decoration_6_mesh: -1
-        dry_decoration_6_min_count: 0
-        dry_decoration_6_max_count: 0
-        dry_decoration_7_mesh: -1
-        dry_decoration_7_min_count: 0
-        dry_decoration_7_max_count: 0
-        grass_decoration_0_mesh: -1
-        grass_decoration_0_min_count: 0
-        grass_decoration_0_max_count: 0
-        grass_decoration_1_mesh: -1
-        grass_decoration_1_min_count: 0
-        grass_decoration_1_max_count: 0
-        grass_decoration_2_mesh: -1
-        grass_decoration_2_min_count: 0
-        grass_decoration_2_max_count: 0
-        grass_decoration_3_mesh: -1
-        grass_decoration_3_min_count: 0
-        grass_decoration_3_max_count: 0
-        grass_decoration_4_mesh: -1
-        grass_decoration_4_min_count: 0
-        grass_decoration_4_max_count: 0
-        grass_decoration_5_mesh: -1
-        grass_decoration_5_min_count: 0
-        grass_decoration_5_max_count: 0
-        grass_decoration_6_mesh: -1
-        grass_decoration_6_min_count: 0
-        grass_decoration_6_max_count: 0
-        grass_decoration_7_mesh: -1
-        grass_decoration_7_min_count: 0
-        grass_decoration_7_max_count: 0
-        forest_decoration_0_mesh: "assets/mesh/flower_yellow.mesh"
-        forest_decoration_0_min_count: 0
-        forest_decoration_0_max_count: 3
-        forest_decoration_1_mesh: "assets/mesh/flower_yellow.mesh"
-        forest_decoration_1_min_count: 0
-        forest_decoration_1_max_count: 3
-        forest_decoration_2_mesh: "assets/mesh/mushroom_group_red.mesh"
-        forest_decoration_2_min_count: 1
-        forest_decoration_2_max_count: 3
-        forest_decoration_3_mesh: "assets/mesh/mushroom_tall_red.mesh"
-        forest_decoration_3_min_count: 1
-        forest_decoration_3_max_count: 2
-        forest_decoration_4_mesh: "assets/mesh/path_stone.mesh"
-        forest_decoration_4_min_count: 0
-        forest_decoration_4_max_count: 1
-        forest_decoration_5_mesh: "assets/mesh/rock.mesh"
-        forest_decoration_5_min_count: 0
-        forest_decoration_5_max_count: 1
-        forest_decoration_6_mesh: "assets/mesh/small_bush.mesh"
-        forest_decoration_6_min_count: 0
-        forest_decoration_6_max_count: 5
-        forest_decoration_7_mesh: "assets/mesh/stone_a.mesh"
-        forest_decoration_7_min_count: 0
-        forest_decoration_7_max_count: 2
-        thorns_decoration_0_mesh: -1
-        thorns_decoration_0_min_count: 0
-        thorns_decoration_0_max_count: 0
-        thorns_decoration_1_mesh: -1
-        thorns_decoration_1_min_count: 0
-        thorns_decoration_1_max_count: 0
-        thorns_decoration_2_mesh: -1
-        thorns_decoration_2_min_count: 0
-        thorns_decoration_2_max_count: 0
-        thorns_decoration_3_mesh: -1
-        thorns_decoration_3_min_count: 0
-        thorns_decoration_3_max_count: 0
-        thorns_decoration_4_mesh: -1
-        thorns_decoration_4_min_count: 0
-        thorns_decoration_4_max_count: 0
-        thorns_decoration_5_mesh: -1
-        thorns_decoration_5_min_count: 0
-        thorns_decoration_5_max_count: 0
-        thorns_decoration_6_mesh: -1
-        thorns_decoration_6_min_count: 0
-        thorns_decoration_6_max_count: 0
-        thorns_decoration_7_mesh: -1
-        thorns_decoration_7_min_count: 0
-        thorns_decoration_7_max_count: 0
-        mountain_decoration_0_mesh: -1
-        mountain_decoration_0_min_count: 0
-        mountain_decoration_0_max_count: 0
-        mountain_decoration_1_mesh: -1
-        mountain_decoration_1_min_count: 0
-        mountain_decoration_1_max_count: 0
-        mountain_decoration_2_mesh: -1
-        mountain_decoration_2_min_count: 0
-        mountain_decoration_2_max_count: 0
-        mountain_decoration_3_mesh: -1
-        mountain_decoration_3_min_count: 0
-        mountain_decoration_3_max_count: 0
-        mountain_decoration_4_mesh: -1
-        mountain_decoration_4_min_count: 0
-        mountain_decoration_4_max_count: 0
-        mountain_decoration_5_mesh: -1
-        mountain_decoration_5_min_count: 0
-        mountain_decoration_5_max_count: 0
-        mountain_decoration_6_mesh: -1
-        mountain_decoration_6_min_count: 0
-        mountain_decoration_6_max_count: 0
-        mountain_decoration_7_mesh: -1
-        mountain_decoration_7_min_count: 0
-        mountain_decoration_7_max_count: 0
     - id: "0x05047ea6f003fb8f"
     - id: "0xea9d0015f4bf0348"
       data:
