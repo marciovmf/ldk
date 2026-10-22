@@ -1700,7 +1700,7 @@ bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path)
   editor->current_scene_path = relative;
   editor->restore_last_scene_pending = false;
   ldki_editor_last_scene_path_update(editor);
-  ldki_editor_log_info(editor, "Scene loaded.");
+  ldk_log_info("Scene loaded: '%s'.\n", x_fs_path_cstr(path));
   return true;
 }
 
@@ -1721,11 +1721,12 @@ bool ldki_editor_scene_save(LDKEditorContext *editor)
   if (!ldk_scene_systems_save_tml_file(x_fs_path_cstr(&path),
           &editor->current_scene_systems, &result))
   {
-    ldki_editor_log_error(editor, result.error);
+    ldk_log_error("Failed to save scene '%s': %s\n",
+        x_fs_path_cstr(&path), result.error);
     return false;
   }
 
-  ldki_editor_log_info(editor, "Scene saved.");
+  ldk_log_info("Scene saved: '%s'.\n", x_fs_path_cstr(&path));
   return true;
 }
 

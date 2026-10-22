@@ -398,7 +398,7 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
     }
 
     // Scene Viewer Tools shortcuts
-    if (entity_window_focused &&
+    if (ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE) &&
         !event->keyboard_event.ctrl_is_down &&
         !event->keyboard_event.shift_is_down &&
         !event->keyboard_event.alt_is_down && !editor->gizmo.dragging &&
@@ -3449,6 +3449,7 @@ static bool s_project_load(
         "could not be queued.");
   }
 
+  ldk_log_info("Project loaded: '%s'.\n", project_file_path);
   s_editor_last_project_path_update(editor);
   editor->restore_last_scene_pending = editor->last_scene_path.length != 0;
   if (has_game_module)
@@ -3580,6 +3581,8 @@ bool ldki_editor_project_settings_apply(
   }
 
   editor->project = updated;
+  ldk_log_info("Project saved: '%s'.\n",
+      editor->project.project_file_path.buf);
 
   if (!ldk_engine_render_resolution_set(
           editor->project.project_resolution_width,
@@ -3962,6 +3965,7 @@ static void s_editor_project_build_report_finish(
   LDKEditorProjectActionType action_type;
   LDKEditorProjectBuildContinuation continuation;
   LDKEditorJobStatus job_status;
+  const char *stage_label;
   XFSPath project_file_path;
   XSmallstr project_name;
 
@@ -3975,12 +3979,25 @@ static void s_editor_project_build_report_finish(
   continuation = build->continuation;
   project_file_path = build->project_file_path;
   project_name = build->project.name;
+  stage_label = s_editor_project_build_stage_label(build->stage);
 
   job_status = cancelled ? LDK_EDITOR_JOB_STATUS_CANCELLED
                          : success ? LDK_EDITOR_JOB_STATUS_DONE
                                    : LDK_EDITOR_JOB_STATUS_FAILED;
   s_editor_job_history_push(editor, action_type, job_status);
   s_editor_project_build_state_clear(editor);
+
+  if (!success && !cancelled)
+  {
+    ldk_log_error("Project operation failed: '%s' for '%s'.\n",
+        stage_label, project_file_path.buf);
+  }
+  else
+  {
+    ldk_log_info("Project operation '%s' for '%s' (%s).\n",
+        stage_label, project_file_path.buf,
+        cancelled ? "cancelled" : "completed");
+  }
 
   if (action_type == LDK_EDITOR_PROJECT_ACTION_CLEAN && ldk_game_get() != NULL)
   {
@@ -4161,6 +4178,10 @@ static bool s_editor_project_build_update(LDKEditorContext *editor)
       x_strbuilder_append_format(editor->console_sb,
           "\nProcess polling failed. OS error: %u\n", process_result.os_error);
     }
+    ldk_log_error("Build process polling failed for '%s' at '%s' "
+                  "(OS error %u).\n", build->project_file_path.buf,
+        s_editor_project_build_stage_label(build->stage),
+        process_result.os_error);
     s_editor_project_build_report_finish(editor, false, false);
     return false;
   }
@@ -4187,6 +4208,11 @@ static bool s_editor_project_build_update(LDKEditorContext *editor)
       x_strbuilder_append_format(editor->console_sb,
           "\nProcess exited with code %u.\n", process_result.exit_code);
     }
+    ldk_log_error("Build process failed for '%s' at '%s' "
+                  "(exit code %u, log: %s).\n",
+        build->project_file_path.buf,
+        s_editor_project_build_stage_label(build->stage),
+        process_result.exit_code, build->log_path.buf);
     s_editor_project_build_report_finish(editor, false, false);
     return false;
   }
