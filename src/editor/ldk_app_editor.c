@@ -16,6 +16,7 @@
 #include <component/ldk_transform.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_ui.h>
+#include <module/ldk_audio.h>
 #include <module/ldk_renderer.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_asset_source.h>
@@ -4885,6 +4886,16 @@ static i32 s_editor_main(const char *project_file_path)
   {
     x_ini_free(&ini);
     return 1;
+  }
+
+  {
+    LDKAudio *audio = ldk_module_get(LDK_MODULE_AUDIO);
+    float volume = x_ini_get_f32(&ini, ".editor", "audio_volume", 1.0f);
+    if (audio != NULL && audio->is_initialized && isfinite(volume) &&
+        volume >= 0.0f && volume <= 1.0f)
+    {
+      ldk_audio_master_volume_set(audio, volume);
+    }
   }
 
   // Listen to text events for editor UI

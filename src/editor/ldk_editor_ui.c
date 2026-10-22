@@ -1067,6 +1067,24 @@ static bool s_editor_project_build_on_play_write(
       &editor->project.project_file_path, "build_on_play", value);
 }
 
+static bool s_editor_audio_volume_save(
+    LDKEditorContext *editor, float volume)
+{
+  XIni ini = {0};
+  XIniError error = {0};
+  bool result;
+
+  if (!x_ini_load_file(editor->editor_config_path.buf, &ini, &error))
+  {
+    return false;
+  }
+
+  result = x_ini_set_f32(&ini, ".editor", "audio_volume", volume) &&
+           x_ini_write_file(editor->editor_config_path.buf, &ini, &error);
+  x_ini_free(&ini);
+  return result;
+}
+
 static void s_editor_audio_volume_popup(LDKEditorContext *editor,
     LDKUIId popup_id)
 {
@@ -1097,10 +1115,16 @@ static void s_editor_audio_volume_popup(LDKEditorContext *editor,
   ldk_ui_label(ui, volume_text);
   ldk_ui_end_horizontal(ui);
 
-  if (next_volume != volume &&
-      !ldk_audio_master_volume_set(audio, next_volume / 100.0f))
+  if (next_volume != volume)
   {
-    ldki_editor_log_warning(editor, "Failed to set master audio volume.");
+    if (!ldk_audio_master_volume_set(audio, next_volume / 100.0f))
+    {
+      ldki_editor_log_warning(editor, "Failed to set master audio volume.");
+    }
+    else if (!s_editor_audio_volume_save(editor, next_volume / 100.0f))
+    {
+      ldki_editor_log_warning(editor, "Failed to save master audio volume.");
+    }
   }
 
   ldk_ui_end_popup(ui);
