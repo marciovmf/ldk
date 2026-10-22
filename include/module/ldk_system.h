@@ -338,6 +338,20 @@ LDK_API bool ldk_system_registry_system_stop(
 LDK_API bool ldk_system_registry_system_is_started(
     const LDKSystemRegistry *registry, u64 id);
 
+/** Suspend only a system's update callback without terminating it.
+ * Intended for temporary editor play-mode debugging; the flag is cleared
+ * when the system is terminated. This is separate from registry pause.
+ * @group ldk.module.system
+ */
+LDK_API bool ldk_system_registry_system_pause_set(
+    LDKSystemRegistry *registry, u64 id, bool paused);
+
+/** Query the system's individual update suspension state.
+ * @group ldk.module.system
+ */
+LDK_API bool ldk_system_registry_system_is_paused(
+    const LDKSystemRegistry *registry, u64 id);
+
 /** True while a bucket or a system lifecycle callback is executing.
  * @param registry Registry on which the operation is performed.
  * @return True when the queried condition holds; false otherwise.

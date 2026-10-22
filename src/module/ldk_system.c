@@ -19,6 +19,7 @@ typedef struct LDKRegisteredSystem
   u32 registration_index;
   LDKProfilerSource profiler_source;
   u8 is_initialized;
+  u8 editor_paused;
 } LDKRegisteredSystem;
 
 X_ARRAY_TYPE(LDKRegisteredSystem);
@@ -140,6 +141,7 @@ static void s_system_terminate(LDKRegisteredSystem *system)
   }
 
   system->is_initialized = 0;
+  system->editor_paused = 0;
 }
 
 static void s_system_registry_terminate_started_systems(
@@ -621,6 +623,30 @@ bool ldk_system_registry_system_is_started(
          system && system->is_initialized;
 }
 
+bool ldk_system_registry_system_pause_set(
+    LDKSystemRegistry *registry, u64 id, bool paused)
+{
+  LDKSystemRegistryInternal *internal = s_system_registry_internal(registry);
+  LDKRegisteredSystem *system = s_system_registry_find_by_id(registry, id);
+  if (!registry || !registry->is_initialized || !registry->is_started ||
+      !internal || internal->in_callback || !system)
+  {
+    return false;
+  }
+
+  system->editor_paused = paused ? 1 : 0;
+  return true;
+}
+
+bool ldk_system_registry_system_is_paused(
+    const LDKSystemRegistry *registry, u64 id)
+{
+  const LDKRegisteredSystem *system =
+      s_system_registry_find_by_id_const(registry, id);
+  return registry && registry->is_initialized && system &&
+         system->editor_paused != 0;
+}
+
 bool ldk_system_registry_system_data_set(
     LDKSystemRegistry *registry, u64 id, void *data)
 {
@@ -772,7 +798,7 @@ bool ldk_system_registry_run_bucket(
     const LDKEntityGroup *group =
         system->group ? system->group : &s_empty_group;
 
-    if (!system->is_initialized ||
+    if (!system->is_initialized || system->editor_paused ||
         !(system->desc.flags & LDK_SYSTEM_FLAG_ENABLED))
     {
       continue;

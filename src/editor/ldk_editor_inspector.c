@@ -4382,7 +4382,8 @@ static bool s_editor_inspector_system_draw(
   if (editor->editor_state != LDK_EDITOR_STATE_STOPED)
   {
     const LDKUIId apply_id = LDK_INSPECTOR_LIKE_BUTTON_ID;
-    LDKUIRect apply_rect = ldk_ui_last_rect(ui);
+    LDKUIRect header_rect = ldk_ui_last_rect(ui);
+    LDKUIRect apply_rect = header_rect;
     LDKUIIcon apply_icon = icon;
     bool can_apply = ldki_editor_scene_play_apply_available(editor);
 
@@ -4401,6 +4402,28 @@ static bool s_editor_inspector_system_draw(
           editor, "Failed to apply system changes to scene.");
     }
     ldk_ui_end_disabled(ui);
+
+    /* Runtime-only per-system suspension; preserve initialization and data. */
+    LDKSystemRegistry *registry = ldk_ecs_system_registry_get();
+    if (registry && ldk_system_registry_system_is_started(registry, system_id))
+    {
+      LDKUIRect pause_rect = header_rect;
+      LDKUIIcon pause_icon = icon;
+      bool paused = ldk_system_registry_system_is_paused(registry, system_id);
+      pause_rect.x += pause_rect.w - 48.0f -
+                      2.0f * LDK_UI_DEFAULT_PADDING;
+      pause_rect.w = 24.0f;
+      pause_rect.h = LDK_UI_DEFAULT_CONTROL_HEIGHT;
+      pause_icon.uv = ldk_editor_icon_rects[paused
+          ? LDK_EDITOR_ICON_BUTTON_PLAY
+          : LDK_EDITOR_ICON_BUTTON_PAUSE];
+      if (ldk_ui_widget_icon_button(
+              ui, 0x53504155u, pause_icon, "", pause_rect) &&
+          !ldk_system_registry_system_pause_set(registry, system_id, !paused))
+      {
+        ldki_editor_log_error(editor, "Failed to change system pause state.");
+      }
+    }
   }
 
   s_editor_inspector_system_grouping_draw(editor, systems, system_id);
