@@ -580,6 +580,7 @@ bool ldki_editor_file_explorer_package_mount(
     LDKEditorContext *editor, const XFSPath *package_path);
 void ldki_editor_file_explorer_package_mounts_clear(void);
 void ldki_editor_file_explorer_update(LDKEditorContext *editor);
+void ldki_editor_file_explorer_delete_selected(LDKEditorContext *editor);
 void ldki_editor_file_explorer_focus_runtree(LDKEditorContext *editor);
 bool ldki_editor_file_explorer_reveal_asset(
     LDKEditorContext *editor, const char *asset_path);

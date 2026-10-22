@@ -285,101 +285,6 @@ const char *ldki_editor_cmake_native_arch_get(void)
 // Event Handlers
 //----------------------------------------------------------
 
-static bool _on_event_keyboard(const LDKEvent *event, void *state)
-{
-  LDKEditorContext *editor = (LDKEditorContext *)state;
-  if (editor->exclusive_mode &&
-      editor->editor_state == LDK_EDITOR_STATE_PLAYING)
-  {
-    if (event->keyboard_event.type == LDK_KEYBOARD_EVENT_KEY_DOWN &&
-        event->keyboard_event.ctrl_is_down &&
-        event->keyboard_event.keyCode == LDK_KEYCODE_P)
-    {
-      ldk_editor_state_set_stop(editor);
-      return true;
-    }
-    return false;
-  }
-  if (event->keyboard_event.type == LDK_KEYBOARD_EVENT_KEY_DOWN)
-  {
-    bool entity_window_focused =
-        ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_HIERARCHY) ||
-        ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE);
-
-    if (event->keyboard_event.ctrl_is_down &&
-        event->keyboard_event.shift_is_down)
-    {
-      // CTRL+SHIFT+P
-      if (event->keyboard_event.keyCode == LDK_KEYCODE_P)
-      {
-        ldk_editor_state_set_stop(editor);
-        return true;
-      }
-
-      // CTRL+SHIFT+N
-      if (!event->keyboard_event.alt_is_down && entity_window_focused &&
-          event->keyboard_event.keyCode == LDK_KEYCODE_N)
-      {
-        LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
-        ldki_editor_entity_add(editor, ecs);
-        return true;
-      }
-    }
-    else if (event->keyboard_event.ctrl_is_down)
-    {
-      // CTRL+P
-      if (event->keyboard_event.keyCode == LDK_KEYCODE_P)
-      {
-        if (editor->editor_state == LDK_EDITOR_STATE_PLAYING)
-        {
-          ldk_editor_state_set_stop(editor);
-        }
-        else
-        {
-          s_editor_state_set_play(editor);
-        }
-        return true;
-      }
-
-      // CTRL+O
-      if (event->keyboard_event.keyCode == LDK_KEYCODE_O)
-      {
-        ldki_editor_show_open_project_dialog(editor, NULL);
-        return true;
-      }
-    }
-
-    // Entity shortcuts
-    if (!event->keyboard_event.ctrl_is_down &&
-        !event->keyboard_event.shift_is_down &&
-        !event->keyboard_event.alt_is_down && entity_window_focused &&
-        event->keyboard_event.keyCode == LDK_KEYCODE_DELETE)
-    {
-      LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
-      ldki_editor_selected_entity_remove(editor, ecs);
-      return true;
-    }
-
-    // Scene Viewer Tools shortcuts
-    if (ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE))
-    {
-      if (event->keyboard_event.keyCode == LDK_KEYCODE_W)
-      {
-        editor->gizmo.mode = (LDKEditorGizmoMode)LDK_EDITOR_GIZMO_MODE_TRANSLATE;
-      }
-      else if (event->keyboard_event.keyCode == LDK_KEYCODE_E)
-      {
-        editor->gizmo.mode = (LDKEditorGizmoMode)LDK_EDITOR_GIZMO_MODE_ROTATE;
-      }
-      else if (event->keyboard_event.keyCode == LDK_KEYCODE_R)
-      {
-        editor->gizmo.mode = (LDKEditorGizmoMode)LDK_EDITOR_GIZMO_MODE_SCALE;
-      }
-    }
-  }
-  return false;
-}
-
 static bool on_event_keyboard(const LDKEvent *event, void *state)
 {
   LDKEditorContext *editor = (LDKEditorContext *)state;
@@ -400,9 +305,25 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
     bool entity_window_focused =
         ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_HIERARCHY) ||
         ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE);
-    bool duplicate_window_focused =
-        ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_INSPECTOR) ||
-        ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE);
+    bool explorer_focused = ldki_editor_window_is_focused(
+        editor, LDK_EDITOR_WINDOW_PROJECT_EXPLORER);
+    bool text_editing = editor->ui.input_box_id != 0 &&
+        editor->ui.focused_id == editor->ui.input_box_id;
+
+    if (text_editing)
+    {
+      return false;
+    }
+
+    // Save is global, regardless of the focused editor window.
+    if (event->keyboard_event.ctrl_is_down &&
+        !event->keyboard_event.shift_is_down &&
+        !event->keyboard_event.alt_is_down &&
+        event->keyboard_event.keyCode == LDK_KEYCODE_S)
+    {
+      ldki_editor_scene_save(editor);
+      return true;
+    }
 
     if (event->keyboard_event.ctrl_is_down &&
         event->keyboard_event.shift_is_down)
@@ -426,7 +347,7 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
     else if (event->keyboard_event.ctrl_is_down)
     {
       // CTRL+D
-      if (!event->keyboard_event.alt_is_down && duplicate_window_focused &&
+      if (!event->keyboard_event.alt_is_down && entity_window_focused &&
           event->keyboard_event.keyCode == LDK_KEYCODE_D)
       {
         s_editor_selected_entity_duplicate(editor);
@@ -455,6 +376,16 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
       }
     }
 
+    // File Explorer has its own selection and delete confirmation.
+    if (explorer_focused && !event->keyboard_event.ctrl_is_down &&
+        !event->keyboard_event.shift_is_down &&
+        !event->keyboard_event.alt_is_down &&
+        event->keyboard_event.keyCode == LDK_KEYCODE_DELETE)
+    {
+      ldki_editor_file_explorer_delete_selected(editor);
+      return true;
+    }
+
     // Entity shortcuts
     if (!event->keyboard_event.ctrl_is_down &&
         !event->keyboard_event.shift_is_down &&
@@ -467,7 +398,7 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
     }
 
     // Scene Viewer Tools shortcuts
-    if (ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE) &&
+    if (entity_window_focused &&
         !event->keyboard_event.ctrl_is_down &&
         !event->keyboard_event.shift_is_down &&
         !event->keyboard_event.alt_is_down && !editor->gizmo.dragging &&

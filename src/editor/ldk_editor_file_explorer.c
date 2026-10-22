@@ -4069,6 +4069,72 @@ static void s_editor_project_explorer(LDKEditorContext *editor)
   }
 }
 
+void ldki_editor_file_explorer_delete_selected(LDKEditorContext *editor)
+{
+  ProjectExplorerState *state = &s_project_explorer_state;
+  const XFSPath *path;
+  XFSPath parent = {0};
+  bool is_directory;
+
+  if (!editor || !state->root_available || state->rename_active ||
+      state->selected_package >= 0)
+  {
+    return;
+  }
+
+  path = state->selected_file.length != 0
+             ? &state->selected_file
+             : &state->selected_directory;
+  if (!path->length || x_fs_path_compare(path, &state->root) == 0)
+  {
+    return;
+  }
+
+  // Package-backed entries must never be deleted from the virtual explorer.
+  if (state->selected_file.length != 0 && state->last_click_package != NULL)
+  {
+    return;
+  }
+
+  is_directory = x_fs_path_is_directory(path);
+  if (!is_directory && !x_fs_path_is_file(path))
+  {
+    return;
+  }
+
+  if (!ldk_os_dialog_show_yes_no(editor->window, "Delete path?",
+          is_directory ? "Delete this folder and all its contents?"
+                       : "Delete this file?"))
+  {
+    return;
+  }
+
+  // Copy the path before changing the current explorer selection.
+  XFSPath deleted_path = *path;
+  bool deleted = is_directory
+                     ? x_fs_directory_delete_recursive(deleted_path.buf)
+                     : x_fs_file_delete(deleted_path.buf);
+  if (!deleted)
+  {
+    ldki_editor_log_error(editor, "Failed to delete path.");
+    return;
+  }
+
+  s_project_explorer_directory_cache_dirty(state);
+  if (is_directory)
+  {
+    if (x_fs_path_dirname(&deleted_path, &parent) > 0)
+    {
+      s_project_explorer_directory_select(state, &parent, false);
+    }
+    x_array_clear(state->expanded_paths);
+  }
+  else
+  {
+    memset(&state->selected_file, 0, sizeof(state->selected_file));
+  }
+}
+
 void ldk_editor_file_explorer_show(LDKEditor *editor, const char *root_path)
 {
   LDKEditorContext *context = (LDKEditorContext *)editor;
