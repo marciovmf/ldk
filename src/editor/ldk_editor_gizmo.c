@@ -963,6 +963,50 @@ static bool s_editor_gizmo_rotation_drag_state_get(
       target, out_parent_world_rotation);
 }
 
+static bool s_editor_gizmo_plane_axes_get(
+    LDKEditorGizmoAxis plane, u32 *first, u32 *second, u32 *normal)
+{
+  switch (plane)
+  {
+    case LDK_EDITOR_GIZMO_AXIS_XY:
+      *first = 0u; *second = 1u; *normal = 2u;
+      return true;
+    case LDK_EDITOR_GIZMO_AXIS_XZ:
+      *first = 0u; *second = 2u; *normal = 1u;
+      return true;
+    case LDK_EDITOR_GIZMO_AXIS_YZ:
+      *first = 1u; *second = 2u; *normal = 0u;
+      return true;
+    default:
+      return false;
+  }
+}
+
+static bool s_editor_gizmo_plane_screen_hit(LDKUIPoint cursor,
+    LDKUIPoint origin, Vec3 const axes[3], float length,
+    u32 first, u32 second)
+{
+  float ax = axes[first].x * length;
+  float ay = -axes[first].y * length;
+  float bx = axes[second].x * length;
+  float by = -axes[second].y * length;
+  float det = ax * by - ay * bx;
+  float dx = cursor.x - origin.x;
+  float dy = cursor.y - origin.y;
+  float u;
+  float v;
+
+  if (fabsf(det) < length * length * 0.025f)
+  {
+    return false;
+  }
+
+  u = (dx * by - dy * bx) / det;
+  v = (ax * dy - ay * dx) / det;
+  return u >= 0.22f && u <= 0.48f &&
+         v >= 0.22f && v <= 0.48f;
+}
+
 static bool s_editor_gizmo_drag_begin(LDKEditorContext *editor,
     const LDKEditorGizmoTarget *target, Vec3 origin, Mat4 orientation,
     Vec3 const axes[3], LDKMouseState const *mouse)
@@ -1025,6 +1069,35 @@ static bool s_editor_gizmo_drag_begin(LDKEditorContext *editor,
     editor->gizmo.drag_mode = editor->gizmo.mode;
     editor->gizmo.dragging = true;
     return true;
+  }
+
+  {
+    u32 first, second, normal;
+    if (editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_TRANSLATE &&
+        s_editor_gizmo_plane_axes_get(
+            active_axis, &first, &second, &normal))
+    {
+      if (!s_editor_gizmo_scene_ray_get(editor, cursor, &ray) ||
+          !s_editor_gizmo_ray_plane_intersect(ray, origin,
+              vec3_norm(axes[normal]), &hit_position))
+      {
+        return false;
+      }
+
+      editor->gizmo.drag_initial_hit = hit_position;
+      editor->gizmo.drag_plane_normal = vec3_norm(axes[normal]);
+      editor->gizmo.drag_orientation = orientation;
+      editor->gizmo.drag_entity = target->entity;
+      editor->gizmo.drag_instance = target->instance_index;
+      editor->gizmo.drag_is_instance = target->instances != NULL;
+      editor->gizmo.drag_origin = origin;
+      editor->gizmo.drag_initial_cursor = cursor;
+      editor->gizmo.drag_world_length = LDK_EDITOR_GIZMO_PIXEL_LENGTH;
+      editor->gizmo.active_axis = active_axis;
+      editor->gizmo.drag_mode = editor->gizmo.mode;
+      editor->gizmo.dragging = true;
+      return true;
+    }
   }
 
   axis_index = (u32)(active_axis - LDK_EDITOR_GIZMO_AXIS_X);
@@ -1643,6 +1716,25 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
       editor->gizmo.hovered_axis = LDK_EDITOR_GIZMO_AXIS_ALL;
     }
 
+    if (mode == LDK_EDITOR_GIZMO_MODE_TRANSLATE &&
+        editor->gizmo.hovered_axis == LDK_EDITOR_GIZMO_AXIS_NONE)
+    {
+      for (u32 plane = 0u; plane < 3u; ++plane)
+      {
+        LDKEditorGizmoAxis plane_axis =
+            (LDKEditorGizmoAxis)(LDK_EDITOR_GIZMO_AXIS_XY + plane);
+        u32 first, second, normal;
+        if (s_editor_gizmo_plane_axes_get(
+                plane_axis, &first, &second, &normal) &&
+            s_editor_gizmo_plane_screen_hit(cursor, origin_screen,
+                screen_axes, length, first, second))
+        {
+          editor->gizmo.hovered_axis = plane_axis;
+          break;
+        }
+      }
+    }
+
     if (editor->gizmo.hovered_axis == LDK_EDITOR_GIZMO_AXIS_NONE)
     {
       for (u32 axis = 0; axis < LDK_EDITOR_GIZMO_AXIS_COUNT; ++axis)
@@ -1709,7 +1801,9 @@ static bool s_editor_gizmo_translate_drag_update(
     return false;
   }
 
-  if (editor->gizmo.active_axis == LDK_EDITOR_GIZMO_AXIS_ALL)
+  if (editor->gizmo.active_axis == LDK_EDITOR_GIZMO_AXIS_ALL ||
+      (editor->gizmo.active_axis >= LDK_EDITOR_GIZMO_AXIS_XY &&
+       editor->gizmo.active_axis <= LDK_EDITOR_GIZMO_AXIS_YZ))
   {
     if (!s_editor_gizmo_scene_ray_get(editor,
             ldk_pointf(
@@ -1975,56 +2069,6 @@ static void s_editor_gizmo_rotation_submit(LDKEditorContext *editor,
         s_editor_gizmo_part_world(origin, ring_orientation,
             vec3_make(radius, radius, radius)));
   }
-}
-
-static void s_editor_gizmo_rotation_drag_submit(
-    LDKEditorContext *editor)
-{
-  u32 axis;
-  float radius;
-  Mat4 ring_orientation;
-  Mat4 reflected_orientation;
-  Vec3 ring_scale;
-
-  if (editor == NULL ||
-      editor->gizmo.active_axis < LDK_EDITOR_GIZMO_AXIS_X ||
-      editor->gizmo.active_axis > LDK_EDITOR_GIZMO_AXIS_Z)
-  {
-    return;
-  }
-
-  axis = (u32)(editor->gizmo.active_axis - LDK_EDITOR_GIZMO_AXIS_X);
-  Vec3 screen_origin;
-  Mat4 screen_orientation;
-  float pixel_scale = s_editor_gizmo_pixel_scale(editor);
-  if (pixel_scale <= 0.0f ||
-      !s_editor_gizmo_screen_transform_get(editor,
-          editor->gizmo.drag_origin, editor->gizmo.drag_orientation,
-          &screen_origin, &screen_orientation, NULL))
-  {
-    return;
-  }
-
-  radius = LDK_EDITOR_GIZMO_PIXEL_LENGTH * pixel_scale *
-           LDK_EDITOR_GIZMO_ROTATION_RADIUS_SCALE;
-  ring_orientation = s_editor_gizmo_rotation_ring_orientation(
-      screen_orientation, axis);
-  reflected_orientation = mat4_mul(ring_orientation,
-      mat4_scale(vec3_make(1.0f, 1.0f, -1.0f)));
-  ring_scale = vec3_make(radius, radius, radius);
-
-  ldk_renderer_submit_orthographic_overlay_mesh_to_view(editor->renderer,
-      editor->scene_view,
-      editor->gizmo.rotation_arc_highlight_meshes[axis],
-      ldk_renderer_material_default_get(editor->renderer),
-      s_editor_gizmo_part_world(screen_origin,
-          ring_orientation, ring_scale));
-  ldk_renderer_submit_orthographic_overlay_mesh_to_view(editor->renderer,
-      editor->scene_view,
-      editor->gizmo.rotation_arc_highlight_meshes[axis],
-      ldk_renderer_material_default_get(editor->renderer),
-      s_editor_gizmo_part_world(screen_origin,
-          reflected_orientation, ring_scale));
 }
 
 static void s_editor_spot_volume_draw(const LDKDebugDraw *draw,
@@ -2299,15 +2343,8 @@ void ldki_editor_gizmo_submit(LDKEditorContext *editor)
 
   if (mode == LDK_EDITOR_GIZMO_MODE_ROTATE)
   {
-    if (editor->gizmo.dragging)
-    {
-      s_editor_gizmo_rotation_drag_submit(editor);
-    }
-    else
-    {
-      s_editor_gizmo_rotation_submit(
-          editor, origin, orientation, length);
-    }
+    s_editor_gizmo_rotation_submit(
+        editor, origin, orientation, length);
     return;
   }
 
@@ -2366,6 +2403,40 @@ void ldki_editor_gizmo_submit(LDKEditorContext *editor)
         ldk_renderer_material_default_get(editor->renderer),
         s_editor_gizmo_part_world(
             handle_position, handle_orientation, handle_scale));
+  }
+
+  if (mode == LDK_EDITOR_GIZMO_MODE_TRANSLATE)
+  {
+    for (u32 plane = 0u; plane < 3u; ++plane)
+    {
+      LDKEditorGizmoAxis plane_axis =
+          (LDKEditorGizmoAxis)(LDK_EDITOR_GIZMO_AXIS_XY + plane);
+      u32 first, second, normal;
+      Vec3 position;
+      Vec3 scale = vec3_make(length * 0.025f,
+          length * 0.025f, length * 0.025f);
+      bool highlighted = editor->gizmo.hovered_axis == plane_axis;
+
+      if (!s_editor_gizmo_plane_axes_get(
+              plane_axis, &first, &second, &normal))
+      {
+        continue;
+      }
+
+      position = vec3_add(origin,
+          vec3_add(vec3_mul(axes[first], length * 0.35f),
+              vec3_mul(axes[second], length * 0.35f)));
+      if (first == 0u || second == 0u) scale.x = length * 0.26f;
+      if (first == 1u || second == 1u) scale.y = length * 0.26f;
+      if (first == 2u || second == 2u) scale.z = length * 0.26f;
+
+      ldk_renderer_submit_orthographic_overlay_mesh_to_view(
+          editor->renderer, editor->scene_view,
+          highlighted ? editor->gizmo.cube_highlight_mesh
+                      : editor->gizmo.axis_cube_meshes[normal],
+          ldk_renderer_material_default_get(editor->renderer),
+          s_editor_gizmo_part_world(position, orientation, scale));
+    }
   }
 
   {
