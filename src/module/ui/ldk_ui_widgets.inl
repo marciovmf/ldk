@@ -534,7 +534,9 @@ static float s_ui_widget_slider_value(LDKUIContext *ctx,
       s_ui_clampf(ctx->theme.slider_thumb_width, 0.0f, 1.0f);
   float thumb_width = s_ui_minf(base_height * thumb_width_factor, box->rect.w);
 
-  if (frame->active)
+  if (frame->active && ctx->mouse != NULL &&
+      ldk_os_mouse_button_is_pressed(
+          (LDKMouseState *)ctx->mouse, LDK_MOUSE_BUTTON_LEFT))
   {
     value = s_ui_slider_value_from_cursor(
         box->rect, thumb_width, frame->cursor.x, min_value, max_value);
