@@ -15,6 +15,17 @@ static void s_error(LDKMaterialIOResult *result, const char *message)
     snprintf(result->error, sizeof(result->error), "%s", message);
 }
 
+static void s_error_path(LDKMaterialIOResult *result, const char *path,
+    const char *message)
+{
+  if (result)
+  {
+    snprintf(result->error, sizeof(result->error),
+        "material '%s': %s", path ? path : "<unknown>",
+        message ? message : "unknown error");
+  }
+}
+
 LDKAssetMaterial ldk_asset_material_null(void)
 {
   LDKAssetMaterial asset = {x_handle_null()};
@@ -177,7 +188,7 @@ LDKAssetMaterial ldk_asset_manager_material_load_shared(
   size = ldk_asset_source_file_size(&file);
   if (size > (u64)SIZE_MAX - 1u)
   {
-    s_error(result, "material asset is too large");
+    s_error_path(result, asset_path.buf, "asset size exceeds addressable memory");
     return asset;
   }
 
@@ -185,14 +196,14 @@ LDKAssetMaterial ldk_asset_manager_material_load_shared(
   if (!text || !ldk_asset_source_file_read(&file, text, size))
   {
     free(text);
-    s_error(result, "cannot read material asset");
+    s_error_path(result, asset_path.buf, "failed to allocate or read asset data");
     return asset;
   }
   text[size] = 0;
   if (memchr(text, 0, (size_t)size))
   {
     free(text);
-    s_error(result, "cannot read material asset");
+    s_error_path(result, asset_path.buf, "failed to allocate or read asset data");
     return asset;
   }
 
@@ -200,17 +211,24 @@ LDKAssetMaterial ldk_asset_manager_material_load_shared(
   free(text);
   if (!parsed.ok)
   {
-    s_error(result, parsed.error);
+    s_error_path(result, asset_path.buf, parsed.error);
     return asset;
   }
   const TMLNode *node = tml_root_node_at(parsed.document, 0);
   LDKMaterialDesc descriptor;
   if (parsed.document->root_node_count != 1 || !node ||
       node->name.size != 8 || memcmp(node->name.data, "material", 8) != 0)
-    s_error(result, "material file must contain one material node");
+    s_error_path(result, asset_path.buf, "file must contain exactly one material node");
   else if (ldk_material_desc_read(context, parsed.document, node,
                &descriptor, result))
     asset = s_insert(context->assets, &asset_path, &descriptor, false, result);
+  if (x_handle_is_null(asset.h) && result && result->error[0] &&
+      strncmp(result->error, "material '", 10) != 0)
+  {
+    char detail[sizeof(result->error)];
+    snprintf(detail, sizeof(detail), "%s", result->error);
+    s_error_path(result, asset_path.buf, detail);
+  }
   tml_document_free(parsed.document);
   return asset;
 }

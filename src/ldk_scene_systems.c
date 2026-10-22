@@ -820,6 +820,8 @@ bool ldk_scene_systems_start(
       : NULL;
   if (registry_count && !started)
   {
+    ldk_log_error("[Scene] Failed to allocate startup tracking for %u systems.\n",
+        registry_count);
     return false;
   }
 
@@ -829,6 +831,7 @@ bool ldk_scene_systems_start(
     u32 index;
     if (!ldk_system_registry_at(registry, i, &desc))
     {
+      ldk_log_error("[Scene] Failed to retrieve system at registry index %u.\n", i);
       goto failed;
     }
     if (!s_scene_system_find_index(systems, desc.id, &index))
@@ -839,6 +842,9 @@ bool ldk_scene_systems_start(
             systems->data[index] &&
         !ldk_system_registry_system_stop(registry, desc.id))
     {
+      ldk_log_error("[Scene] Failed to stop system '%s' (0x%016" PRIx64
+                    ") before rebinding data.\n",
+          desc.name ? desc.name : "<unnamed system>", desc.id);
       goto failed;
     }
     if (ldk_system_registry_system_is_started(registry, desc.id))
@@ -848,6 +854,8 @@ bool ldk_scene_systems_start(
     if (!ldk_system_registry_system_data_set(
             registry, desc.id, systems->data[index]))
     {
+      ldk_log_error("[Scene] Failed to bind data for system '%s' (0x%016" PRIx64
+                    ").\n", desc.name ? desc.name : "<unnamed system>", desc.id);
       goto failed;
     }
     /* Include a failed initializer in unbinding. The registry itself invokes

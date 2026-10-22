@@ -72,6 +72,18 @@ static void s_mesh_asset_error(
   }
 }
 
+static void s_mesh_asset_error_path(
+    LDKMeshAssetResult *result, const char *path)
+{
+  if (result && result->error[0])
+  {
+    char detail[sizeof(result->error)];
+    snprintf(detail, sizeof(detail), "%s", result->error);
+    snprintf(result->error, sizeof(result->error),
+        "mesh '%s': %s", path ? path : "<unknown>", detail);
+  }
+}
+
 static void s_mesh_asset_error_line(
     LDKMeshAssetResult *result, u32 line, const char *message)
 {
@@ -521,14 +533,16 @@ static bool s_mesh_file_parse(LDKAssetManager *manager, const char *path,
   if (!manager || !manager->source || !path || !out_file ||
       !ldk_asset_source_find(manager->source, path, &file))
   {
-    s_mesh_asset_error(result, "cannot read mesh asset");
+    s_mesh_asset_error(result, "cannot find or read asset");
+    s_mesh_asset_error_path(result, path);
     return false;
   }
 
   size = ldk_asset_source_file_size(&file);
   if (size > (u64)SIZE_MAX - 1u)
   {
-    s_mesh_asset_error(result, "mesh asset is too large");
+    s_mesh_asset_error(result, "asset size exceeds addressable memory");
+    s_mesh_asset_error_path(result, path);
     return false;
   }
 
@@ -537,7 +551,8 @@ static bool s_mesh_file_parse(LDKAssetManager *manager, const char *path,
   if (!text || !ldk_asset_source_file_read(&file, text, size))
   {
     free(text);
-    s_mesh_asset_error(result, "cannot read mesh asset");
+    s_mesh_asset_error(result, "cannot find or read asset");
+    s_mesh_asset_error_path(result, path);
     return false;
   }
   text[size] = 0;
@@ -987,6 +1002,7 @@ static bool s_mesh_file_parse(LDKAssetManager *manager, const char *path,
 
 error:
   free(text);
+  s_mesh_asset_error_path(result, path);
   s_parsed_file_destroy(out_file);
   return false;
 }
@@ -1210,6 +1226,7 @@ LDKAssetMesh ldk_asset_manager_mesh_load_shared(LDKAssetManager *manager,
           &vertex_storage_bytes, &index_storage_bytes))
   {
     s_mesh_asset_error(result, "failed to allocate mesh asset storage");
+    s_mesh_asset_error_path(result, lookup.path.buf);
     s_parsed_file_destroy(&parsed);
     return lookup.mesh;
   }
@@ -1220,6 +1237,7 @@ LDKAssetMesh ldk_asset_manager_mesh_load_shared(LDKAssetManager *manager,
   if (x_handle_is_null(asset.h))
   {
     s_mesh_asset_error(result, "failed to allocate mesh asset");
+    s_mesh_asset_error_path(result, lookup.path.buf);
     free(vertex_storage);
     free(index_storage);
     s_parsed_file_destroy(&parsed);
@@ -1230,6 +1248,7 @@ LDKAssetMesh ldk_asset_manager_mesh_load_shared(LDKAssetManager *manager,
   if (!data)
   {
     s_mesh_asset_error(result, "failed to initialize mesh asset");
+    s_mesh_asset_error_path(result, lookup.path.buf);
     free(vertex_storage);
     free(index_storage);
     ldk_asset_manager_mesh_unload(manager, asset);
