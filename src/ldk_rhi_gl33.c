@@ -1011,6 +1011,37 @@ static char const *LDK_RHI_GL33_VEGETATION_PASS_FRAGMENT_SHADER =
     "      emission), color.a);\n"
     "}\n";
 
+static char const *LDK_RHI_GL33_VEGETATION_PASS_UNLIT_FRAGMENT_SHADER =
+    "#version 330 core\n" LDK_GL33_LIGHTING_GLSL
+    "in vec4 v_color;\n"
+    "in vec4 v_instance_color;\n"
+    "layout(std140) uniform LDK_UBO_2\n"
+    "{\n"
+    "  vec4 u_material_color;\n"
+    "  vec4 u_surface;\n"
+    "  vec4 u_vegetation;\n"
+    "  vec4 u_uv_transform[8];\n"
+    "  vec4 u_vegetation_interaction;\n"
+    "};\n"
+    "out vec4 out_color;\n"
+    "void main()\n"
+    "{\n"
+    "  vec4 color = v_color * u_material_color * v_instance_color;\n"
+    "  float shadow = 1.0;\n"
+    "  int shadow_index = u_light_count.y;\n"
+    "  if (shadow_index >= 0 && shadow_index < min(u_light_count.x, 16))\n"
+    "  {\n"
+    "    LDKLight light = u_lights[shadow_index];\n"
+    "    vec3 to_light;\n"
+    "    if (int(light.position_type.w) == 2)\n"
+    "      to_light = normalize(-light.direction_range.xyz);\n"
+    "    else\n"
+    "      to_light = normalize(light.position_type.xyz - v_world_position);\n"
+    "    shadow = ldk_shadow_visibility(vec3(0.0, 1.0, 0.0), to_light);\n"
+    "  }\n"
+    "  out_color = vec4(ldk_apply_fog(color.rgb * shadow), color.a);\n"
+    "}\n";
+
 static char const* LDK_RHI_GL33_MESH_PASS_UNLIT_FRAGMENT_SHADER =
 "#version 330 core\n" LDK_GL33_MESH_FOG_GLSL
 "in vec4 v_color;\n"
@@ -2123,6 +2154,12 @@ static char const* ldk_rhi_gl33_builtin_shader_source(uint32_t shader, uint32_t 
       stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
   {
     return LDK_RHI_GL33_VEGETATION_PASS_FRAGMENT_SHADER;
+  }
+
+  if (shader == LDK_SHADER_VEGETATION_UNLIT_PASS &&
+      stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_VEGETATION_PASS_UNLIT_FRAGMENT_SHADER;
   }
 
   if (shader == LDK_SHADER_TERRAIN_PASS &&

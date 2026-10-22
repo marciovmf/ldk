@@ -715,7 +715,8 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
 
   bool cutout = s_renderer_shadow_material_uses_alpha_test(material);
   bool vegetation = material->selection ==
-      LDK_RENDERER_MATERIAL_SELECTION_VEGETATION;
+          LDK_RENDERER_MATERIAL_SELECTION_VEGETATION ||
+      material->selection == LDK_RENDERER_MATERIAL_SELECTION_VEGETATION_UNLIT;
   LDKRHIPipeline pipeline = vegetation
       ? pass->vegetation_pipeline
       : (cutout ? pass->cutout_pipeline : pass->pipeline);

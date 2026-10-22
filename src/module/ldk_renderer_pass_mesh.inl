@@ -99,8 +99,12 @@ static bool s_renderer_mesh_pass_create_shaders(LDKRendererMeshPass* pass)
   pass->vegetation_fragment_shader_module =
       ldk_rhi_create_builtin_shader_module(pass->rhi,
           LDK_SHADER_VEGETATION_PASS, LDK_RHI_SHADER_STAGE_FRAGMENT);
+  pass->vegetation_unlit_fragment_shader_module =
+      ldk_rhi_create_builtin_shader_module(pass->rhi,
+          LDK_SHADER_VEGETATION_UNLIT_PASS, LDK_RHI_SHADER_STAGE_FRAGMENT);
   if (pass->vegetation_vertex_shader_module == LDK_RHI_INVALID_RESOURCE ||
-      pass->vegetation_fragment_shader_module == LDK_RHI_INVALID_RESOURCE)
+      pass->vegetation_fragment_shader_module == LDK_RHI_INVALID_RESOURCE ||
+      pass->vegetation_unlit_fragment_shader_module == LDK_RHI_INVALID_RESOURCE)
   {
     return false;
   }
@@ -227,6 +231,7 @@ static void s_renderer_mesh_pass_disable_instancing(
   ldk_rhi_pipeline_destroy(
       pass->rhi, pass->vertex_color_unlit_instanced_pipeline);
   ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_instanced_pipeline);
+  ldk_rhi_pipeline_destroy(pass->rhi, pass->vegetation_unlit_instanced_pipeline);
   ldk_rhi_pipeline_destroy(pass->rhi, pass->vegetation_instanced_pipeline);
   ldk_rhi_shader_module_destroy(pass->rhi, pass->instanced_vertex_shader_module);
   ldk_rhi_shader_module_destroy(
@@ -242,6 +247,7 @@ static void s_renderer_mesh_pass_disable_instancing(
   pass->textured_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
   pass->vertex_color_unlit_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
   pass->vertex_color_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
+  pass->vegetation_unlit_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
   pass->vegetation_instanced_pipeline = LDK_RHI_INVALID_RESOURCE;
   pass->instanced_vertex_shader_module = LDK_RHI_INVALID_RESOURCE;
   pass->vegetation_instanced_vertex_shader_module = LDK_RHI_INVALID_RESOURCE;
@@ -312,6 +318,12 @@ static bool s_renderer_mesh_pass_create_pipeline(LDKRendererMeshPass* pass)
   desc.raster_state.cull_mode = LDK_RHI_CULL_MODE_NONE;
   pass->vegetation_pipeline = ldk_rhi_pipeline_create(pass->rhi, &desc);
   if (pass->vegetation_pipeline == LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+  desc.fragment_shader_module = pass->vegetation_unlit_fragment_shader_module;
+  pass->vegetation_unlit_pipeline = ldk_rhi_pipeline_create(pass->rhi, &desc);
+  if (pass->vegetation_unlit_pipeline == LDK_RHI_INVALID_RESOURCE)
   {
     return false;
   }
@@ -493,6 +505,14 @@ static bool s_renderer_mesh_pass_create_pipeline(LDKRendererMeshPass* pass)
   pass->vegetation_instanced_pipeline =
       ldk_rhi_pipeline_create(pass->rhi, &desc);
   if (pass->vegetation_instanced_pipeline == LDK_RHI_INVALID_RESOURCE)
+  {
+    s_renderer_mesh_pass_disable_instancing(pass);
+    return true;
+  }
+  desc.fragment_shader_module = pass->vegetation_unlit_fragment_shader_module;
+  pass->vegetation_unlit_instanced_pipeline =
+      ldk_rhi_pipeline_create(pass->rhi, &desc);
+  if (pass->vegetation_unlit_instanced_pipeline == LDK_RHI_INVALID_RESOURCE)
   {
     s_renderer_mesh_pass_disable_instancing(pass);
     return true;
@@ -1047,7 +1067,8 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
     ldk_rhi_pipeline_destroy(
         pass->rhi, pass->vertex_color_unlit_instanced_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_instanced_pipeline);
-    ldk_rhi_pipeline_destroy(pass->rhi, pass->vegetation_instanced_pipeline);
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->vegetation_unlit_instanced_pipeline);
+  ldk_rhi_pipeline_destroy(pass->rhi, pass->vegetation_instanced_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->textured_unlit_blend_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->textured_blend_pipeline);
     ldk_rhi_pipeline_destroy(
@@ -1065,6 +1086,7 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
     ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_unlit_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->vertex_color_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->terrain_pipeline);
+    ldk_rhi_pipeline_destroy(pass->rhi, pass->vegetation_unlit_pipeline);
     ldk_rhi_pipeline_destroy(pass->rhi, pass->vegetation_pipeline);
     ldk_rhi_bindings_layout_destroy(pass->rhi, pass->bindings_layout);
     ldk_rhi_shader_module_destroy(
@@ -1089,6 +1111,8 @@ static void s_renderer_mesh_pass_terminate(LDKRendererMeshPass* pass)
         pass->rhi, pass->terrain_fragment_shader_module);
     ldk_rhi_shader_module_destroy(
         pass->rhi, pass->terrain_vertex_shader_module);
+    ldk_rhi_shader_module_destroy(
+        pass->rhi, pass->vegetation_unlit_fragment_shader_module);
     ldk_rhi_shader_module_destroy(
         pass->rhi, pass->vegetation_fragment_shader_module);
     ldk_rhi_shader_module_destroy(
@@ -1201,6 +1225,9 @@ static LDKRHIPipeline s_renderer_mesh_pass_pipeline(
     case LDK_RENDERER_MATERIAL_SELECTION_VEGETATION:
       return instanced ? pass->vegetation_instanced_pipeline
                        : pass->vegetation_pipeline;
+    case LDK_RENDERER_MATERIAL_SELECTION_VEGETATION_UNLIT:
+      return instanced ? pass->vegetation_unlit_instanced_pipeline
+                       : pass->vegetation_unlit_pipeline;
     case LDK_RENDERER_MATERIAL_SELECTION_TERRAIN:
       return instanced ? LDK_RHI_INVALID_RESOURCE : pass->terrain_pipeline;
     case LDK_RENDERER_MATERIAL_SELECTION_INVALID:
@@ -1355,7 +1382,8 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
   bool textured = s_renderer_mesh_pass_material_is_textured(material);
   bool lit = !overlay && s_renderer_mesh_pass_material_is_lit(material);
   bool vegetation = material->selection ==
-      LDK_RENDERER_MATERIAL_SELECTION_VEGETATION;
+          LDK_RENDERER_MATERIAL_SELECTION_VEGETATION ||
+      material->selection == LDK_RENDERER_MATERIAL_SELECTION_VEGETATION_UNLIT;
 
   LDKRHIBindings bindings = pass->bindings;
   if (vegetation && renderer->vegetation_interaction_enabled &&

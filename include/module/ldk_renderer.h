@@ -63,6 +63,7 @@ extern "C" {
     LDK_SHADER_SHADOW_PASS_CUTOUT_INSTANCED,
     LDK_SHADER_VEGETATION_PASS,
     LDK_SHADER_VEGETATION_PASS_INSTANCED,
+    LDK_SHADER_VEGETATION_UNLIT_PASS,
     LDK_SHADER_SHADOW_PASS_VEGETATION,
     LDK_SHADER_SHADOW_PASS_VEGETATION_INSTANCED,
     LDK_SHADER_POST_PROCESS_PASS,
@@ -489,7 +490,9 @@ extern "C" {
     LDKRHIPipeline instanced_pipeline;
     LDKRHIPipeline cutout_instanced_pipeline;
     LDKRHIPipeline vegetation_pipeline;
+    LDKRHIPipeline vegetation_unlit_pipeline;
     LDKRHIPipeline vegetation_instanced_pipeline;
+    LDKRHIPipeline vegetation_unlit_instanced_pipeline;
     LDKRHIBuffer camera_buffer;
     LDKRHIBuffer object_buffer;
     LDKRHIBuffer material_buffer;
@@ -521,6 +524,7 @@ extern "C" {
     LDKRHIShaderModule vegetation_vertex_shader_module;
     LDKRHIShaderModule vegetation_instanced_vertex_shader_module;
     LDKRHIShaderModule vegetation_fragment_shader_module;
+    LDKRHIShaderModule vegetation_unlit_fragment_shader_module;
     LDKRHIShaderModule terrain_vertex_shader_module;
     LDKRHIShaderModule terrain_fragment_shader_module;
     LDKRHIBindingsLayout bindings_layout;
@@ -549,7 +553,9 @@ extern "C" {
     LDKRHIPipeline textured_blend_instanced_pipeline;
     LDKRHIPipeline textured_unlit_blend_instanced_pipeline;
     LDKRHIPipeline vegetation_pipeline;
+    LDKRHIPipeline vegetation_unlit_pipeline;
     LDKRHIPipeline vegetation_instanced_pipeline;
+    LDKRHIPipeline vegetation_unlit_instanced_pipeline;
     LDKRHIPipeline terrain_pipeline;
     LDKRHIBuffer camera_buffer;
     LDKRHIBuffer object_buffer;
@@ -883,6 +889,7 @@ extern "C" {
     LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT_BLEND,
     LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_BLEND,
     LDK_RENDERER_MATERIAL_SELECTION_VEGETATION,
+    LDK_RENDERER_MATERIAL_SELECTION_VEGETATION_UNLIT,
     LDK_RENDERER_MATERIAL_SELECTION_TERRAIN
   } LDKRendererMaterialSelection;
 

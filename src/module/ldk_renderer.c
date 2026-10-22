@@ -3676,6 +3676,10 @@ static LDKRendererMaterialSelection s_renderer_material_selection(
           ? LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_BLEND
           : LDK_RENDERER_MATERIAL_SELECTION_TEXTURED;
     case LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT:
+      if (desc->vegetation)
+      {
+        return LDK_RENDERER_MATERIAL_SELECTION_VEGETATION_UNLIT;
+      }
       return desc->alpha_mode == LDK_MATERIAL_ALPHA_MODE_BLEND
           ? LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT_BLEND
           : LDK_RENDERER_MATERIAL_SELECTION_VERTEX_COLOR_UNLIT;
@@ -3736,7 +3740,8 @@ static bool s_renderer_material_desc_is_valid(
     return false;
   }
   if (desc->vegetation &&
-      (desc->type != LDK_MATERIAL_TYPE_VERTEX_COLOR ||
+      ((desc->type != LDK_MATERIAL_TYPE_VERTEX_COLOR &&
+           desc->type != LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT) ||
           desc->alpha_mode != LDK_MATERIAL_ALPHA_MODE_OPAQUE))
   {
     return false;

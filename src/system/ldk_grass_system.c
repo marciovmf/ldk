@@ -67,6 +67,7 @@ typedef struct LDKGrassResolvedDesc
   float interaction_recovery_time;
   u32 seed;
   bool casts_shadows;
+  bool unlit;
 } LDKGrassResolvedDesc;
 
 typedef struct LDKGrassPatchEntry
@@ -98,6 +99,7 @@ typedef struct LDKGrassBatch
   float wind_direction;
   float interaction_recovery_time;
   bool casts_shadows;
+  bool unlit;
 
   Mat4 *instances;
   u32 *instance_colors;
@@ -1205,6 +1207,7 @@ static bool s_resolved_desc_build(const LDKGrassSystem *system,
       : LDK_GRASS_INTERACTION_DEFAULT_RECOVERY_TIME;
   out_desc->seed = patch->seed;
   out_desc->casts_shadows = system->casts_shadows;
+  out_desc->unlit = system->unlit;
   return isfinite(out_desc->density) && isfinite(out_desc->wind_strength);
 }
 
@@ -1532,7 +1535,8 @@ static bool s_batch_compatible(
          batch->wind_direction == desc->wind_direction &&
          batch->interaction_recovery_time ==
              desc->interaction_recovery_time &&
-         batch->casts_shadows == desc->casts_shadows;
+         batch->casts_shadows == desc->casts_shadows &&
+         batch->unlit == desc->unlit;
 }
 
 static bool s_patches_reserve(u32 required)
@@ -1647,6 +1651,7 @@ static u32 s_batch_find_or_add(const LDKGrassResolvedDesc *desc)
   batch->wind_direction = desc->wind_direction;
   batch->interaction_recovery_time = desc->interaction_recovery_time;
   batch->casts_shadows = desc->casts_shadows;
+  batch->unlit = desc->unlit;
   batch->mesh = ldk_renderer_mesh_null();
   batch->material = ldk_renderer_material_null();
   batch->instance_set = ldk_renderer_instance_set_null();
@@ -2476,7 +2481,8 @@ static bool s_batch_material_create(LDKGrassBatch *batch)
     return false;
   }
 
-  desc.type = LDK_MATERIAL_TYPE_VERTEX_COLOR;
+  desc.type = batch->unlit ? LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT
+                           : LDK_MATERIAL_TYPE_VERTEX_COLOR;
   desc.texture = ldk_renderer_texture_null();
   desc.normal_map = ldk_renderer_texture_null();
   desc.specular_map = ldk_renderer_texture_null();
@@ -2528,6 +2534,7 @@ static u64 s_system_config_hash(const LDKGrassSystem *system)
   LDK_GRASS_HASH_FIELD(shininess);
   LDK_GRASS_HASH_FIELD(emission);
   LDK_GRASS_HASH_FIELD(casts_shadows);
+  LDK_GRASS_HASH_FIELD(unlit);
   LDK_GRASS_HASH_FIELD(color_noise_scale);
   LDK_GRASS_HASH_FIELD(color_stop_1_position);
   LDK_GRASS_HASH_FIELD(color_stop_2_position);

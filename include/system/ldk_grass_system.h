@@ -212,6 +212,7 @@ typedef struct LDKGrassSystem
   //@inspect slider min=0 max=4
   float emission;
   bool casts_shadows;
+  bool unlit;
   //@end_group
 
   //@begin_group "Grass Type 0"
