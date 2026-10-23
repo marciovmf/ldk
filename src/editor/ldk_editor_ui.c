@@ -1,5 +1,8 @@
+#include "ldk_editor_color_picker.h"
 #include "ldk_editor_atlas.h"
 #include "ldk_editor_internal.h"
+#include "ldk_editor_ui.h"
+#include "ldk_ui_drag_n_drop.h"
 #include "ldk_editor_scene_ops.h"
 #include "ldk_editor_theme.h"
 #include "ldk_os.h"
@@ -7,6 +10,7 @@
 #include <module/ldk_audio.h>
 #include <module/ldk_scene_manager.h>
 #include <stdx/stdx_ini.h>
+#include <math.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
@@ -1400,4 +1404,564 @@ void ldki_editor_log_info(LDKEditorContext *editor, const char *msg)
 {
   (void)editor;
   ldk_log_info("%s\n", msg ? msg : "<null info>");
+}
+
+/* Inspector/property row layout, shared by editor-specific controls. */
+typedef struct LDKEditorUIRowColumnState
+{
+  float drag_start_width;
+  i32 drag_start_x;
+  bool dragging;
+} LDKEditorUIRowColumnState;
+
+static LDKEditorUIRowColumnState s_editor_ui_row_column_state = {0};
+static const float s_editor_ui_row_label_width_min = 60.0f;
+static const float s_editor_ui_row_control_width_min = 80.0f;
+static const float s_editor_ui_row_splitter_hit_width = 8.0f;
+static const float s_editor_ui_row_height = 26.0f;
+
+static float s_editor_ui_row_label_width_clamp(
+    LDKUIContext *ui, float width)
+{
+  float max_width = s_editor_ui_row_label_width_min;
+
+  if (ui && ui->current_layout)
+  {
+    max_width = ui->current_layout->content_rect.w -
+                s_editor_ui_row_control_width_min;
+    if (max_width < s_editor_ui_row_label_width_min)
+    {
+      max_width = s_editor_ui_row_label_width_min;
+    }
+  }
+
+  if (width < s_editor_ui_row_label_width_min)
+  {
+    return s_editor_ui_row_label_width_min;
+  }
+  if (width > max_width)
+  {
+    return max_width;
+  }
+  return width;
+}
+
+void ldk_editor_ui_row_column_update(LDKEditorContext *editor)
+{
+  LDKEditorUIRowColumnState *state = &s_editor_ui_row_column_state;
+  LDKUIContext *ui;
+  LDKPoint cursor;
+
+  if (!editor)
+  {
+    return;
+  }
+
+  ui = &editor->ui;
+  if (!isfinite(editor->inspector_label_width) ||
+      editor->inspector_label_width <= 0.0f)
+  {
+    editor->inspector_label_width =
+        LDK_EDITOR_INSPECTOR_LABEL_WIDTH_DEFAULT;
+  }
+
+  editor->inspector_label_width = s_editor_ui_row_label_width_clamp(
+      ui, editor->inspector_label_width);
+
+  if (!state->dragging)
+  {
+    return;
+  }
+
+  if (!ui->mouse)
+  {
+    state->dragging = false;
+    return;
+  }
+
+  cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+  editor->inspector_label_width = s_editor_ui_row_label_width_clamp(ui,
+      state->drag_start_width + (float)(cursor.x - state->drag_start_x));
+  ui->cursor_type = LDK_CURSOR_SIZE_WE;
+
+  if (!ldk_os_mouse_button_is_pressed(
+          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    state->dragging = false;
+  }
+}
+
+void ldk_editor_ui_row_begin(
+    LDKEditorContext *editor, const char *label, u32 group_depth)
+{
+  LDKEditorUIRowColumnState *state = &s_editor_ui_row_column_state;
+  LDKUIContext *ui;
+  LDKUIRect label_rect;
+  LDKUIRect splitter_rect;
+  LDKPoint cursor;
+  float spacing;
+  float hit_width;
+  float indent_width = 0.0f;
+  float label_width;
+  bool hovered;
+
+  if (!editor)
+  {
+    return;
+  }
+
+  ui = &editor->ui;
+  if (group_depth > 0u)
+  {
+    indent_width = LDK_UI_TREE_NODE_CHEVRON_WIDTH + LDK_UI_DEFAULT_SPACING +
+        (float)(group_depth - 1u) *
+            LDK_UI_TREE_NODE_INDENT_WIDTH;
+  }
+  label_width = editor->inspector_label_width - indent_width;
+  if (label_width < 1.0f)
+  {
+    label_width = 1.0f;
+  }
+
+  ldk_ui_set_next_height(ui, ldk_ui_px(s_editor_ui_row_height));
+  ldk_ui_begin_horizontal(ui);
+  if (indent_width > 0.0f)
+  {
+    ldk_ui_set_next_width(ui, ldk_ui_px(indent_width));
+    ldk_ui_spacer(ui);
+  }
+  ldk_ui_set_next_width(ui, ldk_ui_px(label_width));
+  ldk_ui_label(ui, label ? label : "");
+
+  if (!ui->mouse || !ui->current_window)
+  {
+    return;
+  }
+
+  label_rect = ldk_ui_last_bounding_rect(ui);
+  spacing = ui->current_layout ? ui->current_layout->spacing
+                               : LDK_UI_DEFAULT_SPACING;
+  hit_width = spacing > s_editor_ui_row_splitter_hit_width
+                  ? spacing
+                  : s_editor_ui_row_splitter_hit_width;
+  splitter_rect = label_rect;
+  splitter_rect.x =
+      label_rect.x + label_rect.w - (hit_width - spacing);
+  splitter_rect.w = hit_width;
+
+  cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+  hovered = ui->hovered_window_id == ui->current_window->id &&
+            ldk_rectf_contains(
+                &splitter_rect, (float)cursor.x, (float)cursor.y) &&
+            ldk_rectf_contains(
+                &ui->clip_rect, (float)cursor.x, (float)cursor.y);
+
+  if (hovered || state->dragging)
+  {
+    ui->cursor_type = LDK_CURSOR_SIZE_WE;
+  }
+
+  if (hovered && !state->dragging &&
+      ldk_os_mouse_button_down(
+          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    state->dragging = true;
+    state->drag_start_x = cursor.x;
+    state->drag_start_width = editor->inspector_label_width;
+  }
+}
+
+bool ldk_editor_ui_row_bool(LDKEditorContext *editor, const char *label,
+    u32 group_depth, bool value, bool readonly)
+{
+  LDKUIContext *ui;
+  if (!editor)
+  {
+    return value;
+  }
+
+  ui = &editor->ui;
+  ldk_editor_ui_row_begin(editor, label, group_depth);
+  ldk_ui_begin_disabled(ui, readonly);
+  value = ldk_ui_toggle(ui, value);
+  ldk_ui_end_disabled(ui);
+  return value;
+}
+
+float ldk_editor_ui_row_slider_float(LDKEditorContext *editor,
+    const char *label, u32 group_depth, float value, float minimum,
+    float maximum, bool readonly)
+{
+  LDKUIContext *ui;
+  if (!editor)
+  {
+    return value;
+  }
+
+  ui = &editor->ui;
+  ldk_editor_ui_row_begin(editor, label, group_depth);
+  ldk_ui_begin_disabled(ui, readonly);
+  value = ldk_ui_slider_input(ui, value, minimum, maximum);
+  ldk_ui_end_disabled(ui);
+  return value;
+}
+
+u32 ldk_editor_ui_row_text(LDKEditorContext *editor, const char *label,
+    u32 group_depth, char *value, u32 capacity, bool readonly)
+{
+  LDKUIContext *ui;
+  u32 result;
+  if (!editor || !value || !capacity)
+  {
+    return 0;
+  }
+
+  ui = &editor->ui;
+  ldk_editor_ui_row_begin(editor, label, group_depth);
+  ldk_ui_begin_disabled(ui, readonly);
+  result = ldk_ui_input_box(ui, value, capacity);
+  ldk_ui_end_disabled(ui);
+  return result;
+}
+
+u32 ldk_editor_ui_row_enum(LDKEditorContext *editor, const char *label,
+    u32 group_depth, const char *const *options, u32 count, u32 selected,
+    bool readonly)
+{
+  LDKUIContext *ui;
+  u32 result;
+  if (!editor || !options || !count)
+  {
+    return selected;
+  }
+
+  ui = &editor->ui;
+  ldk_editor_ui_row_begin(editor, label, group_depth);
+  ldk_ui_begin_disabled(ui, readonly);
+  result = ldk_ui_combo_box(ui, options, count, selected);
+  ldk_ui_end_disabled(ui);
+  ldk_ui_end_horizontal(ui);
+  return result;
+}
+
+bool ldk_editor_ui_row_color(LDKEditorContext *editor, const char *label,
+    u32 group_depth, rgba32 *color, bool readonly)
+{
+  bool changed;
+  if (!editor || !color)
+  {
+    return false;
+  }
+  ldk_editor_ui_row_begin(editor, label, group_depth);
+  changed = ldki_editor_color_field(editor, color, readonly);
+  ldk_ui_end_horizontal(&editor->ui);
+  return changed;
+}
+
+/* Numerical rows leave text-edit state and numeric parsing to the caller. */
+static u32 s_editor_ui_row_number(LDKEditorContext *editor, const char *label,
+    u32 group_depth, char *buffer, u32 capacity, const float *float_value,
+    bool readonly, LDKEditorUIRowInputFn input, void *user)
+{
+  u32 result;
+  LDKUIContext *ui;
+  if (!editor || !input || !buffer || !capacity)
+  {
+    return LDK_UI_INPUT_BOX_NONE;
+  }
+  ui = &editor->ui;
+  ldk_editor_ui_row_begin(editor, label, group_depth);
+  ldk_ui_begin_disabled(ui, readonly);
+  result = input(ui, user, 0u, buffer, capacity, float_value);
+  ldk_ui_end_disabled(ui);
+  return result;
+}
+
+static bool s_editor_ui_row_vector(LDKEditorContext *editor, const char *label,
+    u32 group_depth, float **values, u32 count, bool axis_labels,
+    bool readonly, LDKEditorUIRowFloatFn input, void *user)
+{
+  bool changed = false;
+  static const char *axes[] = {"X", "Y", "Z", "W"};
+  LDKUIContext *ui;
+  if (!editor || !input || !values || !count || count > 4u)
+  {
+    return false;
+  }
+  ui = &editor->ui;
+  ldk_editor_ui_row_begin(editor, label, group_depth);
+  for (u32 i = 0; i < count; ++i)
+  {
+    if (axis_labels)
+    {
+      ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
+      ldk_ui_label(ui, axes[i]);
+    }
+    changed |= input(ui, user, i, values[i], readonly);
+  }
+  return changed;
+}
+
+
+u32 ldk_editor_ui_row_int(LDKEditorContext *editor, const char *label,
+    u32 group_depth, char *buffer, u32 capacity, bool readonly,
+    LDKEditorUIRowInputFn input, void *user)
+{
+  return s_editor_ui_row_number(editor, label, group_depth, buffer,
+      capacity, NULL, readonly, input, user);
+}
+
+u32 ldk_editor_ui_row_uint(LDKEditorContext *editor, const char *label,
+    u32 group_depth, char *buffer, u32 capacity, bool readonly,
+    LDKEditorUIRowInputFn input, void *user)
+{
+  return s_editor_ui_row_number(editor, label, group_depth, buffer,
+      capacity, NULL, readonly, input, user);
+}
+
+u32 ldk_editor_ui_row_double(LDKEditorContext *editor, const char *label,
+    u32 group_depth, char *buffer, u32 capacity, bool readonly,
+    LDKEditorUIRowInputFn input, void *user)
+{
+  return s_editor_ui_row_number(editor, label, group_depth, buffer,
+      capacity, NULL, readonly, input, user);
+}
+
+u32 ldk_editor_ui_row_float(LDKEditorContext *editor, const char *label,
+    u32 group_depth, char *buffer, u32 capacity, const float *value,
+    bool readonly, LDKEditorUIRowInputFn input, void *user)
+{
+  return s_editor_ui_row_number(editor, label, group_depth, buffer,
+      capacity, value, readonly, input, user);
+}
+
+bool ldk_editor_ui_row_vec2(LDKEditorContext *editor, const char *label,
+    u32 group_depth, float **values, bool readonly,
+    LDKEditorUIRowFloatFn input, void *user)
+{
+  return s_editor_ui_row_vector(editor, label, group_depth, values, 2u,
+      false, readonly, input, user);
+}
+
+bool ldk_editor_ui_row_vec3(LDKEditorContext *editor, const char *label,
+    u32 group_depth, float **values, bool readonly,
+    LDKEditorUIRowFloatFn input, void *user)
+{
+  return s_editor_ui_row_vector(editor, label, group_depth, values, 3u,
+      true, readonly, input, user);
+}
+
+bool ldk_editor_ui_row_vec4(LDKEditorContext *editor, const char *label,
+    u32 group_depth, float **values, bool readonly,
+    LDKEditorUIRowFloatFn input, void *user)
+{
+  return s_editor_ui_row_vector(editor, label, group_depth, values, 4u,
+      false, readonly, input, user);
+}
+
+
+static LDKEditorUIRowSlotAction s_editor_ui_row_slot_asset(
+    LDKEditorContext *editor, const char *label, u32 group_depth,
+    const LDKAssetInfo *info, bool readonly, bool optional, bool has_value,
+    const char *dialog_title, const char *filter, XFSPath *path)
+{
+  LDKUIContext *ui;
+  LDKUIRect target;
+  char display[X_FS_PATH_MAX_LENGTH];
+  bool assign = false;
+  bool clear = false;
+
+  if (!editor || !path)
+  {
+    return LDK_EDITOR_UI_ROW_SLOT_NONE;
+  }
+
+  ui = &editor->ui;
+  snprintf(display, sizeof(display), "%s", info ? info->asset_path.buf : "");
+  ldk_editor_ui_row_begin(editor, label, group_depth);
+  ldk_ui_begin_disabled(ui, true);
+  ldk_ui_input_box(ui, display, sizeof(display));
+  target = ldk_ui_last_bounding_rect(ui);
+  ldk_ui_end_disabled(ui);
+
+  if (info && info->asset_path.length && ui->mouse && !ui->active_id &&
+      ui->current_window &&
+      ui->hovered_window_id == ui->current_window->id &&
+      ldk_os_mouse_button_down((LDKMouseState *)ui->mouse,
+          LDK_MOUSE_BUTTON_LEFT))
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
+        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
+    {
+      ldki_editor_file_explorer_reveal_asset(editor, info->asset_path.buf);
+    }
+  }
+
+  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
+      ui->hovered_window_id == ui->current_window->id &&
+      ldk_os_mouse_button_up((LDKMouseState *)ui->mouse,
+          LDK_MOUSE_BUTTON_LEFT))
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
+        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
+    {
+      u32 payload_type = 0;
+      assign = ldk_ui_drag_n_drop_payload_get_and_remove(
+          &payload_type, path) &&
+          (payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
+           payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
+    }
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+  ldk_ui_begin_disabled(ui, readonly);
+  if (ldk_ui_button(ui, "..."))
+  {
+    assign = ldk_os_dialog_show_open_file(
+        editor->window, dialog_title, filter, path);
+  }
+  ldk_ui_end_disabled(ui);
+
+  if (optional)
+  {
+    ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+    ldk_ui_begin_disabled(ui, readonly || !has_value);
+    clear = ldk_ui_button(ui, "X");
+    ldk_ui_end_disabled(ui);
+  }
+  ldk_ui_end_horizontal(ui);
+
+  return clear ? LDK_EDITOR_UI_ROW_SLOT_CLEAR
+               : assign ? LDK_EDITOR_UI_ROW_SLOT_ASSIGN
+                        : LDK_EDITOR_UI_ROW_SLOT_NONE;
+}
+
+#define S_EDITOR_SLOT_ROW(name, filter_title, filter_string) \
+LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_##name(LDKEditorContext *editor, \
+    const char *label, u32 group_depth, const LDKAssetInfo *info, \
+    bool readonly, XFSPath *path) \
+{ \
+  return s_editor_ui_row_slot_asset(editor, label, group_depth, info, readonly, \
+      false, false, filter_title, filter_string, path); \
+}
+
+S_EDITOR_SLOT_ROW(mesh, "Choose mesh", "Meshes\0*.mesh\0\0")
+S_EDITOR_SLOT_ROW(font, "Choose font", "Fonts\0*.ttf;*.otf\0\0")
+S_EDITOR_SLOT_ROW(audio, "Choose audio", "Audio\0*.wav;*.mp3;*.flac\0\0")
+S_EDITOR_SLOT_ROW(animation, "Choose animation", "Animation\0*.anim\0\0")
+
+#undef S_EDITOR_SLOT_ROW
+
+LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_material(LDKEditorContext *editor,
+    const char *label, u32 group_depth, const LDKAssetInfo *info,
+    bool readonly, bool optional, bool has_value, XFSPath *path)
+{
+  return s_editor_ui_row_slot_asset(editor, label, group_depth, info, readonly,
+      optional, has_value, "Choose material", "Materials\0*.tml\0\0", path);
+}
+
+LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_skybox(LDKEditorContext *editor,
+    const char *label, u32 group_depth, const LDKAssetInfo *info,
+    bool readonly, bool optional, bool has_value, XFSPath *path)
+{
+  return s_editor_ui_row_slot_asset(editor, label, group_depth, info, readonly,
+      optional, has_value, "Choose skybox", "Skyboxes\0*.skybox\0\0", path);
+}
+
+LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_texture_atlas(LDKEditorContext *editor,
+    const char *label, u32 group_depth, const LDKAssetInfo *info,
+    bool readonly, bool has_value, XFSPath *path)
+{
+  return s_editor_ui_row_slot_asset(editor, label, group_depth, info, readonly,
+      true, has_value, "Choose texture atlas", "Texture Atlas\0*.atlas\0\0", path);
+}
+
+LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_image(LDKEditorContext *editor,
+    const char *label, const char *dialog_title, u32 group_depth, const LDKAssetInfo *info,
+    bool readonly, bool optional, bool has_value, bool *expanded,
+    XFSPath *path)
+{
+  LDKUIContext *ui;
+  LDKUIRect target;
+  char display[X_FS_PATH_MAX_LENGTH];
+  bool assign = false;
+  bool clear = false;
+
+  if (!editor || !label || !dialog_title || !path)
+  {
+    return LDK_EDITOR_UI_ROW_SLOT_NONE;
+  }
+
+  ui = &editor->ui;
+  snprintf(display, sizeof(display), "%s", info
+      ? (info->asset_path.length ? info->asset_path.buf : "Generated image")
+      : "");
+
+  if (expanded)
+  {
+    ldk_ui_begin_horizontal(ui);
+    ldk_ui_set_next_width(ui, ldk_ui_px(editor->inspector_label_width));
+    *expanded = ldk_ui_tree_node(ui, label, *expanded, 0, 0);
+  }
+  else
+  {
+    ldk_editor_ui_row_begin(editor, label, group_depth);
+  }
+
+  ldk_ui_begin_disabled(ui, true);
+  ldk_ui_input_box(ui, display, sizeof(display));
+  target = ldk_ui_last_bounding_rect(ui);
+  ldk_ui_end_disabled(ui);
+
+  if (info && info->asset_path.length && ui->mouse && !ui->active_id &&
+      ui->current_window &&
+      ui->hovered_window_id == ui->current_window->id &&
+      ldk_os_mouse_button_down((LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
+        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
+    {
+      ldki_editor_file_explorer_reveal_asset(editor, info->asset_path.buf);
+    }
+  }
+
+  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
+      ui->hovered_window_id == ui->current_window->id &&
+      ldk_os_mouse_button_up((LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+  {
+    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
+        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
+    {
+      u32 payload_type = 0;
+      assign = ldk_ui_drag_n_drop_payload_get_and_remove(&payload_type, path) &&
+          (payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
+           payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
+    }
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+  ldk_ui_begin_disabled(ui, readonly);
+  if (ldk_ui_button(ui, "..."))
+  {
+    assign = ldk_os_dialog_show_open_file(editor->window, dialog_title,
+        "Images\0*.png;*.jpg;*.jpeg;*.bmp;*.tga\0\0", path);
+  }
+  ldk_ui_end_disabled(ui);
+
+  if (optional)
+  {
+    ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+    ldk_ui_begin_disabled(ui, readonly || !has_value);
+    clear = ldk_ui_button(ui, "X");
+    ldk_ui_end_disabled(ui);
+  }
+
+  ldk_ui_end_horizontal(ui);
+  return clear ? LDK_EDITOR_UI_ROW_SLOT_CLEAR
+               : assign ? LDK_EDITOR_UI_ROW_SLOT_ASSIGN
+                        : LDK_EDITOR_UI_ROW_SLOT_NONE;
 }
