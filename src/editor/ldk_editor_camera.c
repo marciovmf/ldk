@@ -777,7 +777,7 @@ bool ldki_editor_camera_focus_selected(LDKEditorContext *editor)
   float aspect;
   float min_distance;
   float max_distance;
-
+  
   if (editor == NULL || !s_editor_camera_controller_ensure(editor))
   {
     return false;

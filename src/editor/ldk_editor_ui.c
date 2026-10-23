@@ -1624,6 +1624,19 @@ u32 ldk_editor_ui_row_text(LDKEditorContext *editor, const char *label,
   return result;
 }
 
+void ldk_editor_ui_row_label(LDKEditorContext *editor, const char *label,
+    u32 group_depth, const char *value)
+{
+  if (!editor)
+  {
+    return;
+  }
+
+  ldk_editor_ui_row_begin(editor, label, group_depth);
+  ldk_ui_label(&editor->ui, value ? value : "");
+  ldk_ui_end_horizontal(&editor->ui);
+}
+
 u32 ldk_editor_ui_row_enum(LDKEditorContext *editor, const char *label,
     u32 group_depth, const char *const *options, u32 count, u32 selected,
     bool readonly)
@@ -1642,6 +1655,26 @@ u32 ldk_editor_ui_row_enum(LDKEditorContext *editor, const char *label,
   ldk_ui_end_disabled(ui);
   ldk_ui_end_horizontal(ui);
   return result;
+}
+
+void ldk_editor_ui_row_euler(LDKEditorContext *editor, const char *label,
+    u32 group_depth, LDKEditorUIRowEulerFn draw, void *user)
+{
+  if (!editor || !draw)
+  {
+    return;
+  }
+  ldk_editor_ui_row_begin(editor, label, group_depth);
+  draw(&editor->ui, user);
+  ldk_ui_end_horizontal(&editor->ui);
+}
+
+u32 ldk_editor_ui_row_atlas_region(LDKEditorContext *editor,
+    const char *label, u32 group_depth, const char *const *names,
+    u32 count, u32 selected, bool readonly)
+{
+  return ldk_editor_ui_row_enum(editor, label, group_depth,
+      names, count, selected, readonly);
 }
 
 bool ldk_editor_ui_row_color(LDKEditorContext *editor, const char *label,

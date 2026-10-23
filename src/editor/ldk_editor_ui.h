@@ -7,6 +7,8 @@
 void ldk_editor_ui_row_column_update(LDKEditorContext *editor);
 void ldk_editor_ui_row_begin(
     LDKEditorContext *editor, const char *label, u32 group_depth);
+void ldk_editor_ui_row_label(LDKEditorContext *editor, const char *label,
+    u32 group_depth, const char *value);
 bool ldk_editor_ui_row_bool(LDKEditorContext *editor, const char *label,
     u32 group_depth, bool value, bool readonly);
 
@@ -50,6 +52,16 @@ bool ldk_editor_ui_row_vec3(LDKEditorContext *editor, const char *label,
 bool ldk_editor_ui_row_vec4(LDKEditorContext *editor, const char *label,
     u32 group_depth, float **values, bool readonly,
     LDKEditorUIRowFloatFn input, void *user);
+
+/* Composite Inspector controls retain their editing logic in the caller. */
+typedef void (*LDKEditorUIRowEulerFn)(LDKUIContext *ui, void *user);
+void ldk_editor_ui_row_euler(LDKEditorContext *editor, const char *label,
+    u32 group_depth, LDKEditorUIRowEulerFn draw, void *user);
+
+/* Atlas region IDs are resolved by the Inspector; the row edits an index. */
+u32 ldk_editor_ui_row_atlas_region(LDKEditorContext *editor,
+    const char *label, u32 group_depth, const char *const *names,
+    u32 count, u32 selected, bool readonly);
 
 /* Asset slot controls return an intent; asset validation/loading stays with the caller. */
 typedef enum LDKEditorUIRowSlotAction

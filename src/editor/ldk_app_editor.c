@@ -398,7 +398,9 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
     }
 
     // Scene Viewer Tools shortcuts
-    if (ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE) &&
+    if (
+      (ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE) ||
+       ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_HIERARCHY)) &&
         !event->keyboard_event.ctrl_is_down &&
         !event->keyboard_event.shift_is_down &&
         !event->keyboard_event.alt_is_down && !editor->gizmo.dragging &&

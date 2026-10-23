@@ -1371,6 +1371,24 @@ static void s_editor_inspector_euler_field_draw(LDKUIContext *ui,
   }
 }
 
+typedef struct LDKInspectorEulerRowContext
+{
+  LDKEntity entity;
+  u32 component_type;
+  const LDKComponentFieldMeta *field;
+  void *component;
+  void *field_value;
+  bool readonly;
+} LDKInspectorEulerRowContext;
+
+static void s_editor_inspector_euler_row_content(LDKUIContext *ui, void *user)
+{
+  LDKInspectorEulerRowContext *context = user;
+  s_editor_inspector_euler_field_draw(ui, context->entity,
+      context->component_type, context->field, context->component,
+      context->field_value, context->readonly);
+}
+
 static void s_editor_inspector_mesh_selector(
     LDKEditorContext *editor, LDKMeshSource *mesh, bool readonly)
 {
@@ -1991,10 +2009,10 @@ static void s_editor_inspector_atlas_region_field_draw(
   u32 region_count = atlas ? atlas->region_count : 0u;
   const char **names = x_arena_alloc(ui->frame_arena,
       (size_t)(region_count + 2u) * sizeof(*names));
-  s_editor_inspector_row_begin(editor,
-      s_editor_inspector_field_display_name(field));
   if (!names)
   {
+    s_editor_inspector_row_begin(editor,
+        s_editor_inspector_field_display_name(field));
     ldk_ui_label(ui, "Atlas regions unavailable");
     ldk_ui_end_horizontal(ui);
     return;
@@ -2018,10 +2036,10 @@ static void s_editor_inspector_atlas_region_field_draw(
 
   u32 count = region_count + 1u +
       (selected == region_count + 1u ? 1u : 0u);
-  ldk_ui_begin_disabled(ui, readonly || !atlas || !source);
-  u32 next = ldk_ui_combo_box(ui, names, count, selected);
-  ldk_ui_end_disabled(ui);
-  ldk_ui_end_horizontal(ui);
+  u32 next = ldk_editor_ui_row_atlas_region(editor,
+      s_editor_inspector_field_display_name(field),
+      s_editor_inspector_row_group_depth, names, count, selected,
+      readonly || !atlas || !source);
   if (!readonly && atlas && source && next != selected && next <= region_count)
     *chosen = next == 0u ? 0u : atlas->regions[next - 1u].id;
 }
@@ -2252,7 +2270,7 @@ static void s_editor_inspector_field_draw(
       field->type == LDK_FIELD_VEC2 ||
       field->type == LDK_FIELD_VEC3 ||
       field->type == LDK_FIELD_VEC4 ||
-      (field->type == LDK_FIELD_QUAT && field->widget != LDK_FIELD_WIDGET_EULER) ||
+      field->type == LDK_FIELD_QUAT ||
       (field->type == LDK_FIELD_U32 && field->widget != LDK_FIELD_WIDGET_COLOR) ||
       field->type == LDK_FIELD_FLOAT;
   if (!specialized_row)
@@ -2537,8 +2555,11 @@ static void s_editor_inspector_field_draw(
   {
     if (field->widget == LDK_FIELD_WIDGET_EULER)
     {
-      s_editor_inspector_euler_field_draw(ui, entity, component_type, field,
-          component, field_value, readonly);
+      LDKInspectorEulerRowContext context = {
+          entity, component_type, field, component, field_value, readonly};
+      ldk_editor_ui_row_euler(editor, display_name,
+          s_editor_inspector_row_group_depth,
+          s_editor_inspector_euler_row_content, &context);
       break;
     }
 
@@ -2577,7 +2598,11 @@ static void s_editor_inspector_field_draw(
     break;
   }
 
-  ldk_ui_end_horizontal(ui);
+  if (field->type != LDK_FIELD_QUAT ||
+      field->widget != LDK_FIELD_WIDGET_EULER)
+  {
+    ldk_ui_end_horizontal(ui);
+  }
   ldk_ui_pop_id(ui);
 }
 
@@ -3042,11 +3067,8 @@ static bool s_editor_material_texture_settings_editor(
   {
     filter = (u32)LDK_MATERIAL_TEXTURE_FILTER_NEAREST;
   }
-  s_editor_material_row_begin(editor, "Filter");
-  ldk_ui_begin_disabled(ui, readonly);
-  u32 next_filter = ldk_ui_combo_box(ui, filter_names, 2, filter);
-  ldk_ui_end_disabled(ui);
-  ldk_ui_end_horizontal(ui);
+  u32 next_filter = ldk_editor_ui_row_enum(editor, "Filter",
+      s_editor_inspector_row_group_depth, filter_names, 2, filter, readonly);
   if (!readonly && next_filter < 2u && next_filter != filter)
   {
     settings->filter = (LDKMaterialTextureFilter)next_filter;
@@ -3059,12 +3081,9 @@ static bool s_editor_material_texture_settings_editor(
   {
     mip_filter = (u32)LDK_MATERIAL_TEXTURE_MIP_FILTER_NONE;
   }
-  s_editor_material_row_begin(editor, "Mip Filter");
-  ldk_ui_begin_disabled(ui, readonly);
-  u32 next_mip_filter =
-      ldk_ui_combo_box(ui, mip_filter_names, 3, mip_filter);
-  ldk_ui_end_disabled(ui);
-  ldk_ui_end_horizontal(ui);
+  u32 next_mip_filter = ldk_editor_ui_row_enum(editor, "Mip Filter",
+      s_editor_inspector_row_group_depth, mip_filter_names, 3, mip_filter,
+      readonly);
   if (!readonly && next_mip_filter < 3u && next_mip_filter != mip_filter)
   {
     settings->mip_filter =
@@ -3248,11 +3267,8 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
     }
   }
 
-  s_editor_material_row_begin(editor, "Type");
-  ldk_ui_begin_disabled(ui, readonly);
-  u32 next = ldk_ui_combo_box(ui, names, 4, selected);
-  ldk_ui_end_disabled(ui);
-  ldk_ui_end_horizontal(ui);
+  u32 next = ldk_editor_ui_row_enum(editor, "Type",
+      s_editor_inspector_row_group_depth, names, 4, selected, readonly);
   if (!readonly && next < 4 && next != selected &&
       ldk_material_desc_defaults(types[next], desc))
   {
@@ -3308,12 +3324,9 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
       selected_alpha_mode = 1u;
     }
 
-    s_editor_material_row_begin(editor, "Alpha Mode");
-    ldk_ui_begin_disabled(ui, readonly);
-    u32 next_alpha_mode = ldk_ui_combo_box(
-        ui, alpha_mode_names, alpha_mode_count, selected_alpha_mode);
-    ldk_ui_end_disabled(ui);
-    ldk_ui_end_horizontal(ui);
+    u32 next_alpha_mode = ldk_editor_ui_row_enum(editor, "Alpha Mode",
+        s_editor_inspector_row_group_depth, alpha_mode_names,
+        alpha_mode_count, selected_alpha_mode, readonly);
     if (!readonly && next_alpha_mode < alpha_mode_count &&
         next_alpha_mode != selected_alpha_mode)
     {
@@ -3852,23 +3865,20 @@ static void s_editor_inspector_system_grouping_draw(
   char label[64];
   snprintf(label, sizeof(label), "0x%016" PRIx64,
       ldk_ecs_grouping_id(desc.component_types, desc.component_count));
-  s_editor_inspector_row_begin(editor, "Group ID");
-  ldk_ui_label(ui, label);
-  ldk_ui_end_horizontal(ui);
+  ldk_editor_ui_row_label(editor, "Group ID",
+      s_editor_inspector_row_group_depth, label);
   if (!desc.component_count)
   {
-    s_editor_inspector_row_begin(editor, "Components");
-    ldk_ui_label(ui, "None (global system)");
-    ldk_ui_end_horizontal(ui);
+    ldk_editor_ui_row_label(editor, "Components",
+        s_editor_inspector_row_group_depth, "None (global system)");
   }
   for (u32 i = 0; i < desc.component_count; ++i)
   {
     const char *name = ldk_component_name_get(
         ldk_ecs_component_registry_get(), desc.component_types[i]);
     snprintf(label, sizeof(label), "0x%08x", desc.component_types[i]);
-    s_editor_inspector_row_begin(editor, i == 0 ? "Components" : "");
-    ldk_ui_label(ui, name ? name : label);
-    ldk_ui_end_horizontal(ui);
+    ldk_editor_ui_row_label(editor, i == 0 ? "Components" : "",
+        s_editor_inspector_row_group_depth, name ? name : label);
   }
 }
 
@@ -4036,40 +4046,24 @@ static bool s_editor_inspector_instance_vec3_draw(LDKEditorContext *editor,
     LDKEntity entity, const char *label, u32 field_offset, Vec3 *value)
 {
   LDKComponentFieldMeta field = {0};
-  LDKUIContext *ui;
-  bool changed = false;
 
   if (!editor || !label || !value)
   {
     return false;
   }
 
-  ui = &editor->ui;
   field.name = label;
   field.type = LDK_FIELD_VEC3;
   field.offset = field_offset;
   field.flags = LDK_FIELD_FLAG_NONE;
   field.widget = LDK_FIELD_WIDGET_VEC3;
 
-  s_editor_inspector_row_begin(editor, label);
-
-  ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
-  ldk_ui_label(ui, "X");
-  changed |= s_editor_inspector_float_input(ui, entity,
-      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field, 0, &value->x, false);
-
-  ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
-  ldk_ui_label(ui, "Y");
-  changed |= s_editor_inspector_float_input(ui, entity,
-      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field, 1, &value->y, false);
-
-  ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
-  ldk_ui_label(ui, "Z");
-  changed |= s_editor_inspector_float_input(ui, entity,
-      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field, 2, &value->z, false);
-
-  ldk_ui_end_horizontal(ui);
-  return changed;
+  LDKInspectorNumericRowContext context = {
+      entity, LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field};
+  float *values[] = {&value->x, &value->y, &value->z};
+  return ldk_editor_ui_row_vec3(editor, label,
+      s_editor_inspector_row_group_depth, values, false,
+      s_editor_inspector_vector_row_input, &context);
 }
 
 static bool s_editor_inspector_instance_rotation_draw(LDKEditorContext *editor,
@@ -4090,11 +4084,12 @@ static bool s_editor_inspector_instance_rotation_draw(LDKEditorContext *editor,
   field.widget = LDK_FIELD_WIDGET_EULER;
   original = *rotation;
 
-  s_editor_inspector_row_begin(editor, field.name);
-  s_editor_inspector_euler_field_draw(&editor->ui, entity,
-      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field, instance, rotation,
-      false);
-  ldk_ui_end_horizontal(&editor->ui);
+  LDKInspectorEulerRowContext context = {entity,
+      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field, instance,
+      rotation, false};
+  ldk_editor_ui_row_euler(editor, field.name,
+      s_editor_inspector_row_group_depth,
+      s_editor_inspector_euler_row_content, &context);
 
   return !s_editor_inspector_euler_quat_equal(original, *rotation);
 }
