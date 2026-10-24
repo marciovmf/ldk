@@ -315,6 +315,18 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
       return false;
     }
 
+    if (editor->editor_state == LDK_EDITOR_STATE_STOPED &&
+        event->keyboard_event.ctrl_is_down &&
+        !event->keyboard_event.alt_is_down &&
+        event->keyboard_event.keyCode == LDK_KEYCODE_Z)
+    {
+      if (event->keyboard_event.shift_is_down)
+        (void)ldk_editor_undo_redo(&editor->undo);
+      else
+        (void)ldk_editor_undo_undo(&editor->undo);
+      return true;
+    }
+
     // Save is global, regardless of the focused editor window.
     if (event->keyboard_event.ctrl_is_down &&
         !event->keyboard_event.shift_is_down &&
@@ -398,9 +410,8 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
     }
 
     // Scene Viewer Tools shortcuts
-    if (
-      (ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE) ||
-       ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_HIERARCHY)) &&
+    if ((ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE) ||
+         ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_HIERARCHY)) &&
         !event->keyboard_event.ctrl_is_down &&
         !event->keyboard_event.shift_is_down &&
         !event->keyboard_event.alt_is_down && !editor->gizmo.dragging &&
@@ -1709,7 +1720,9 @@ static void s_editor_update(LDKEditorContext *editor, i32 window_width,
   ldki_editor_animation_preview_tick(editor, delta_time);
 
   LDK_PROFILE_BEGIN("Editor UI Build");
+  editor->undo_row_seen = false;
   s_draw_editor_ui(editor, delta_time);
+  ldki_editor_undo_frame_end(editor);
   LDK_PROFILE_END();
 
   if (!ldk_os_mouse_button_is_pressed(&mouse_state, LDK_MOUSE_BUTTON_LEFT))
@@ -2224,6 +2237,9 @@ static bool s_editor_config_load_from_ini(
   }
 
   editor->ui_atlas = texture_atlas;
+  ldk_editor_undo_initialize_with_apply(&editor->undo,
+      ldki_editor_undo_property_resolve,
+      ldki_editor_undo_property_apply, editor);
   editor->initialized = true;
   return true;
 }
@@ -3245,6 +3261,7 @@ static bool s_project_unload(LDKEditorContext *editor)
 
   if (!editor->project.loaded)
   {
+    ldk_editor_undo_clear(&editor->undo);
     editor->selected_entity = x_handle_null();
     ldk_scene_systems_clear(&editor->current_scene_systems);
     if (editor->hierarchy_expanded_entities != NULL)
@@ -3309,6 +3326,7 @@ static bool s_project_unload(LDKEditorContext *editor)
     x_array_clear(editor->hierarchy_expanded_entities);
   }
   ldki_editor_file_explorer_package_mounts_clear();
+  ldk_editor_undo_clear(&editor->undo);
   ldk_project_unload(&editor->project);
   editor->editor_state = LDK_EDITOR_STATE_STOPED;
   s_editor_set_title(editor);
@@ -4454,6 +4472,7 @@ static void s_editor_terminate(LDKEditorContext *editor)
   ldki_editor_gizmo_terminate(editor);
   ldki_editor_theme_terminate(editor);
   ldk_editor_dock_terminate(editor);
+  ldk_editor_undo_terminate(&editor->undo);
   ldk_log_info("Editor shutdown: complete.\n");
 }
 

@@ -1605,6 +1605,7 @@ bool ldki_editor_scene_clear(LDKEditorContext *editor)
     return false;
   }
 
+  ldk_editor_undo_clear(&editor->undo);
   ldk_scene_systems_clear(&editor->current_scene_systems);
   s_editor_scene_selection_clear(editor);
   memset(&editor->current_scene_path, 0, sizeof(editor->current_scene_path));

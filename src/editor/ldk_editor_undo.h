@@ -16,6 +16,10 @@ typedef struct LDKEditorUndoKey
 typedef void *(*LDKEditorUndoResolveFn)(
     void *user, LDKEditorUndoKey key, LDKFieldType type, size_t size);
 
+/* Optional property-aware restoration (e.g. ldk_property_set). */
+typedef bool (*LDKEditorUndoApplyFn)(void *user, LDKEditorUndoKey key,
+    LDKFieldType type, const void *value, size_t size);
+
 typedef struct LDKEditorUndoEntry LDKEditorUndoEntry;
 
 typedef struct LDKEditorUndo
@@ -26,11 +30,15 @@ typedef struct LDKEditorUndo
   size_t position;
   LDKEditorUndoEntry *active;
   LDKEditorUndoResolveFn resolve;
+  LDKEditorUndoApplyFn apply;
   void *user;
 } LDKEditorUndo;
 
 void ldk_editor_undo_initialize(
     LDKEditorUndo *undo, LDKEditorUndoResolveFn resolve, void *user);
+/* Use this when restoring a property requires setters or side effects. */
+void ldk_editor_undo_initialize_with_apply(LDKEditorUndo *undo,
+    LDKEditorUndoResolveFn resolve, LDKEditorUndoApplyFn apply, void *user);
 void ldk_editor_undo_terminate(LDKEditorUndo *undo);
 void ldk_editor_undo_clear(LDKEditorUndo *undo);
 
@@ -41,6 +49,15 @@ bool ldk_editor_undo_begin_change(LDKEditorUndo *undo,
     LDKEditorUndoKey key, LDKFieldType type, const void *initial, size_t size);
 /* Returns true for a successfully ended session, including no-op sessions. */
 bool ldk_editor_undo_end_change(LDKEditorUndo *undo, const void *final_value);
+/* Resolve the property after the caller has applied the final edit. */
+bool ldk_editor_undo_end_change_resolved(LDKEditorUndo *undo);
+/* Query history availability without mutating it. Both return false
+ * while an edit session is active. A resolver may still reject an entry
+ * at execution time if its target has since been deleted. */
+bool ldk_editor_undo_can_undo(const LDKEditorUndo *undo);
+bool ldk_editor_undo_can_redo(const LDKEditorUndo *undo);
+bool ldk_editor_undo_has_active_change(const LDKEditorUndo *undo);
+
 bool ldk_editor_undo_undo(LDKEditorUndo *undo);
 bool ldk_editor_undo_redo(LDKEditorUndo *undo);
 

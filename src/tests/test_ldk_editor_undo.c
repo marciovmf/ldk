@@ -32,19 +32,30 @@ static int test_undo_lifecycle(void)
   LDKEditorUndoKey b = {5, 1};
   ldk_editor_undo_initialize(&undo, s_test_resolve, &state);
 
+  ASSERT_FALSE(ldk_editor_undo_can_undo(&undo));
+  ASSERT_FALSE(ldk_editor_undo_can_redo(&undo));
+  ASSERT_FALSE(ldk_editor_undo_has_active_change(&undo));
   ASSERT_FALSE(ldk_editor_undo_undo(&undo));
   ASSERT_FALSE(ldk_editor_undo_redo(&undo));
   ASSERT_TRUE(ldk_editor_undo_begin_change(
       &undo, a, LDK_FIELD_FLOAT, &state.values[0], sizeof(float)));
   ASSERT_FALSE(ldk_editor_undo_begin_change(
       &undo, b, LDK_FIELD_FLOAT, &state.values[1], sizeof(float)));
+  ASSERT_TRUE(ldk_editor_undo_has_active_change(&undo));
+  ASSERT_FALSE(ldk_editor_undo_can_undo(&undo));
+  ASSERT_FALSE(ldk_editor_undo_can_redo(&undo));
   ASSERT_FALSE(ldk_editor_undo_undo(&undo));
   ASSERT_FALSE(ldk_editor_undo_redo(&undo));
   state.values[0] = 2.0f;
   state.values[0] = 3.0f;
   ASSERT_TRUE(ldk_editor_undo_end_change(&undo, &state.values[0]));
   ASSERT_EQ(undo.count, 1);
+  ASSERT_FALSE(ldk_editor_undo_has_active_change(&undo));
+  ASSERT_TRUE(ldk_editor_undo_can_undo(&undo));
+  ASSERT_FALSE(ldk_editor_undo_can_redo(&undo));
   ASSERT_TRUE(ldk_editor_undo_undo(&undo));
+  ASSERT_FALSE(ldk_editor_undo_can_undo(&undo));
+  ASSERT_TRUE(ldk_editor_undo_can_redo(&undo));
   ASSERT_EQ(state.values[0], 1.0f);
   ASSERT_TRUE(ldk_editor_undo_redo(&undo));
   ASSERT_EQ(state.values[0], 3.0f);
@@ -155,12 +166,105 @@ static int test_undo_composite_and_asset(void)
   return 0;
 }
 
+static int test_undo_end_after_caller_write(void)
+{
+  TestUndoState state = {{10.0f, 0.0f}, {true, true}};
+  LDKEditorUndo undo;
+  LDKEditorUndoKey key = {5, 0};
+  float returned_by_row;
+  ldk_editor_undo_initialize(&undo, s_test_resolve, &state);
+  ASSERT_TRUE(ldk_editor_undo_begin_change(
+      &undo, key, LDK_FIELD_FLOAT, &state.values[0], sizeof(float)));
+  returned_by_row = 42.0f;
+  state.values[0] = returned_by_row; /* Inspector writes after row returns. */
+  ASSERT_TRUE(ldk_editor_undo_end_change_resolved(&undo));
+  ASSERT_EQ(undo.count, 1);
+  ASSERT_TRUE(ldk_editor_undo_undo(&undo));
+  ASSERT_EQ(state.values[0], 10.0f);
+  ASSERT_TRUE(ldk_editor_undo_redo(&undo));
+  ASSERT_EQ(state.values[0], 42.0f);
+
+  ASSERT_TRUE(ldk_editor_undo_begin_change(
+      &undo, key, LDK_FIELD_FLOAT, &state.values[0], sizeof(float)));
+  ASSERT_TRUE(ldk_editor_undo_end_change_resolved(&undo));
+  ASSERT_EQ(undo.count, 1); /* No-op. */
+
+  ASSERT_TRUE(ldk_editor_undo_begin_change(
+      &undo, key, LDK_FIELD_FLOAT, &state.values[0], sizeof(float)));
+  state.valid[0] = false;
+  ASSERT_FALSE(ldk_editor_undo_end_change_resolved(&undo));
+  ASSERT_EQ(undo.count, 1); /* Cannot resolve: no history entry. */
+  state.valid[0] = true;
+  ASSERT_TRUE(ldk_editor_undo_end_change_resolved(&undo));
+  ldk_editor_undo_terminate(&undo);
+  return 0;
+}
+
+typedef struct TestApplyState
+{
+  float value;
+  u32 writes;
+  bool allow;
+} TestApplyState;
+
+static void *s_test_apply_resolve(
+    void *user, LDKEditorUndoKey key, LDKFieldType type, size_t size)
+{
+  TestApplyState *state = (TestApplyState *)user;
+  if (key.owner != 30 || key.property != 4 ||
+      type != LDK_FIELD_FLOAT || size != sizeof(float))
+  {
+    return NULL;
+  }
+  return &state->value;
+}
+
+static bool s_test_apply_write(void *user, LDKEditorUndoKey key,
+    LDKFieldType type, const void *value, size_t size)
+{
+  TestApplyState *state = (TestApplyState *)user;
+  if (!state->allow || s_test_apply_resolve(user, key, type, size) == NULL)
+  {
+    return false;
+  }
+  memcpy(&state->value, value, sizeof(float));
+  ++state->writes;
+  return true;
+}
+
+static int test_undo_property_aware_restoration(void)
+{
+  TestApplyState state = {1.0f, 0, true};
+  LDKEditorUndo undo;
+  LDKEditorUndoKey key = {30, 4};
+  ldk_editor_undo_initialize_with_apply(
+      &undo, s_test_apply_resolve, s_test_apply_write, &state);
+  ASSERT_TRUE(ldk_editor_undo_begin_change(
+      &undo, key, LDK_FIELD_FLOAT, &state.value, sizeof(float)));
+  state.value = 5.0f;
+  ASSERT_TRUE(ldk_editor_undo_end_change_resolved(&undo));
+  ASSERT_TRUE(ldk_editor_undo_undo(&undo));
+  ASSERT_EQ(state.value, 1.0f);
+  ASSERT_EQ(state.writes, 1);
+  ASSERT_TRUE(ldk_editor_undo_redo(&undo));
+  ASSERT_EQ(state.value, 5.0f);
+  ASSERT_EQ(state.writes, 2);
+  state.allow = false;
+  ASSERT_FALSE(ldk_editor_undo_undo(&undo));
+  ASSERT_EQ(undo.position, 1);
+  ASSERT_EQ(state.value, 5.0f);
+  ldk_editor_undo_terminate(&undo);
+  return 0;
+}
+
 int main(void)
 {
   STDXTestCase tests[] = {
     X_TEST(test_undo_lifecycle),
     X_TEST(test_undo_relocated_property),
     X_TEST(test_undo_composite_and_asset),
+    X_TEST(test_undo_end_after_caller_write),
+    X_TEST(test_undo_property_aware_restoration),
   };
   return x_tests_run(tests, sizeof(tests) / sizeof(tests[0]), NULL);
 }

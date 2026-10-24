@@ -35,6 +35,16 @@ void ldk_editor_undo_initialize(
   undo->user = user;
 }
 
+void ldk_editor_undo_initialize_with_apply(LDKEditorUndo *undo,
+    LDKEditorUndoResolveFn resolve, LDKEditorUndoApplyFn apply, void *user)
+{
+  ldk_editor_undo_initialize(undo, resolve, user);
+  if (undo != NULL)
+  {
+    undo->apply = apply;
+  }
+}
+
 void ldk_editor_undo_clear(LDKEditorUndo *undo)
 {
   if (undo == NULL)
@@ -66,6 +76,7 @@ void ldk_editor_undo_terminate(LDKEditorUndo *undo)
   }
   ldk_editor_undo_clear(undo);
   undo->resolve = NULL;
+  undo->apply = NULL;
   undo->user = NULL;
 }
 
@@ -154,6 +165,39 @@ bool ldk_editor_undo_end_change(LDKEditorUndo *undo, const void *final_value)
   return true;
 }
 
+bool ldk_editor_undo_end_change_resolved(LDKEditorUndo *undo)
+{
+  void *final_value;
+  if (undo == NULL || undo->active == NULL || undo->resolve == NULL)
+  {
+    return false;
+  }
+  final_value = undo->resolve(undo->user, undo->active->key,
+      undo->active->type, undo->active->size);
+  if (final_value == NULL)
+  {
+    return false;
+  }
+  return ldk_editor_undo_end_change(undo, final_value);
+}
+
+bool ldk_editor_undo_can_undo(const LDKEditorUndo *undo)
+{
+  return undo != NULL && undo->resolve != NULL &&
+         undo->active == NULL && undo->position > 0;
+}
+
+bool ldk_editor_undo_can_redo(const LDKEditorUndo *undo)
+{
+  return undo != NULL && undo->resolve != NULL &&
+         undo->active == NULL && undo->position < undo->count;
+}
+
+bool ldk_editor_undo_has_active_change(const LDKEditorUndo *undo)
+{
+  return undo != NULL && undo->active != NULL;
+}
+
 bool ldk_editor_undo_undo(LDKEditorUndo *undo)
 {
   LDKEditorUndoEntry *entry;
@@ -169,7 +213,18 @@ bool ldk_editor_undo_undo(LDKEditorUndo *undo)
   {
     return false;
   }
-  memcpy(destination, entry->before, entry->size);
+  if (undo->apply != NULL)
+  {
+    if (!undo->apply(undo->user, entry->key, entry->type,
+            entry->before, entry->size))
+    {
+      return false;
+    }
+  }
+  else
+  {
+    memcpy(destination, entry->before, entry->size);
+  }
   --undo->position;
   return true;
 }
@@ -189,7 +244,18 @@ bool ldk_editor_undo_redo(LDKEditorUndo *undo)
   {
     return false;
   }
-  memcpy(destination, entry->after, entry->size);
+  if (undo->apply != NULL)
+  {
+    if (!undo->apply(undo->user, entry->key, entry->type,
+            entry->after, entry->size))
+    {
+      return false;
+    }
+  }
+  else
+  {
+    memcpy(destination, entry->after, entry->size);
+  }
   ++undo->position;
   return true;
 }

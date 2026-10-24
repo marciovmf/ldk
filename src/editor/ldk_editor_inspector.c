@@ -1536,7 +1536,7 @@ static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
       : NULL;
 
   assign = ldk_editor_ui_row_slot_mesh(editor, label,
-      s_editor_inspector_row_group_depth, info, readonly, &path) ==
+      s_editor_inspector_row_group_depth, info, readonly, &path, NULL) ==
       LDK_EDITOR_UI_ROW_SLOT_ASSIGN;
 
   if (!assign)
@@ -1590,7 +1590,7 @@ static bool s_editor_inspector_font_asset_field(LDKEditorContext *editor,
       ? ldk_asset_get_info_const(assets, handle)
       : NULL;
   assign = ldk_editor_ui_row_slot_font(editor, label,
-      s_editor_inspector_row_group_depth, info, readonly, &path) ==
+      s_editor_inspector_row_group_depth, info, readonly, &path, NULL) ==
       LDK_EDITOR_UI_ROW_SLOT_ASSIGN;
 
   if (!assign)
@@ -1642,7 +1642,7 @@ static bool s_editor_inspector_audio_asset_field(LDKEditorContext *editor,
       ? ldk_asset_get_info_const(assets, handle)
       : NULL;
   assign = ldk_editor_ui_row_slot_audio(editor, label,
-      s_editor_inspector_row_group_depth, info, readonly, &path) ==
+      s_editor_inspector_row_group_depth, info, readonly, &path, NULL) ==
       LDK_EDITOR_UI_ROW_SLOT_ASSIGN;
 
   if (!assign)
@@ -1696,7 +1696,7 @@ static bool s_editor_inspector_keyframe_animation_asset_field(LDKEditorContext *
       ? ldk_asset_get_info_const(assets, handle)
       : NULL;
   assign = ldk_editor_ui_row_slot_animation(editor, label,
-      s_editor_inspector_row_group_depth, info, readonly, &path) ==
+      s_editor_inspector_row_group_depth, info, readonly, &path, NULL) ==
       LDK_EDITOR_UI_ROW_SLOT_ASSIGN;
 
   if (!assign)
@@ -1760,7 +1760,7 @@ static bool s_editor_inspector_material_asset_field(LDKEditorContext *editor,
 
   LDKEditorUIRowSlotAction action = ldk_editor_ui_row_slot_material(editor,
       label, s_editor_inspector_row_group_depth, info, readonly, optional,
-      !x_handle_is_null(value->h), &path);
+      !x_handle_is_null(value->h), &path, NULL);
   clear = action == LDK_EDITOR_UI_ROW_SLOT_CLEAR;
   assign = action == LDK_EDITOR_UI_ROW_SLOT_ASSIGN;
 
@@ -1828,7 +1828,7 @@ static bool s_editor_inspector_skybox_asset_field(LDKEditorContext *editor,
 
   LDKEditorUIRowSlotAction action = ldk_editor_ui_row_slot_skybox(editor,
       label, s_editor_inspector_row_group_depth, info, readonly, optional,
-      !x_handle_is_null(value->h), &path);
+      !x_handle_is_null(value->h), &path, NULL);
   clear = action == LDK_EDITOR_UI_ROW_SLOT_CLEAR;
   assign = action == LDK_EDITOR_UI_ROW_SLOT_ASSIGN;
 
@@ -1971,14 +1971,24 @@ static const char *s_editor_inspector_field_display_name(
  * index. The atlas itself is an LDKAssetTextureAtlas field of the same system
  * or component, referenced by the widget's source= annotation. */
 static void s_editor_inspector_atlas_region_field_draw(
-    LDKEditorContext *editor, const LDKComponentMeta *meta,
-    const LDKComponentFieldMeta *field, void *component, bool readonly)
+    LDKEditorContext *editor, LDKEntity entity, u32 component_type,
+    const LDKComponentMeta *meta, const LDKComponentFieldMeta *field,
+    void *component, bool readonly)
 {
   LDKUIContext *ui = &editor->ui;
   const LDKComponentFieldMeta *source = NULL;
   const LDKTextureAtlas *atlas = NULL;
   LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
   u64 *chosen = (u64 *)((u8 *)component + field->offset);
+  LDKEditorUIUndoProperty undo_property = {0};
+  if (component_type && !readonly && ldk_property_field_supported(field))
+  {
+    undo_property.key.owner = ((u64)entity.version << 32) | entity.index;
+    undo_property.key.property = ((u64)component_type << 32) | field->offset;
+    undo_property.type = field->type;
+    undo_property.value = chosen;
+    undo_property.size = sizeof(*chosen);
+  }
 
   if (field->widget_source)
   {
@@ -2039,7 +2049,8 @@ static void s_editor_inspector_atlas_region_field_draw(
   u32 next = ldk_editor_ui_row_atlas_region(editor,
       s_editor_inspector_field_display_name(field),
       s_editor_inspector_row_group_depth, names, count, selected,
-      readonly || !atlas || !source);
+      readonly || !atlas || !source,
+      undo_property.size ? &undo_property : NULL);
   if (!readonly && atlas && source && next != selected && next <= region_count)
     *chosen = next == 0u ? 0u : atlas->regions[next - 1u].id;
 }
@@ -2058,7 +2069,7 @@ static bool s_editor_inspector_texture_atlas_asset_field(
 
   LDKEditorUIRowSlotAction action = ldk_editor_ui_row_slot_texture_atlas(editor,
       label, s_editor_inspector_row_group_depth, info, readonly,
-      !x_handle_is_null(value->h), &path);
+      !x_handle_is_null(value->h), &path, NULL);
   clear = action == LDK_EDITOR_UI_ROW_SLOT_CLEAR;
   assign = action == LDK_EDITOR_UI_ROW_SLOT_ASSIGN;
 
@@ -2096,6 +2107,142 @@ static bool s_editor_inspector_texture_atlas_asset_field(
   return true;
 }
 
+/* Undo identities use the versioned entity handle and reflected field offset. */
+static size_t s_editor_inspector_undo_field_size(
+    const LDKComponentFieldMeta *field)
+{
+  if (!ldk_property_field_supported(field))
+  {
+    return 0;
+  }
+  switch (field->type)
+  {
+  case LDK_FIELD_BOOL: return sizeof(bool);
+  case LDK_FIELD_I32: return sizeof(i32);
+  case LDK_FIELD_U32: return sizeof(u32);
+  case LDK_FIELD_U64: return sizeof(u64);
+  case LDK_FIELD_FLOAT: return sizeof(float);
+  case LDK_FIELD_VEC2: return sizeof(Vec2);
+  case LDK_FIELD_VEC3: return sizeof(Vec3);
+  case LDK_FIELD_VEC4: return sizeof(Vec4);
+  case LDK_FIELD_QUAT: return sizeof(Quat);
+  case LDK_FIELD_STRING: return sizeof(XSmallstr);
+  case LDK_FIELD_ENUM:
+    return field->enum_meta ? field->enum_meta->size : 0;
+  default: return 0;
+  }
+}
+
+static LDKEditorUIUndoProperty s_editor_inspector_undo_property(
+    LDKEntity entity, u32 component_type, const LDKComponentMeta *meta,
+    const LDKComponentFieldMeta *field, const void *value)
+{
+  LDKEditorUIUndoProperty property = {0};
+  size_t size = s_editor_inspector_undo_field_size(field);
+  if (!component_type)
+  {
+    return property;
+  }
+  if (!size || !value || !meta || size > meta->size ||
+      field->offset > meta->size - size)
+  {
+    return property;
+  }
+  property.key.owner = ((u64)entity.version << 32) | entity.index;
+  property.key.property = ((u64)component_type << 32) | field->offset;
+  property.type = field->type;
+  property.value = value;
+  property.size = size;
+  return property;
+}
+
+static const LDKComponentFieldMeta *s_editor_undo_field_resolve(
+    LDKEditorUndoKey key, LDKFieldType type, size_t size,
+    LDKEntity *out_entity, u32 *out_component, void **out_field)
+{
+  LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
+  LDKEntity entity = {(u32)key.owner, (u32)(key.owner >> 32)};
+  u32 component_type = (u32)(key.property >> 32);
+  u32 offset = (u32)key.property;
+  const LDKComponentMeta *meta;
+  void *component;
+  if (!ecs || !ldk_entity_is_alive(&ecs->entity, entity) ||
+      !(meta = ldk_property_component_meta(component_type)) ||
+      !(component = ldk_ecs_component_get(entity, component_type)))
+  {
+    return NULL;
+  }
+  for (u32 i = 0; i < meta->field_count; ++i)
+  {
+    const LDKComponentFieldMeta *field = &meta->fields[i];
+    if (field->offset == offset && field->type == type &&
+        s_editor_inspector_undo_field_size(field) == size &&
+        size && size <= meta->size && offset <= meta->size - size)
+    {
+      if (out_entity) *out_entity = entity;
+      if (out_component) *out_component = component_type;
+      if (out_field) *out_field = (u8 *)component + offset;
+      return field;
+    }
+  }
+  return NULL;
+}
+
+void *ldki_editor_undo_property_resolve(
+    void *user, LDKEditorUndoKey key, LDKFieldType type, size_t size)
+{
+  void *value = NULL;
+  (void)user;
+  if (!s_editor_undo_field_resolve(key, type, size, NULL, NULL, &value))
+  {
+    return NULL;
+  }
+  return value;
+}
+
+bool ldki_editor_undo_property_apply(void *user, LDKEditorUndoKey key,
+    LDKFieldType type, const void *value, size_t size)
+{
+  LDKEntity entity;
+  u32 component_type;
+  const LDKComponentFieldMeta *field;
+  LDKPropertyValue property = {0};
+  (void)user;
+  if (!value || !(field = s_editor_undo_field_resolve(key, type, size,
+          &entity, &component_type, NULL)))
+  {
+    return false;
+  }
+  property.type = type;
+  switch (type)
+  {
+  case LDK_FIELD_BOOL: property.integer = *(const bool *)value; break;
+  case LDK_FIELD_I32: property.integer = *(const i32 *)value; break;
+  case LDK_FIELD_U32: property.integer = *(const u32 *)value; break;
+  case LDK_FIELD_U64: property.integer = (i64)*(const u64 *)value; break;
+  case LDK_FIELD_ENUM: property.integer = field->enum_meta->read(value); break;
+  case LDK_FIELD_FLOAT: property.vector.x = *(const float *)value; break;
+  case LDK_FIELD_VEC2:
+    property.vector.x = ((const Vec2 *)value)->x;
+    property.vector.y = ((const Vec2 *)value)->y;
+    break;
+  case LDK_FIELD_VEC3:
+    property.vector.x = ((const Vec3 *)value)->x;
+    property.vector.y = ((const Vec3 *)value)->y;
+    property.vector.z = ((const Vec3 *)value)->z;
+    break;
+  case LDK_FIELD_VEC4: property.vector = *(const Vec4 *)value; break;
+  case LDK_FIELD_QUAT:
+    property.vector = vec4_make(((const Quat *)value)->x,
+        ((const Quat *)value)->y, ((const Quat *)value)->z,
+        ((const Quat *)value)->w);
+    break;
+  case LDK_FIELD_STRING: property.string = *(const XSmallstr *)value; break;
+  default: return false;
+  }
+  return ldk_property_set(entity, component_type, field->name, &property);
+}
+
 static void s_editor_inspector_field_draw(
     LDKEditorContext *editor, LDKEntity entity,
     u32 component_type, const LDKComponentMeta *meta,
@@ -2106,6 +2253,8 @@ static void s_editor_inspector_field_draw(
   const char *display_name;
   u8 *field_value;
   bool readonly;
+  LDKEditorUIUndoProperty undo_property;
+  const LDKEditorUIUndoProperty *undo_meta = NULL;
 
   if (!editor || !meta || !field || !component || field->offset >= meta->size)
   {
@@ -2134,6 +2283,12 @@ static void s_editor_inspector_field_draw(
 
   field_value = (u8 *)component + field->offset;
   readonly = (field->flags & LDK_FIELD_FLAG_READONLY) != 0;
+  undo_property = s_editor_inspector_undo_property(
+      entity, component_type, meta, field, field_value);
+  if (undo_property.size && editor->editor_state == LDK_EDITOR_STATE_STOPED)
+  {
+    undo_meta = &undo_property;
+  }
 
   ldk_ui_push_id_cstr(ui, field->name);
 
@@ -2158,8 +2313,8 @@ static void s_editor_inspector_field_draw(
       field->offset <= meta->size &&
       sizeof(u64) <= meta->size - field->offset)
   {
-    s_editor_inspector_atlas_region_field_draw(editor, meta, field,
-        component, readonly);
+    s_editor_inspector_atlas_region_field_draw(editor, entity, component_type,
+        meta, field, component, readonly);
     ldk_ui_pop_id(ui);
     return;
   }
@@ -2301,7 +2456,7 @@ static void s_editor_inspector_field_draw(
       u32 count = meta->count + (selected == meta->count ? 1u : 0u);
       u32 next = ldk_editor_ui_row_enum(editor, display_name,
           s_editor_inspector_row_group_depth, labels, count, selected,
-          readonly);
+          readonly, undo_meta);
       if (!readonly && next != selected && next < meta->count)
       {
         if (component_type)
@@ -2334,7 +2489,7 @@ static void s_editor_inspector_field_draw(
     bool value = *(bool *)field_value;
 
     value = ldk_editor_ui_row_bool(editor, display_name,
-        s_editor_inspector_row_group_depth, value, readonly);
+        s_editor_inspector_row_group_depth, value, readonly, undo_meta);
 
     if (!readonly && value != *(bool *)field_value)
     {
@@ -2358,7 +2513,7 @@ static void s_editor_inspector_field_draw(
     LDKInspectorNumericRowContext context = {entity, component_type, field};
     result = ldk_editor_ui_row_int(editor, display_name,
         s_editor_inspector_row_group_depth, buffer, (u32)sizeof(buffer),
-        readonly, s_editor_inspector_numeric_row_input, &context);
+        readonly, s_editor_inspector_numeric_row_input, &context, undo_meta);
 
     if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0)
     {
@@ -2383,7 +2538,7 @@ static void s_editor_inspector_field_draw(
     {
       rgba32 color = *(rgba32 *)field_value;
       if (ldk_editor_ui_row_color(editor, display_name,
-              s_editor_inspector_row_group_depth, &color, readonly))
+              s_editor_inspector_row_group_depth, &color, readonly, undo_meta))
       {
         if (component_type)
           (void)s_editor_inspector_property_write(entity, component_type, field, &color);
@@ -2402,7 +2557,7 @@ static void s_editor_inspector_field_draw(
     LDKInspectorNumericRowContext context = {entity, component_type, field};
     result = ldk_editor_ui_row_uint(editor, display_name,
         s_editor_inspector_row_group_depth, buffer, (u32)sizeof(buffer),
-        readonly, s_editor_inspector_numeric_row_input, &context);
+        readonly, s_editor_inspector_numeric_row_input, &context, undo_meta);
 
     if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0)
     {
@@ -2430,7 +2585,7 @@ static void s_editor_inspector_field_draw(
     {
       value = ldk_editor_ui_row_slider_float(editor, display_name,
           s_editor_inspector_row_group_depth, value,
-          field->min_value, field->max_value, readonly);
+          field->min_value, field->max_value, readonly, undo_meta);
 
       if (!readonly)
       {
@@ -2447,7 +2602,7 @@ static void s_editor_inspector_field_draw(
       LDKInspectorNumericRowContext context = {entity, component_type, field};
       u32 result = ldk_editor_ui_row_float(editor, display_name,
           s_editor_inspector_row_group_depth, buffer, (u32)sizeof(buffer),
-          &value, readonly, s_editor_inspector_numeric_row_input, &context);
+          &value, readonly, s_editor_inspector_numeric_row_input, &context, undo_meta);
       if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0 &&
           s_editor_inspector_parse_float(buffer, &parsed))
       {
@@ -2477,7 +2632,7 @@ static void s_editor_inspector_field_draw(
 
     result = ldk_editor_ui_row_text(editor, display_name,
         s_editor_inspector_row_group_depth, value.buf,
-        (u32)sizeof(value.buf), readonly);
+        (u32)sizeof(value.buf), readonly, undo_meta);
 
     if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0)
     {
@@ -2499,7 +2654,7 @@ static void s_editor_inspector_field_draw(
     float *values[] = {&value.x, &value.y};
     bool changed = ldk_editor_ui_row_vec2(editor, display_name,
         s_editor_inspector_row_group_depth, values, readonly,
-        s_editor_inspector_vector_row_input, &context);
+        s_editor_inspector_vector_row_input, &context, undo_meta);
 
     if (changed)
     {
@@ -2519,7 +2674,7 @@ static void s_editor_inspector_field_draw(
     float *values[] = {&value.x, &value.y, &value.z};
     bool changed = ldk_editor_ui_row_vec3(editor, display_name,
         s_editor_inspector_row_group_depth, values, readonly,
-        s_editor_inspector_vector_row_input, &context);
+        s_editor_inspector_vector_row_input, &context, undo_meta);
 
     if (changed)
     {
@@ -2539,7 +2694,7 @@ static void s_editor_inspector_field_draw(
     float *values[] = {&value.x, &value.y, &value.z, &value.w};
     bool changed = ldk_editor_ui_row_vec4(editor, display_name,
         s_editor_inspector_row_group_depth, values, readonly,
-        s_editor_inspector_vector_row_input, &context);
+        s_editor_inspector_vector_row_input, &context, undo_meta);
 
     if (changed)
     {
@@ -2559,7 +2714,7 @@ static void s_editor_inspector_field_draw(
           entity, component_type, field, component, field_value, readonly};
       ldk_editor_ui_row_euler(editor, display_name,
           s_editor_inspector_row_group_depth,
-          s_editor_inspector_euler_row_content, &context);
+          s_editor_inspector_euler_row_content, &context, undo_meta);
       break;
     }
 
@@ -2569,7 +2724,7 @@ static void s_editor_inspector_field_draw(
     float *values[] = {&value.x, &value.y, &value.z, &value.w};
     bool changed = ldk_editor_ui_row_vec4(editor, display_name,
         s_editor_inspector_row_group_depth, values, readonly,
-        s_editor_inspector_vector_row_input, &context);
+        s_editor_inspector_vector_row_input, &context, undo_meta);
 
     if (changed)
     {
@@ -2942,7 +3097,7 @@ static bool s_editor_material_image_editor_ex(LDKEditorContext *editor,
   ldk_ui_push_id_cstr(&editor->ui, label);
   LDKEditorUIRowSlotAction action = ldk_editor_ui_row_slot_image(editor,
       label, dialog_title, s_editor_inspector_row_group_depth, info, readonly, optional,
-      !x_handle_is_null(image->h) || removed != NULL, expanded, &path);
+      !x_handle_is_null(image->h) || removed != NULL, expanded, &path, NULL);
   ldk_ui_pop_id(&editor->ui);
 
   if (action == LDK_EDITOR_UI_ROW_SLOT_CLEAR)
@@ -3068,7 +3223,7 @@ static bool s_editor_material_texture_settings_editor(
     filter = (u32)LDK_MATERIAL_TEXTURE_FILTER_NEAREST;
   }
   u32 next_filter = ldk_editor_ui_row_enum(editor, "Filter",
-      s_editor_inspector_row_group_depth, filter_names, 2, filter, readonly);
+      s_editor_inspector_row_group_depth, filter_names, 2, filter, readonly, NULL);
   if (!readonly && next_filter < 2u && next_filter != filter)
   {
     settings->filter = (LDKMaterialTextureFilter)next_filter;
@@ -3083,7 +3238,7 @@ static bool s_editor_material_texture_settings_editor(
   }
   u32 next_mip_filter = ldk_editor_ui_row_enum(editor, "Mip Filter",
       s_editor_inspector_row_group_depth, mip_filter_names, 3, mip_filter,
-      readonly);
+      readonly, NULL);
   if (!readonly && next_mip_filter < 3u && next_mip_filter != mip_filter)
   {
     settings->mip_filter =
@@ -3268,7 +3423,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
   }
 
   u32 next = ldk_editor_ui_row_enum(editor, "Type",
-      s_editor_inspector_row_group_depth, names, 4, selected, readonly);
+      s_editor_inspector_row_group_depth, names, 4, selected, readonly, NULL);
   if (!readonly && next < 4 && next != selected &&
       ldk_material_desc_defaults(types[next], desc))
   {
@@ -3326,7 +3481,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
 
     u32 next_alpha_mode = ldk_editor_ui_row_enum(editor, "Alpha Mode",
         s_editor_inspector_row_group_depth, alpha_mode_names,
-        alpha_mode_count, selected_alpha_mode, readonly);
+        alpha_mode_count, selected_alpha_mode, readonly, NULL);
     if (!readonly && next_alpha_mode < alpha_mode_count &&
         next_alpha_mode != selected_alpha_mode)
     {
@@ -4063,7 +4218,7 @@ static bool s_editor_inspector_instance_vec3_draw(LDKEditorContext *editor,
   float *values[] = {&value->x, &value->y, &value->z};
   return ldk_editor_ui_row_vec3(editor, label,
       s_editor_inspector_row_group_depth, values, false,
-      s_editor_inspector_vector_row_input, &context);
+      s_editor_inspector_vector_row_input, &context, NULL);
 }
 
 static bool s_editor_inspector_instance_rotation_draw(LDKEditorContext *editor,
@@ -4089,7 +4244,7 @@ static bool s_editor_inspector_instance_rotation_draw(LDKEditorContext *editor,
       rotation, false};
   ldk_editor_ui_row_euler(editor, field.name,
       s_editor_inspector_row_group_depth,
-      s_editor_inspector_euler_row_content, &context);
+      s_editor_inspector_euler_row_content, &context, NULL);
 
   return !s_editor_inspector_euler_quat_equal(original, *rotation);
 }

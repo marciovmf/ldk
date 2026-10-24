@@ -1144,6 +1144,21 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
   ldk_ui_begin_window_fixed(ui, "EDITOR COMMANDS", toolbar_rect, 0);
   ldk_ui_begin_horizontal(&editor->ui);
 
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_set_next_disabled(ui, editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      !ldk_editor_undo_can_undo(&editor->undo));
+  if (ldk_ui_button(ui, "Undo"))
+  {
+    (void)ldk_editor_undo_undo(&editor->undo);
+  }
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_set_next_disabled(ui, editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      !ldk_editor_undo_can_redo(&editor->undo));
+  if (ldk_ui_button(ui, "Redo"))
+  {
+    (void)ldk_editor_undo_redo(&editor->undo);
+  }
+
   {
     LDKAudio *audio = (LDKAudio *)ldk_module_get(LDK_MODULE_AUDIO);
     LDKUIIcon icon = {0};
@@ -1571,8 +1586,92 @@ void ldk_editor_ui_row_begin(
   }
 }
 
+/* Rows signal interaction boundaries; final snapshots are resolved after
+ * the Inspector has written the edited value, at the end of the UI build. */
+static bool s_editor_ui_undo_property_matches(const LDKEditorContext *editor,
+    const LDKEditorUIUndoProperty *property)
+{
+  return property && property->size &&
+      editor->undo.active &&
+      editor->undo_row_key.owner == property->key.owner &&
+      editor->undo_row_key.property == property->key.property;
+}
+
+static void s_editor_ui_undo_finish(LDKEditorContext *editor)
+{
+  if (ldk_editor_undo_has_active_change(&editor->undo))
+  {
+    if (!ldk_editor_undo_end_change_resolved(&editor->undo))
+    {
+      /* The property may have been deleted while it was being edited. */
+      ldk_editor_undo_clear(&editor->undo);
+    }
+  }
+  editor->undo_widget_id = 0;
+  editor->undo_end_requested = false;
+}
+
+void ldki_editor_undo_frame_end(LDKEditorContext *editor)
+{
+  if (editor && ldk_editor_undo_has_active_change(&editor->undo) &&
+      (editor->undo_end_requested || !editor->undo_row_seen))
+  {
+    s_editor_ui_undo_finish(editor);
+  }
+}
+
+static void s_editor_ui_undo_row_update(LDKEditorContext *editor,
+    const LDKEditorUIUndoProperty *property, LDKUIId control_id,
+    bool editing, bool changed, bool completed)
+{
+  if (!editor || !property || !property->size || !property->value)
+  {
+    return;
+  }
+  if (ldk_editor_undo_has_active_change(&editor->undo) &&
+      !s_editor_ui_undo_property_matches(editor, property))
+  {
+    s_editor_ui_undo_finish(editor);
+  }
+  /* Moving from X to Y ends the X transaction before the caller writes Y. */
+  if (s_editor_ui_undo_property_matches(editor, property) && editing &&
+      editor->undo_widget_id && control_id != editor->undo_widget_id)
+  {
+    if (!ldk_editor_undo_end_change(&editor->undo, property->value))
+    {
+      ldk_editor_undo_clear(&editor->undo);
+    }
+    editor->undo_widget_id = 0;
+    editor->undo_end_requested = false;
+  }
+  if (!ldk_editor_undo_has_active_change(&editor->undo) &&
+      (editing || changed) &&
+      ldk_editor_undo_begin_change(&editor->undo, property->key,
+          property->type, property->value, property->size))
+  {
+    editor->undo_row_key = property->key;
+    editor->undo_widget_id = editing ? control_id : 0;
+  }
+  if (s_editor_ui_undo_property_matches(editor, property))
+  {
+    editor->undo_row_seen = true;
+    if (completed || (!editing && editor->undo_widget_id) ||
+        (editing && editor->undo_widget_id &&
+            editor->undo_widget_id != control_id) ||
+        (!editing && changed && !editor->undo_widget_id))
+    {
+      editor->undo_end_requested = true;
+    }
+  }
+}
+
+static bool s_editor_ui_undo_input_focused(LDKUIContext *ui, LDKUIId id)
+{
+  return id != 0 && ui->focused_id == id && ui->input_box_id == id;
+}
+
 bool ldk_editor_ui_row_bool(LDKEditorContext *editor, const char *label,
-    u32 group_depth, bool value, bool readonly)
+    u32 group_depth, bool value, bool readonly, const LDKEditorUIUndoProperty *undo_property)
 {
   LDKUIContext *ui;
   if (!editor)
@@ -1583,14 +1682,17 @@ bool ldk_editor_ui_row_bool(LDKEditorContext *editor, const char *label,
   ui = &editor->ui;
   ldk_editor_ui_row_begin(editor, label, group_depth);
   ldk_ui_begin_disabled(ui, readonly);
+  bool previous = value;
   value = ldk_ui_toggle(ui, value);
   ldk_ui_end_disabled(ui);
+  s_editor_ui_undo_row_update(editor, undo_property, ui->last_id,
+      false, !readonly && value != previous, true);
   return value;
 }
 
 float ldk_editor_ui_row_slider_float(LDKEditorContext *editor,
     const char *label, u32 group_depth, float value, float minimum,
-    float maximum, bool readonly)
+    float maximum, bool readonly, const LDKEditorUIUndoProperty *undo_property)
 {
   LDKUIContext *ui;
   if (!editor)
@@ -1601,13 +1703,27 @@ float ldk_editor_ui_row_slider_float(LDKEditorContext *editor,
   ui = &editor->ui;
   ldk_editor_ui_row_begin(editor, label, group_depth);
   ldk_ui_begin_disabled(ui, readonly);
+  float previous = value;
   value = ldk_ui_slider_input(ui, value, minimum, maximum);
   ldk_ui_end_disabled(ui);
+  LDKUIId id = ui->last_id;
+  bool mouse_pressed = ui->mouse && ldk_os_mouse_button_is_pressed(
+      (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+  bool mouse_up = ui->mouse && ldk_os_mouse_button_up(
+      (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+  bool dragging = mouse_pressed && ui->active_id == id;
+  bool text_editing = ui->slider_input.id &&
+      s_editor_ui_undo_input_focused(ui, ui->slider_input.id);
+  s_editor_ui_undo_row_update(editor, undo_property,
+      text_editing ? ui->slider_input.id : id,
+      !readonly && (dragging || text_editing),
+      !readonly && value != previous, mouse_up ||
+      (!dragging && !text_editing && value != previous));
   return value;
 }
 
 u32 ldk_editor_ui_row_text(LDKEditorContext *editor, const char *label,
-    u32 group_depth, char *value, u32 capacity, bool readonly)
+    u32 group_depth, char *value, u32 capacity, bool readonly, const LDKEditorUIUndoProperty *undo_property)
 {
   LDKUIContext *ui;
   u32 result;
@@ -1621,6 +1737,11 @@ u32 ldk_editor_ui_row_text(LDKEditorContext *editor, const char *label,
   ldk_ui_begin_disabled(ui, readonly);
   result = ldk_ui_input_box(ui, value, capacity);
   ldk_ui_end_disabled(ui);
+  LDKUIId id = ui->last_id;
+  s_editor_ui_undo_row_update(editor, undo_property, id,
+      !readonly && s_editor_ui_undo_input_focused(ui, id),
+      !readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0,
+      (result & LDK_UI_INPUT_BOX_COMMITTED) != 0);
   return result;
 }
 
@@ -1639,7 +1760,7 @@ void ldk_editor_ui_row_label(LDKEditorContext *editor, const char *label,
 
 u32 ldk_editor_ui_row_enum(LDKEditorContext *editor, const char *label,
     u32 group_depth, const char *const *options, u32 count, u32 selected,
-    bool readonly)
+    bool readonly, const LDKEditorUIUndoProperty *undo_property)
 {
   LDKUIContext *ui;
   u32 result;
@@ -1654,31 +1775,52 @@ u32 ldk_editor_ui_row_enum(LDKEditorContext *editor, const char *label,
   result = ldk_ui_combo_box(ui, options, count, selected);
   ldk_ui_end_disabled(ui);
   ldk_ui_end_horizontal(ui);
+  s_editor_ui_undo_row_update(editor, undo_property, ui->last_id,
+      false, !readonly && result != selected, true);
   return result;
 }
 
 void ldk_editor_ui_row_euler(LDKEditorContext *editor, const char *label,
-    u32 group_depth, LDKEditorUIRowEulerFn draw, void *user)
+    u32 group_depth, LDKEditorUIRowEulerFn draw, void *user, const LDKEditorUIUndoProperty *undo_property)
 {
   if (!editor || !draw)
   {
     return;
   }
+  /* Capture the original before the drawing callback can write it. */
+  unsigned char initial[sizeof(Quat)];
+  LDKEditorUIUndoProperty property = {0};
+  bool valid = undo_property && undo_property->value &&
+      undo_property->size == sizeof(initial);
+  if (valid)
+  {
+    memcpy(initial, undo_property->value, sizeof(initial));
+    property = *undo_property;
+    property.value = initial;
+  }
   ldk_editor_ui_row_begin(editor, label, group_depth);
   draw(&editor->ui, user);
   ldk_ui_end_horizontal(&editor->ui);
+  if (valid)
+  {
+    LDKUIContext *ui = &editor->ui;
+    bool editing = ui->input_box_id && ui->focused_id == ui->input_box_id;
+    bool changed = memcmp(initial, undo_property->value, sizeof(initial)) != 0;
+    s_editor_ui_undo_row_update(editor, &property, ui->focused_id,
+        editing, changed, false);
+  }
 }
 
 u32 ldk_editor_ui_row_atlas_region(LDKEditorContext *editor,
     const char *label, u32 group_depth, const char *const *names,
-    u32 count, u32 selected, bool readonly)
+    u32 count, u32 selected, bool readonly, const LDKEditorUIUndoProperty *undo_property)
 {
   return ldk_editor_ui_row_enum(editor, label, group_depth,
-      names, count, selected, readonly);
+      names, count, selected, readonly, undo_property);
 }
 
 bool ldk_editor_ui_row_color(LDKEditorContext *editor, const char *label,
-    u32 group_depth, rgba32 *color, bool readonly)
+    u32 group_depth, rgba32 *color, bool readonly, const LDKEditorUIUndoProperty *undo_property)
 {
   bool changed;
   if (!editor || !color)
@@ -1688,13 +1830,24 @@ bool ldk_editor_ui_row_color(LDKEditorContext *editor, const char *label,
   ldk_editor_ui_row_begin(editor, label, group_depth);
   changed = ldki_editor_color_field(editor, color, readonly);
   ldk_ui_end_horizontal(&editor->ui);
+  LDKUIContext *ui = &editor->ui;
+  bool mouse_pressed = ui->mouse && ldk_os_mouse_button_is_pressed(
+      (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+  bool editing = s_editor_ui_undo_input_focused(ui, ui->last_id) ||
+      (mouse_pressed && (changed ||
+          s_editor_ui_undo_property_matches(editor, undo_property)));
+  s_editor_ui_undo_row_update(editor, undo_property, ui->focused_id,
+      !readonly && editing, !readonly && changed,
+      ui->mouse && ldk_os_mouse_button_up(
+          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT) && !editing);
   return changed;
 }
 
 /* Numerical rows leave text-edit state and numeric parsing to the caller. */
 static u32 s_editor_ui_row_number(LDKEditorContext *editor, const char *label,
     u32 group_depth, char *buffer, u32 capacity, const float *float_value,
-    bool readonly, LDKEditorUIRowInputFn input, void *user)
+    bool readonly, LDKEditorUIRowInputFn input, void *user,
+    const LDKEditorUIUndoProperty *undo_property)
 {
   u32 result;
   LDKUIContext *ui;
@@ -1707,12 +1860,18 @@ static u32 s_editor_ui_row_number(LDKEditorContext *editor, const char *label,
   ldk_ui_begin_disabled(ui, readonly);
   result = input(ui, user, 0u, buffer, capacity, float_value);
   ldk_ui_end_disabled(ui);
+  LDKUIId id = ui->last_id;
+  s_editor_ui_undo_row_update(editor, undo_property, id,
+      !readonly && s_editor_ui_undo_input_focused(ui, id),
+      !readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0,
+      (result & LDK_UI_INPUT_BOX_COMMITTED) != 0);
   return result;
 }
 
 static bool s_editor_ui_row_vector(LDKEditorContext *editor, const char *label,
     u32 group_depth, float **values, u32 count, bool axis_labels,
-    bool readonly, LDKEditorUIRowFloatFn input, void *user)
+    bool readonly, LDKEditorUIRowFloatFn input, void *user,
+    const LDKEditorUIUndoProperty *undo_property)
 {
   bool changed = false;
   static const char *axes[] = {"X", "Y", "Z", "W"};
@@ -1722,6 +1881,7 @@ static bool s_editor_ui_row_vector(LDKEditorContext *editor, const char *label,
     return false;
   }
   ui = &editor->ui;
+  LDKUIId focused_input = 0;
   ldk_editor_ui_row_begin(editor, label, group_depth);
   for (u32 i = 0; i < count; ++i)
   {
@@ -1731,65 +1891,71 @@ static bool s_editor_ui_row_vector(LDKEditorContext *editor, const char *label,
       ldk_ui_label(ui, axes[i]);
     }
     changed |= input(ui, user, i, values[i], readonly);
+    if (s_editor_ui_undo_input_focused(ui, ui->last_id))
+    {
+      focused_input = ui->last_id;
+    }
   }
+  s_editor_ui_undo_row_update(editor, undo_property, focused_input,
+      !readonly && focused_input != 0, !readonly && changed, false);
   return changed;
 }
 
 
 u32 ldk_editor_ui_row_int(LDKEditorContext *editor, const char *label,
     u32 group_depth, char *buffer, u32 capacity, bool readonly,
-    LDKEditorUIRowInputFn input, void *user)
+    LDKEditorUIRowInputFn input, void *user, const LDKEditorUIUndoProperty *undo_property)
 {
   return s_editor_ui_row_number(editor, label, group_depth, buffer,
-      capacity, NULL, readonly, input, user);
+      capacity, NULL, readonly, input, user, undo_property);
 }
 
 u32 ldk_editor_ui_row_uint(LDKEditorContext *editor, const char *label,
     u32 group_depth, char *buffer, u32 capacity, bool readonly,
-    LDKEditorUIRowInputFn input, void *user)
+    LDKEditorUIRowInputFn input, void *user, const LDKEditorUIUndoProperty *undo_property)
 {
   return s_editor_ui_row_number(editor, label, group_depth, buffer,
-      capacity, NULL, readonly, input, user);
+      capacity, NULL, readonly, input, user, undo_property);
 }
 
 u32 ldk_editor_ui_row_double(LDKEditorContext *editor, const char *label,
     u32 group_depth, char *buffer, u32 capacity, bool readonly,
-    LDKEditorUIRowInputFn input, void *user)
+    LDKEditorUIRowInputFn input, void *user, const LDKEditorUIUndoProperty *undo_property)
 {
   return s_editor_ui_row_number(editor, label, group_depth, buffer,
-      capacity, NULL, readonly, input, user);
+      capacity, NULL, readonly, input, user, undo_property);
 }
 
 u32 ldk_editor_ui_row_float(LDKEditorContext *editor, const char *label,
     u32 group_depth, char *buffer, u32 capacity, const float *value,
-    bool readonly, LDKEditorUIRowInputFn input, void *user)
+    bool readonly, LDKEditorUIRowInputFn input, void *user, const LDKEditorUIUndoProperty *undo_property)
 {
   return s_editor_ui_row_number(editor, label, group_depth, buffer,
-      capacity, value, readonly, input, user);
+      capacity, value, readonly, input, user, undo_property);
 }
 
 bool ldk_editor_ui_row_vec2(LDKEditorContext *editor, const char *label,
     u32 group_depth, float **values, bool readonly,
-    LDKEditorUIRowFloatFn input, void *user)
+    LDKEditorUIRowFloatFn input, void *user, const LDKEditorUIUndoProperty *undo_property)
 {
   return s_editor_ui_row_vector(editor, label, group_depth, values, 2u,
-      false, readonly, input, user);
+      false, readonly, input, user, undo_property);
 }
 
 bool ldk_editor_ui_row_vec3(LDKEditorContext *editor, const char *label,
     u32 group_depth, float **values, bool readonly,
-    LDKEditorUIRowFloatFn input, void *user)
+    LDKEditorUIRowFloatFn input, void *user, const LDKEditorUIUndoProperty *undo_property)
 {
   return s_editor_ui_row_vector(editor, label, group_depth, values, 3u,
-      true, readonly, input, user);
+      true, readonly, input, user, undo_property);
 }
 
 bool ldk_editor_ui_row_vec4(LDKEditorContext *editor, const char *label,
     u32 group_depth, float **values, bool readonly,
-    LDKEditorUIRowFloatFn input, void *user)
+    LDKEditorUIRowFloatFn input, void *user, const LDKEditorUIUndoProperty *undo_property)
 {
   return s_editor_ui_row_vector(editor, label, group_depth, values, 4u,
-      false, readonly, input, user);
+      false, readonly, input, user, undo_property);
 }
 
 
@@ -1874,8 +2040,9 @@ static LDKEditorUIRowSlotAction s_editor_ui_row_slot_asset(
 #define S_EDITOR_SLOT_ROW(name, filter_title, filter_string) \
 LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_##name(LDKEditorContext *editor, \
     const char *label, u32 group_depth, const LDKAssetInfo *info, \
-    bool readonly, XFSPath *path) \
+    bool readonly, XFSPath *path, const LDKEditorUIUndoProperty *undo_property) \
 { \
+  (void)undo_property; \
   return s_editor_ui_row_slot_asset(editor, label, group_depth, info, readonly, \
       false, false, filter_title, filter_string, path); \
 }
@@ -1889,24 +2056,27 @@ S_EDITOR_SLOT_ROW(animation, "Choose animation", "Animation\0*.anim\0\0")
 
 LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_material(LDKEditorContext *editor,
     const char *label, u32 group_depth, const LDKAssetInfo *info,
-    bool readonly, bool optional, bool has_value, XFSPath *path)
+    bool readonly, bool optional, bool has_value, XFSPath *path, const LDKEditorUIUndoProperty *undo_property)
 {
+  (void)undo_property;
   return s_editor_ui_row_slot_asset(editor, label, group_depth, info, readonly,
       optional, has_value, "Choose material", "Materials\0*.tml\0\0", path);
 }
 
 LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_skybox(LDKEditorContext *editor,
     const char *label, u32 group_depth, const LDKAssetInfo *info,
-    bool readonly, bool optional, bool has_value, XFSPath *path)
+    bool readonly, bool optional, bool has_value, XFSPath *path, const LDKEditorUIUndoProperty *undo_property)
 {
+  (void)undo_property;
   return s_editor_ui_row_slot_asset(editor, label, group_depth, info, readonly,
       optional, has_value, "Choose skybox", "Skyboxes\0*.skybox\0\0", path);
 }
 
 LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_texture_atlas(LDKEditorContext *editor,
     const char *label, u32 group_depth, const LDKAssetInfo *info,
-    bool readonly, bool has_value, XFSPath *path)
+    bool readonly, bool has_value, XFSPath *path, const LDKEditorUIUndoProperty *undo_property)
 {
+  (void)undo_property;
   return s_editor_ui_row_slot_asset(editor, label, group_depth, info, readonly,
       true, has_value, "Choose texture atlas", "Texture Atlas\0*.atlas\0\0", path);
 }
@@ -1914,8 +2084,9 @@ LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_texture_atlas(LDKEditorContext *
 LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_image(LDKEditorContext *editor,
     const char *label, const char *dialog_title, u32 group_depth, const LDKAssetInfo *info,
     bool readonly, bool optional, bool has_value, bool *expanded,
-    XFSPath *path)
+    XFSPath *path, const LDKEditorUIUndoProperty *undo_property)
 {
+  (void)undo_property;
   LDKUIContext *ui;
   LDKUIRect target;
   char display[X_FS_PATH_MAX_LENGTH];
