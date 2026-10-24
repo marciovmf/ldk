@@ -307,6 +307,11 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
         ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE);
     bool explorer_focused = ldki_editor_window_is_focused(
         editor, LDK_EDITOR_WINDOW_PROJECT_EXPLORER);
+    bool undo_window_focused =
+        ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_INSPECTOR) ||
+        ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_HIERARCHY) ||
+        ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE) ||
+        ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_GAME);
     bool text_editing = editor->ui.input_box_id != 0 &&
         editor->ui.focused_id == editor->ui.input_box_id;
 
@@ -315,7 +320,8 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
       return false;
     }
 
-    if (editor->editor_state == LDK_EDITOR_STATE_STOPED &&
+    if (undo_window_focused &&
+        editor->editor_state == LDK_EDITOR_STATE_STOPED &&
         event->keyboard_event.ctrl_is_down &&
         !event->keyboard_event.alt_is_down &&
         event->keyboard_event.keyCode == LDK_KEYCODE_Z)

@@ -1144,19 +1144,33 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
   ldk_ui_begin_window_fixed(ui, "EDITOR COMMANDS", toolbar_rect, 0);
   ldk_ui_begin_horizontal(&editor->ui);
 
-  ldk_ui_set_next_weight(ui, 0.0f);
-  ldk_ui_set_next_disabled(ui, editor->editor_state != LDK_EDITOR_STATE_STOPED ||
-      !ldk_editor_undo_can_undo(&editor->undo));
-  if (ldk_ui_button(ui, "Undo"))
   {
-    (void)ldk_editor_undo_undo(&editor->undo);
-  }
-  ldk_ui_set_next_weight(ui, 0.0f);
-  ldk_ui_set_next_disabled(ui, editor->editor_state != LDK_EDITOR_STATE_STOPED ||
-      !ldk_editor_undo_can_redo(&editor->undo));
-  if (ldk_ui_button(ui, "Redo"))
-  {
-    (void)ldk_editor_undo_redo(&editor->undo);
+    LDKUIIcon icon = {0};
+    icon.color = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+    icon.size = ldk_sizef(
+        LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+    icon.texture =
+        ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+
+    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_UNDO];
+    ldk_ui_set_next_weight(ui, 0.0f);
+    ldk_ui_set_next_disabled(ui,
+        editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+        !ldk_editor_undo_can_undo(&editor->undo));
+    if (ldk_ui_icon_button(ui, icon, NULL))
+    {
+      (void)ldk_editor_undo_undo(&editor->undo);
+    }
+
+    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_REDO];
+    ldk_ui_set_next_weight(ui, 0.0f);
+    ldk_ui_set_next_disabled(ui,
+        editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+        !ldk_editor_undo_can_redo(&editor->undo));
+    if (ldk_ui_icon_button(ui, icon, NULL))
+    {
+      (void)ldk_editor_undo_redo(&editor->undo);
+    }
   }
 
   {
