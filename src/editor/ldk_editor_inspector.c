@@ -2139,7 +2139,9 @@ static LDKEditorUIUndoProperty s_editor_inspector_undo_property(
 {
   LDKEditorUIUndoProperty property = {0};
   size_t size = s_editor_inspector_undo_field_size(field);
-  if (!component_type)
+  /* A zero component type identifies a scene system. Scene properties use
+   * the null entity handle and are not currently tracked by undo. */
+  if (component_type == 0 && x_handle_is_null(entity))
   {
     return property;
   }
@@ -2154,6 +2156,55 @@ static LDKEditorUIUndoProperty s_editor_inspector_undo_property(
   property.value = value;
   property.size = size;
   return property;
+}
+
+/* System fields use the full 64-bit system ID as owner, and a zero
+ * component type in the upper 32 bits of the property key. The data is
+ * resolved on demand rather than retaining the address of a scene system. */
+static LDKSceneSystems *s_editor_inspector_scene_systems(
+    LDKEditorContext *editor);
+static bool s_editor_inspector_system_index(
+    const LDKSceneSystems *systems, u64 id, u32 *out_index);
+static const LDKSystemMeta *s_editor_inspector_system_meta(
+    LDKGame *game, u64 id);
+
+static const LDKComponentFieldMeta *s_editor_undo_system_field_resolve(
+    LDKEditorContext *editor, LDKEditorUndoKey key, LDKFieldType type,
+    size_t size, void **out_field)
+{
+  const LDKSystemMeta *meta;
+  LDKSceneSystems *systems;
+  void *data;
+  u32 system_index;
+  u32 offset = (u32)key.property;
+
+  if (!editor || editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      key.owner == 0 || (key.property >> 32) != 0 ||
+      !(meta = s_editor_inspector_system_meta(ldk_game_get(), key.owner)) ||
+      !meta->fields || size == 0 || size > meta->size ||
+      offset > meta->size - size ||
+      !(systems = s_editor_inspector_scene_systems(editor)) ||
+      !s_editor_inspector_system_index(systems, key.owner, &system_index) ||
+      !systems->data_sizes || systems->data_sizes[system_index] != meta->size ||
+      !(data = ldk_scene_systems_data_get(systems, key.owner)))
+  {
+    return NULL;
+  }
+
+  for (u32 i = 0; i < meta->field_count; ++i)
+  {
+    const LDKComponentFieldMeta *field = &meta->fields[i];
+    if (field->offset == offset && field->type == type &&
+        s_editor_inspector_undo_field_size(field) == size)
+    {
+      if (out_field)
+      {
+        *out_field = (u8 *)data + offset;
+      }
+      return field;
+    }
+  }
+  return NULL;
 }
 
 static const LDKComponentFieldMeta *s_editor_undo_field_resolve(
@@ -2192,8 +2243,16 @@ void *ldki_editor_undo_property_resolve(
     void *user, LDKEditorUndoKey key, LDKFieldType type, size_t size)
 {
   void *value = NULL;
-  (void)user;
-  if (!s_editor_undo_field_resolve(key, type, size, NULL, NULL, &value))
+  if ((key.property >> 32) == 0)
+  {
+    if (!s_editor_undo_system_field_resolve(
+            (LDKEditorContext *)user, key, type, size, &value))
+    {
+      return NULL;
+    }
+  }
+  else if (!s_editor_undo_field_resolve(
+               key, type, size, NULL, NULL, &value))
   {
     return NULL;
   }
@@ -2207,8 +2266,33 @@ bool ldki_editor_undo_property_apply(void *user, LDKEditorUndoKey key,
   u32 component_type;
   const LDKComponentFieldMeta *field;
   LDKPropertyValue property = {0};
-  (void)user;
-  if (!value || !(field = s_editor_undo_field_resolve(key, type, size,
+  if (!value)
+  {
+    return false;
+  }
+  if ((key.property >> 32) == 0)
+  {
+    void *destination = NULL;
+    field = s_editor_undo_system_field_resolve(
+        (LDKEditorContext *)user, key, type, size, &destination);
+    if (!field || !destination)
+    {
+      return false;
+    }
+    /* System fields are edited directly by the Inspector. Restore the same
+     * representation; enums use their Comet-defined writer. */
+    if (type == LDK_FIELD_ENUM)
+    {
+      field->enum_meta->write(
+          destination, field->enum_meta->read(value));
+    }
+    else
+    {
+      memcpy(destination, value, size);
+    }
+    return true;
+  }
+  if (!(field = s_editor_undo_field_resolve(key, type, size,
           &entity, &component_type, NULL)))
   {
     return false;
