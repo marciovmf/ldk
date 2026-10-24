@@ -2239,10 +2239,142 @@ static const LDKComponentFieldMeta *s_editor_undo_field_resolve(
   return NULL;
 }
 
+/* Material undo snapshots carry complete descriptors. Their keys use a
+ * reserved property domain, independent of ECS field offsets and system IDs. */
+enum
+{
+  LDK_EDITOR_UNDO_MATERIAL_ASSET = UINT32_MAX,
+  LDK_EDITOR_UNDO_MATERIAL_MESH = UINT32_MAX - 1u,
+  LDK_EDITOR_UNDO_MATERIAL_INSTANCED_MESH = UINT32_MAX - 2u,
+};
+
+static LDKAssetMaterial s_editor_mesh_material_asset(
+    const LDKMeshSource *mesh, u32 material_slot);
+static u64 s_editor_mesh_material_revision(
+    const LDKMeshSource *mesh, u32 material_slot);
+
+static u32 s_editor_undo_material_domain(LDKEditorUndoKey key)
+{
+  return (u32)(key.property >> 32);
+}
+
+/* Builtin component IDs overlap the material domains. Match the stored
+ * representation too, so Transform and Camera fields remain distinguishable. */
+static bool s_editor_undo_material_key_matches(
+    LDKEditorUndoKey key, LDKFieldType type, size_t size)
+{
+  u32 domain = s_editor_undo_material_domain(key);
+  return type == LDK_FIELD_ASSET_MATERIAL &&
+      size == sizeof(LDKMaterialDesc) &&
+      (domain == LDK_EDITOR_UNDO_MATERIAL_ASSET ||
+          domain == LDK_EDITOR_UNDO_MATERIAL_MESH ||
+          domain == LDK_EDITOR_UNDO_MATERIAL_INSTANCED_MESH);
+}
+
+static LDKMeshSource *s_editor_undo_material_mesh(
+    LDKEditorUndoKey key, u32 domain)
+{
+  LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
+  LDKEntity entity = {(u32)key.owner, (u32)(key.owner >> 32)};
+  u32 type = domain == LDK_EDITOR_UNDO_MATERIAL_INSTANCED_MESH
+      ? LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE
+      : LDK_COMPONENT_TYPE_MESH_SOURCE;
+  void *component;
+
+  if (!ecs || !ldk_entity_is_alive(&ecs->entity, entity) ||
+      !(component = ldk_ecs_component_get(entity, type)))
+  {
+    return NULL;
+  }
+
+  return domain == LDK_EDITOR_UNDO_MATERIAL_INSTANCED_MESH
+      ? &((LDKInstancedMeshSource *)component)->source
+      : (LDKMeshSource *)component;
+}
+
+static const LDKMaterialDesc *s_editor_undo_material_resolve(
+    LDKEditorContext *editor, LDKEditorUndoKey key,
+    LDKFieldType type, size_t size)
+{
+  u32 domain = s_editor_undo_material_domain(key);
+  LDKAssetManager *assets;
+  const LDKAssetMaterialData *data;
+  LDKMeshSource *mesh;
+  u32 slot;
+
+  if (!editor || editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      type != LDK_FIELD_ASSET_MATERIAL || size != sizeof(LDKMaterialDesc))
+  {
+    return NULL;
+  }
+
+  if (domain == LDK_EDITOR_UNDO_MATERIAL_ASSET)
+  {
+    LDKAssetMaterial asset = ldk_asset_material_null();
+    asset.h.index = (u32)key.owner;
+    asset.h.version = (u32)(key.owner >> 32);
+    assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    data = assets ? ldk_asset_manager_material_get_const(assets, asset) : NULL;
+    return data && !data->is_missing ? &data->descriptor : NULL;
+  }
+
+  if (domain != LDK_EDITOR_UNDO_MATERIAL_MESH &&
+      domain != LDK_EDITOR_UNDO_MATERIAL_INSTANCED_MESH)
+  {
+    return NULL;
+  }
+
+  slot = (u32)key.property;
+  mesh = s_editor_undo_material_mesh(key, domain);
+  if (!mesh || slot >= ldk_mesh_source_material_count(mesh) ||
+      s_editor_mesh_material_revision(mesh, slot) != 0 ||
+      !x_handle_is_null(s_editor_mesh_material_asset(mesh, slot).h))
+  {
+    return NULL;
+  }
+
+  if (slot == 0u)
+  {
+    return &mesh->material;
+  }
+  const LDKMeshSourceMaterialBinding *binding =
+      ldk_mesh_source_additional_material_binding_const(mesh, slot);
+  return binding ? &binding->material : NULL;
+}
+
+static bool s_editor_undo_material_apply(LDKEditorContext *editor,
+    LDKEditorUndoKey key, LDKFieldType type, const void *value, size_t size)
+{
+  u32 domain = s_editor_undo_material_domain(key);
+  if (!value || !s_editor_undo_material_resolve(editor, key, type, size))
+  {
+    return false;
+  }
+
+  if (domain == LDK_EDITOR_UNDO_MATERIAL_ASSET)
+  {
+    LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    LDKAssetMaterial asset = ldk_asset_material_null();
+    asset.h.index = (u32)key.owner;
+    asset.h.version = (u32)(key.owner >> 32);
+    return assets && ldk_asset_manager_material_update(
+        assets, asset, (const LDKMaterialDesc *)value);
+  }
+
+  return ldk_mesh_source_set_material_at(
+      s_editor_undo_material_mesh(key, domain),
+      (u32)key.property, (const LDKMaterialDesc *)value);
+}
+
 void *ldki_editor_undo_property_resolve(
     void *user, LDKEditorUndoKey key, LDKFieldType type, size_t size)
 {
   void *value = NULL;
+  if (s_editor_undo_material_key_matches(key, type, size))
+  {
+    return (void *)s_editor_undo_material_resolve(
+        (LDKEditorContext *)user, key, type, size);
+  }
   if ((key.property >> 32) == 0)
   {
     if (!s_editor_undo_system_field_resolve(
@@ -2269,6 +2401,11 @@ bool ldki_editor_undo_property_apply(void *user, LDKEditorUndoKey key,
   if (!value)
   {
     return false;
+  }
+  if (s_editor_undo_material_key_matches(key, type, size))
+  {
+    return s_editor_undo_material_apply(
+        (LDKEditorContext *)user, key, type, value, size);
   }
   if ((key.property >> 32) == 0)
   {
@@ -3157,6 +3294,114 @@ static bool s_editor_material_asset_equal(
   return a.h.index == b.h.index && a.h.version == b.h.version;
 }
 
+static LDKEditorUIUndoProperty s_editor_material_undo_property(
+    LDKEditorContext *editor, const LDKMaterialDesc *desc,
+    LDKAssetMaterial asset, LDKEntity entity, u32 component_type, u32 slot)
+{
+  LDKEditorUIUndoProperty property = {0};
+  u32 domain;
+
+  if (!editor || !desc || editor->editor_state != LDK_EDITOR_STATE_STOPED)
+  {
+    return property;
+  }
+
+  if (!x_handle_is_null(asset.h))
+  {
+    domain = LDK_EDITOR_UNDO_MATERIAL_ASSET;
+    property.key.owner = ((u64)asset.h.version << 32) | asset.h.index;
+    slot = 0;
+  }
+  else if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE ||
+      component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
+  {
+    domain = component_type == LDK_COMPONENT_TYPE_MESH_SOURCE
+        ? LDK_EDITOR_UNDO_MATERIAL_MESH
+        : LDK_EDITOR_UNDO_MATERIAL_INSTANCED_MESH;
+    property.key.owner = ((u64)entity.version << 32) | entity.index;
+  }
+  else
+  {
+    return property; /* Unsaved drafts have no restorable identity. */
+  }
+
+  property.key.property = ((u64)domain << 32) | slot;
+  property.type = LDK_FIELD_ASSET_MATERIAL;
+  property.value = desc;
+  property.size = sizeof(*desc);
+  return property;
+}
+
+/* An interaction edits a temporary descriptor. Capture its value before the
+ * control writes it, but finalize only after the owning setter has run. */
+static void s_editor_material_undo_update(LDKEditorContext *editor,
+    const LDKEditorUIUndoProperty *property,
+    const LDKMaterialDesc *initial, bool changed)
+{
+  LDKUIContext *ui;
+  LDKEditorUndo *undo;
+  bool matches;
+  bool mouse_pressed;
+  bool mouse_up;
+  bool text_focused;
+  bool enter_pressed;
+
+  if (!editor || !property || !property->size || !initial)
+  {
+    return;
+  }
+
+  ui = &editor->ui;
+  undo = &editor->undo;
+  mouse_pressed = ui->mouse && ldk_os_mouse_button_is_pressed(
+      (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+  mouse_up = ui->mouse && ldk_os_mouse_button_up(
+      (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+  text_focused = ui->input_box_id != 0 &&
+      ui->focused_id == ui->input_box_id;
+  enter_pressed = text_focused && ui->keyboard &&
+      ldk_os_keyboard_key_down(
+          (LDKKeyboardState *)ui->keyboard, LDK_KEYCODE_ENTER);
+  matches = ldk_editor_undo_has_active_change(undo) &&
+      editor->undo_row_key.owner == property->key.owner &&
+      editor->undo_row_key.property == property->key.property;
+
+  if (changed && !matches)
+  {
+    if (ldk_editor_undo_has_active_change(undo) &&
+        !ldk_editor_undo_end_change_resolved(undo))
+    {
+      ldk_editor_undo_clear(undo);
+    }
+    if (ldk_editor_undo_begin_change(undo, property->key,
+            property->type, initial, property->size))
+    {
+      editor->undo_row_key = property->key;
+      editor->undo_widget_id = 0;
+      editor->undo_end_requested = false;
+      matches = true;
+    }
+  }
+
+  if (!matches)
+  {
+    return;
+  }
+
+  editor->undo_row_seen = true;
+  if (changed && text_focused)
+  {
+    editor->undo_widget_id = ui->focused_id;
+  }
+  if (mouse_up || enter_pressed ||
+      (editor->undo_widget_id &&
+          editor->undo_widget_id != ui->focused_id) ||
+      (!mouse_pressed && !text_focused))
+  {
+    editor->undo_end_requested = true;
+  }
+}
+
 static bool s_editor_material_image_editor_ex(LDKEditorContext *editor,
     const char *label, const char *dialog_title, LDKAssetImage *image,
     bool readonly, bool optional, bool *expanded, bool *removed,
@@ -3481,7 +3726,8 @@ static bool s_editor_material_textures_editor(LDKEditorContext *editor,
 
 static bool s_editor_material_desc_editor(LDKEditorContext *editor,
     LDKMaterialDesc *desc, bool readonly,
-    const LDKMaterialIOContext *context)
+    const LDKMaterialIOContext *context,
+    const LDKEditorUIUndoProperty *undo_property)
 {
   static const char *const names[] = {
       "Textured Unlit", "Textured", "Vertex Color Unlit", "Vertex Color"};
@@ -3491,6 +3737,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
   LDKUIContext *ui;
   bool changed = false;
   u32 selected = 3;
+  LDKMaterialDesc initial;
 
   if (!editor || !desc || !context || !context->assets)
   {
@@ -3498,6 +3745,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
   }
 
   ui = &editor->ui;
+  initial = *desc;
   for (u32 i = 0; i < 4; ++i)
   {
     if (desc->type == types[i])
@@ -3636,6 +3884,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
     changed |= s_editor_material_textures_editor(editor, desc, readonly, context);
   }
 
+  s_editor_material_undo_update(editor, undo_property, &initial, changed);
   return changed;
 }
 
@@ -3715,9 +3964,11 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
     }
 
     desc = data->descriptor;
+    LDKEditorUIUndoProperty material_undo = s_editor_material_undo_property(
+        editor, &desc, *material_asset, x_handle_null(), 0, 0);
 
-    if (s_editor_material_desc_editor(
-            editor, &desc, readonly, context) &&
+    if (s_editor_material_desc_editor(editor, &desc, readonly,
+            context, material_undo.size ? &material_undo : NULL) &&
         !ldk_asset_manager_material_update(
             context->assets, *material_asset, &desc))
     {
@@ -3815,7 +4066,7 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
   ldk_ui_horizontal_line(ui);
 
   (void)s_editor_material_desc_editor(
-      editor, &draft->descriptor, readonly, context);
+      editor, &draft->descriptor, readonly, context, NULL);
 
   s_editor_material_row_begin(editor, "Draft");
   ldk_ui_begin_disabled(ui, readonly);
@@ -3875,7 +4126,8 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
 }
 
 static void s_editor_inspector_material_slot(LDKEditorContext *editor,
-    LDKMeshSource *mesh, u32 material_slot, const char *slot_label,
+    LDKEntity entity, u32 component_type, LDKMeshSource *mesh,
+    u32 material_slot, const char *slot_label,
     const LDKMaterialIOContext *context)
 {
   LDKUIContext *ui = &editor->ui;
@@ -3928,7 +4180,11 @@ static void s_editor_inspector_material_slot(LDKEditorContext *editor,
   }
 
   LDKMaterialDesc desc = s_editor_mesh_material_desc(mesh, material_slot);
-  if (s_editor_material_desc_editor(editor, &desc, false, context) &&
+  LDKEditorUIUndoProperty material_undo = s_editor_material_undo_property(
+      editor, &desc, ldk_asset_material_null(), entity,
+      component_type, material_slot);
+  if (s_editor_material_desc_editor(editor, &desc, false,
+          context, material_undo.size ? &material_undo : NULL) &&
       !ldk_mesh_source_set_material_at(mesh, material_slot, &desc))
   {
     ldki_editor_log_error(editor, "Failed to update inline material.");
@@ -3974,7 +4230,8 @@ static void s_editor_inspector_material_slot(LDKEditorContext *editor,
 }
 
 static void s_editor_inspector_material(
-    LDKEditorContext *editor, LDKMeshSource *mesh)
+    LDKEditorContext *editor, LDKEntity entity,
+    u32 component_type, LDKMeshSource *mesh)
 {
   LDKUIContext *ui;
   LDKMaterialIOContext context = {0};
@@ -4007,7 +4264,7 @@ static void s_editor_inspector_material(
   for (u32 slot = 0; slot < material_count; slot++)
   {
     s_editor_inspector_material_slot(
-        editor, mesh, slot, "Material", &context);
+        editor, entity, component_type, mesh, slot, "Material", &context);
   }
   ldk_ui_pop_id(ui);
 }
@@ -4991,7 +5248,8 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       if (fields_type == LDK_COMPONENT_TYPE_MESH_SOURCE ||
           fields_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
       {
-        s_editor_inspector_material(editor, fields_component);
+        s_editor_inspector_material(
+            editor, entity, fields_type, fields_component);
       }
       if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
       {

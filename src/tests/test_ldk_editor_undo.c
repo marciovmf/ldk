@@ -1,4 +1,5 @@
 #include "../editor/ldk_editor_undo.h"
+#include <ldk_material.h>
 
 #define X_IMPL_TEST
 #include <stdx/stdx_test.h>
@@ -257,6 +258,133 @@ static int test_undo_property_aware_restoration(void)
   return 0;
 }
 
+/* Materials are undoed by complete descriptor snapshots, not by pointers to
+ * the temporary copies drawn by the Inspector. Both owner types share the
+ * same value representation but have independent identities. */
+typedef struct TestMaterialUndoState
+{
+  LDKMaterialDesc asset;
+  LDKMaterialDesc inline_slot;
+  bool asset_valid;
+  bool slot_valid;
+  u32 asset_updates;
+  u32 slot_updates;
+} TestMaterialUndoState;
+
+static void *s_test_material_resolve(
+    void *user, LDKEditorUndoKey key, LDKFieldType type, size_t size)
+{
+  TestMaterialUndoState *state = (TestMaterialUndoState *)user;
+  if (type != LDK_FIELD_ASSET_MATERIAL || size != sizeof(LDKMaterialDesc))
+  {
+    return NULL;
+  }
+  if (key.owner == 100u && key.property == 1u && state->asset_valid)
+  {
+    return &state->asset;
+  }
+  if (key.owner == 200u && key.property == 2u && state->slot_valid)
+  {
+    return &state->inline_slot;
+  }
+  return NULL;
+}
+
+static bool s_test_material_apply(void *user, LDKEditorUndoKey key,
+    LDKFieldType type, const void *value, size_t size)
+{
+  TestMaterialUndoState *state = (TestMaterialUndoState *)user;
+  void *destination = s_test_material_resolve(user, key, type, size);
+  if (!destination || !value)
+  {
+    return false;
+  }
+  memcpy(destination, value, size);
+  if (key.owner == 100u)
+  {
+    ++state->asset_updates;
+  }
+  else
+  {
+    ++state->slot_updates;
+  }
+  return true;
+}
+
+static int test_undo_material_snapshots(void)
+{
+  TestMaterialUndoState state = {0};
+  LDKEditorUndo undo;
+  LDKEditorUndoKey asset = {100u, 1u};
+  LDKEditorUndoKey inline_slot = {200u, 2u};
+  state.asset_valid = true;
+  state.slot_valid = true;
+  state.asset.type = LDK_MATERIAL_TYPE_VERTEX_COLOR;
+  state.asset.args.vertex_color.color = 0x112233FFu;
+  state.asset.surface.specular = 0.1f;
+  state.inline_slot.type = LDK_MATERIAL_TYPE_TEXTURED;
+
+  ldk_editor_undo_initialize_with_apply(&undo,
+      s_test_material_resolve, s_test_material_apply, &state);
+
+  /* One color/slider drag produces one undo operation. */
+  ASSERT_TRUE(ldk_editor_undo_begin_change(&undo, asset,
+      LDK_FIELD_ASSET_MATERIAL, &state.asset, sizeof(state.asset)));
+  state.asset.args.vertex_color.color = 0xAABBCC40u;
+  state.asset.surface.specular = 0.5f;
+  state.asset.surface.shininess = 16.0f;
+  state.asset.surface.emission = 1.25f;
+  state.asset.alpha_cutoff = 0.4f;
+  ASSERT_TRUE(ldk_editor_undo_end_change_resolved(&undo));
+  ASSERT_EQ(undo.count, 1u);
+  ASSERT_TRUE(ldk_editor_undo_undo(&undo));
+  ASSERT_EQ(state.asset.args.vertex_color.color, 0x112233FFu);
+  ASSERT_EQ(state.asset.surface.specular, 0.1f);
+  ASSERT_EQ(state.asset.surface.emission, 0.0f);
+  ASSERT_TRUE(ldk_editor_undo_redo(&undo));
+  ASSERT_EQ(state.asset.args.vertex_color.color, 0xAABBCC40u);
+  ASSERT_EQ(state.asset.surface.emission, 1.25f);
+  ASSERT_EQ(state.asset_updates, 2u);
+
+  /* Add, assign, change settings, and remove a texture in an inline slot. */
+  ASSERT_TRUE(ldk_editor_undo_begin_change(&undo, inline_slot,
+      LDK_FIELD_ASSET_MATERIAL, &state.inline_slot, sizeof(state.inline_slot)));
+  state.inline_slot.texture_slot_mask |= 1u << 3u;
+  state.inline_slot.additional_textures[0].h.index = 42u;
+  state.inline_slot.additional_textures[0].h.version = 1u;
+  state.inline_slot.texture_settings[3].independent = true;
+  state.inline_slot.texture_settings[3].filter = LDK_MATERIAL_TEXTURE_FILTER_LINEAR;
+  ASSERT_TRUE(ldk_editor_undo_end_change_resolved(&undo));
+  ASSERT_EQ(undo.count, 2u);
+  ASSERT_TRUE(ldk_editor_undo_undo(&undo));
+  ASSERT_EQ(state.inline_slot.texture_slot_mask, 0u);
+  ASSERT_EQ(state.inline_slot.additional_textures[0].h.index, 0u);
+  ASSERT_FALSE(state.inline_slot.texture_settings[3].independent);
+  ASSERT_TRUE(ldk_editor_undo_redo(&undo));
+  ASSERT_EQ(state.inline_slot.texture_slot_mask, 1u << 3u);
+  ASSERT_EQ(state.inline_slot.additional_textures[0].h.index, 42u);
+  ASSERT_TRUE(state.inline_slot.texture_settings[3].independent);
+  ASSERT_EQ(state.slot_updates, 2u);
+
+  /* Deleting the target must leave the history position unchanged. */
+  state.slot_valid = false;
+  ASSERT_FALSE(ldk_editor_undo_undo(&undo));
+  ASSERT_EQ(undo.position, 2u);
+  state.slot_valid = true;
+  ASSERT_TRUE(ldk_editor_undo_undo(&undo));
+
+  /* Removal is a separate operation, also undoable. */
+  ASSERT_TRUE(ldk_editor_undo_redo(&undo));
+  ASSERT_TRUE(ldk_editor_undo_begin_change(&undo, inline_slot,
+      LDK_FIELD_ASSET_MATERIAL, &state.inline_slot, sizeof(state.inline_slot)));
+  state.inline_slot.texture_slot_mask = 0u;
+  ASSERT_TRUE(ldk_editor_undo_end_change_resolved(&undo));
+  ASSERT_TRUE(ldk_editor_undo_undo(&undo));
+  ASSERT_EQ(state.inline_slot.texture_slot_mask, 1u << 3u);
+  ldk_editor_undo_terminate(&undo);
+  return 0;
+}
+
 int main(void)
 {
   STDXTestCase tests[] = {
@@ -265,6 +393,7 @@ int main(void)
     X_TEST(test_undo_composite_and_asset),
     X_TEST(test_undo_end_after_caller_write),
     X_TEST(test_undo_property_aware_restoration),
+    X_TEST(test_undo_material_snapshots),
   };
   return x_tests_run(tests, sizeof(tests) / sizeof(tests[0]), NULL);
 }

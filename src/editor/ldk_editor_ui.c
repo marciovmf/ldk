@@ -1642,8 +1642,11 @@ static void s_editor_ui_undo_row_update(LDKEditorContext *editor,
   {
     return;
   }
+  /* Drawing an unrelated row does not end the active edit. Only a new
+   * interaction may replace it; the previous value has already been written. */
   if (ldk_editor_undo_has_active_change(&editor->undo) &&
-      !s_editor_ui_undo_property_matches(editor, property))
+      !s_editor_ui_undo_property_matches(editor, property) &&
+      (editing || changed))
   {
     s_editor_ui_undo_finish(editor);
   }
