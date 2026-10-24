@@ -15,6 +15,7 @@
 #include <component/ldk_camera.h>
 #include <component/ldk_light.h>
 #include <component/ldk_mesh_source.h>
+#include <component/ldk_line.h>
 #include <component/ldk_material_instance.h>
 #include <ldk_texture_atlas.h>
 #include <component/ldk_post_processing.h>
@@ -2072,10 +2073,10 @@ void ldk_engine_frame(void)
       }
     }
 
-    // Ordinary meshes and explicit instance sets share asset resolution.
+    // Ordinary meshes, instance sets and procedural lines share asset resolution.
     const u32 mesh_types[] = {LDK_COMPONENT_TYPE_MESH_SOURCE,
-        LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE};
-    for (u32 type_index = 0; type_index < 2; ++type_index)
+        LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, LDK_COMPONENT_TYPE_LINE};
+    for (u32 type_index = 0; type_index < 3; ++type_index)
     {
       XArray *all_mesh = ldk_component_store_get(
           component_registry, mesh_types[type_index]);
@@ -2087,7 +2088,9 @@ void ldk_engine_frame(void)
       {
         void *component = x_array_get(all_mesh, i);
         LDKInstancedMeshSource *instances = type_index == 1 ? component : NULL;
-        LDKMeshSource *mesh = instances ? &instances->source : component;
+        LDKLineComponent *line = type_index == 2 ? component : NULL;
+        LDKMeshSource *mesh = instances ? &instances->source
+            : line ? &line->source : component;
         LDKEntity *entity = x_array_get(mesh_owners, i);
 
         if (!mesh || !entity ||
@@ -2107,6 +2110,11 @@ void ldk_engine_frame(void)
         }
 
         mesh->renderer = &e->renderer;
+        if (line && (!ldk_line_mesh_sync(line, &e->asset_manager) ||
+                        !line->segment_count))
+        {
+          continue;
+        }
         if (instances && !instances->instance_count)
         {
           continue;
@@ -2141,9 +2149,11 @@ void ldk_engine_frame(void)
         }
         else if (mesh->dirty)
         {
-          ldk_renderer_mesh_update(
-              &e->renderer, mesh->renderer_mesh, &mesh_desc);
-          mesh->dirty = false;
+          if (ldk_renderer_mesh_update(
+                  &e->renderer, mesh->renderer_mesh, &mesh_desc))
+          {
+            mesh->dirty = false;
+          }
         }
 
         if (!ldk_renderer_mesh_is_valid(&e->renderer, mesh->renderer_mesh))

@@ -14,6 +14,7 @@
 #include <ldk_scene.h>
 #include <ldk_property.h>
 #include <component/ldk_mesh_source.h>
+#include <component/ldk_line.h>
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_keyframe_animation_source.h>
 #include <module/ldk_scene_manager.h>
@@ -224,6 +225,7 @@ enum
 {
   LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_COMPONENT = 1u,
   LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_SYSTEM = 2u,
+  LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_LINE = 3u,
 };
 
 static LDKEditorInspectorInputState s_editor_inspector_input_state = {0};
@@ -2239,10 +2241,110 @@ static const LDKComponentFieldMeta *s_editor_undo_field_resolve(
   return NULL;
 }
 
+/* Synthetic Inspector properties identify an individual line segment field.
+ * The segment data itself is not reflected by Comet. Resolve its current
+ * address each time, because the segment allocation can move on append. */
+enum
+{
+  LDK_EDITOR_LINE_FIELD_START = 0,
+  LDK_EDITOR_LINE_FIELD_END,
+  LDK_EDITOR_LINE_FIELD_INITIAL_COLOR,
+  LDK_EDITOR_LINE_FIELD_FINAL_COLOR,
+  LDK_EDITOR_LINE_FIELD_INITIAL_WIDTH,
+  LDK_EDITOR_LINE_FIELD_FINAL_WIDTH,
+  LDK_EDITOR_LINE_FIELD_INITIAL_ALPHA,
+  LDK_EDITOR_LINE_FIELD_FINAL_ALPHA,
+  LDK_EDITOR_LINE_FIELD_COUNT,
+  LDK_EDITOR_LINE_FIELD_OFFSET_BASE = 0x90000000u,
+};
+
+static u32 s_editor_line_field_offset(u32 index, u32 field_index)
+{
+  return LDK_EDITOR_LINE_FIELD_OFFSET_BASE +
+      index * LDK_EDITOR_LINE_FIELD_COUNT + field_index;
+}
+
+static bool s_editor_line_undo_key(LDKEditorUndoKey key)
+{
+  return (u32)(key.property >> 32) == LDK_COMPONENT_TYPE_LINE &&
+      (u32)key.property >= LDK_EDITOR_LINE_FIELD_OFFSET_BASE;
+}
+
+static void *s_editor_line_undo_resolve(LDKEditorUndoKey key,
+    LDKFieldType type, size_t size, LDKLineComponent **out_line,
+    u32 *out_index)
+{
+  LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
+  LDKEntity entity = {(u32)key.owner, (u32)(key.owner >> 32)};
+  u32 offset = (u32)key.property - LDK_EDITOR_LINE_FIELD_OFFSET_BASE;
+  u32 index = offset / LDK_EDITOR_LINE_FIELD_COUNT;
+  u32 field = offset % LDK_EDITOR_LINE_FIELD_COUNT;
+  LDKLineComponent *line;
+  LDKLineSegment *segment;
+
+  if (!s_editor_line_undo_key(key) || !ecs ||
+      !ldk_entity_is_alive(&ecs->entity, entity) ||
+      !(line = ldk_ecs_component_get(entity, LDK_COMPONENT_TYPE_LINE)) ||
+      !line->segments || index >= line->segment_count)
+  {
+    return NULL;
+  }
+  segment = &line->segments[index];
+  void *value = NULL;
+  LDKFieldType expected_type = LDK_FIELD_FLOAT;
+  size_t expected_size = sizeof(float);
+  switch (field)
+  {
+  case LDK_EDITOR_LINE_FIELD_START:
+    value = &segment->pos_start;
+    expected_type = LDK_FIELD_VEC3;
+    expected_size = sizeof(Vec3);
+    break;
+  case LDK_EDITOR_LINE_FIELD_END:
+    value = &segment->pos_end;
+    expected_type = LDK_FIELD_VEC3;
+    expected_size = sizeof(Vec3);
+    break;
+  case LDK_EDITOR_LINE_FIELD_INITIAL_COLOR:
+    value = &segment->initial_color;
+    expected_type = LDK_FIELD_U32;
+    expected_size = sizeof(u32);
+    break;
+  case LDK_EDITOR_LINE_FIELD_FINAL_COLOR:
+    value = &segment->final_color;
+    expected_type = LDK_FIELD_U32;
+    expected_size = sizeof(u32);
+    break;
+  case LDK_EDITOR_LINE_FIELD_INITIAL_WIDTH:
+    value = &segment->initial_width;
+    break;
+  case LDK_EDITOR_LINE_FIELD_FINAL_WIDTH:
+    value = &segment->final_width;
+    break;
+  case LDK_EDITOR_LINE_FIELD_INITIAL_ALPHA:
+    value = &segment->initial_alpha;
+    break;
+  case LDK_EDITOR_LINE_FIELD_FINAL_ALPHA:
+    value = &segment->final_alpha;
+    break;
+  }
+  if (!value || type != expected_type || size != expected_size)
+  {
+    return NULL;
+  }
+  if (out_line) *out_line = line;
+  if (out_index) *out_index = index;
+  return value;
+}
+
 void *ldki_editor_undo_property_resolve(
     void *user, LDKEditorUndoKey key, LDKFieldType type, size_t size)
 {
   void *value = NULL;
+  if (s_editor_line_undo_key(key))
+  {
+    return s_editor_line_undo_resolve(key, type, size, NULL, NULL);
+  }
   if ((key.property >> 32) == 0)
   {
     if (!s_editor_undo_system_field_resolve(
@@ -2269,6 +2371,22 @@ bool ldki_editor_undo_property_apply(void *user, LDKEditorUndoKey key,
   if (!value)
   {
     return false;
+  }
+  if (s_editor_line_undo_key(key))
+  {
+    LDKLineComponent *line = NULL;
+    u32 index = 0;
+    void *destination = s_editor_line_undo_resolve(
+        key, type, size, &line, &index);
+    LDKLineSegment segment;
+    if (!destination || !line)
+    {
+      return false;
+    }
+    segment = *ldk_line_segment_get(line, index);
+    memcpy((u8 *)&segment +
+        ((u8 *)destination - (u8 *)&line->segments[index]), value, size);
+    return ldk_line_segment_set(line, index, &segment);
   }
   if ((key.property >> 32) == 0)
   {
@@ -4539,6 +4657,188 @@ static void s_editor_inspector_instanced_mesh_instances_draw(
   }
 }
 
+/* Line segments are authored through normal Inspector rows. Their Undo
+ * properties reference the live segment, whereas row edits use a local copy
+ * and commit through ldk_line_segment_set() to invalidate the generated mesh. */
+static LDKComponentFieldMeta s_editor_line_field(
+    const char *name, LDKFieldType type, u32 index, u32 field_index)
+{
+  LDKComponentFieldMeta field = {0};
+  field.name = name;
+  field.type = type;
+  field.offset = s_editor_line_field_offset(index, field_index);
+  field.widget = type == LDK_FIELD_VEC3 ? LDK_FIELD_WIDGET_VEC3 :
+      (type == LDK_FIELD_U32 ? LDK_FIELD_WIDGET_COLOR : LDK_FIELD_WIDGET_FLOAT);
+  return field;
+}
+
+static LDKEditorUIUndoProperty s_editor_line_undo_property(
+    LDKEditorContext *editor, LDKEntity entity, u32 index,
+    u32 field_index, LDKFieldType type, const void *original, size_t size)
+{
+  LDKEditorUIUndoProperty property = {0};
+  if (editor->editor_state == LDK_EDITOR_STATE_STOPED && original)
+  {
+    property.key.owner = ((u64)entity.version << 32) | entity.index;
+    property.key.property = ((u64)LDK_COMPONENT_TYPE_LINE << 32) |
+        s_editor_line_field_offset(index, field_index);
+    property.type = type;
+    property.value = original;
+    property.size = size;
+  }
+  return property;
+}
+
+static bool s_editor_inspector_line_vec3_draw(LDKEditorContext *editor,
+    LDKEntity entity, u32 index, u32 field_index, const char *label,
+    Vec3 *value, const Vec3 *original)
+{
+  LDKComponentFieldMeta field = s_editor_line_field(
+      label, LDK_FIELD_VEC3, index, field_index);
+  LDKInspectorNumericRowContext context = {
+      entity, LDK_COMPONENT_TYPE_LINE, &field};
+  LDKEditorUIUndoProperty undo = s_editor_line_undo_property(editor,
+      entity, index, field_index, LDK_FIELD_VEC3, original, sizeof(*original));
+  float *values[] = {&value->x, &value->y, &value->z};
+  ldk_ui_push_id_cstr(&editor->ui, label);
+  bool changed = ldk_editor_ui_row_vec3(editor, label,
+      s_editor_inspector_row_group_depth, values, false,
+      s_editor_inspector_vector_row_input, &context,
+      undo.size ? &undo : NULL);
+  ldk_ui_end_horizontal(&editor->ui);
+  ldk_ui_pop_id(&editor->ui);
+  return changed;
+}
+
+static bool s_editor_inspector_line_float_draw(LDKEditorContext *editor,
+    LDKEntity entity, u32 index, u32 field_index, const char *label,
+    float *value, const float *original)
+{
+  LDKComponentFieldMeta field = s_editor_line_field(
+      label, LDK_FIELD_FLOAT, index, field_index);
+  LDKInspectorNumericRowContext context = {
+      entity, LDK_COMPONENT_TYPE_LINE, &field};
+  LDKEditorUIUndoProperty undo = s_editor_line_undo_property(editor,
+      entity, index, field_index, LDK_FIELD_FLOAT, original, sizeof(*original));
+  char buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY];
+  float parsed;
+  ldk_ui_push_id_cstr(&editor->ui, label);
+  u32 result = ldk_editor_ui_row_float(editor, label,
+      s_editor_inspector_row_group_depth, buffer, (u32)sizeof(buffer),
+      value, false, s_editor_inspector_numeric_row_input, &context,
+      undo.size ? &undo : NULL);
+  ldk_ui_end_horizontal(&editor->ui);
+  ldk_ui_pop_id(&editor->ui);
+  if ((result & LDK_UI_INPUT_BOX_CHANGED) &&
+      s_editor_inspector_parse_float(buffer, &parsed) && isfinite(parsed))
+  {
+    *value = parsed;
+    return true;
+  }
+  return false;
+}
+
+static bool s_editor_inspector_line_color_draw(LDKEditorContext *editor,
+    LDKEntity entity, u32 index, u32 field_index, const char *label,
+    u32 *color, const u32 *original)
+{
+  LDKEditorUIUndoProperty undo = s_editor_line_undo_property(editor,
+      entity, index, field_index, LDK_FIELD_U32, original, sizeof(*original));
+  ldk_ui_push_id_cstr(&editor->ui, label);
+  bool changed = ldk_editor_ui_row_color(editor, label,
+      s_editor_inspector_row_group_depth, (rgba32 *)color, false,
+      undo.size ? &undo : NULL);
+  ldk_ui_pop_id(&editor->ui);
+  return changed;
+}
+
+static void s_editor_inspector_line_segments_draw(
+    LDKEditorContext *editor, LDKEntity entity, LDKLineComponent *line)
+{
+  LDKUIContext *ui = &editor->ui;
+  char title[64];
+  u64 owner_id = ((u64)entity.version << 32) | entity.index;
+  ldk_ui_horizontal_line(ui);
+  snprintf(title, sizeof(title), "Segments (%u)", line->segment_count);
+  ldk_ui_label(ui, title);
+
+  for (u32 i = 0; i < line->segment_count; ++i)
+  {
+    const LDKLineSegment *current = ldk_line_segment_get(line, i);
+    bool expanded;
+    bool next_expanded;
+    bool changed = false;
+    bool remove = false;
+    LDKLineSegment segment;
+    if (!current)
+    {
+      break;
+    }
+    segment = *current;
+    ldk_ui_push_id_u32(ui, i);
+    expanded = s_editor_inspector_group_expanded(
+        LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_LINE, owner_id, i);
+    snprintf(title, sizeof(title), "Segment %u", i);
+    next_expanded = ldk_ui_tree_node(ui, title,
+        expanded, 0u, LDK_UI_TREE_NODE_NONE);
+    if (next_expanded != expanded)
+    {
+      s_editor_inspector_group_expanded_set(
+          LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_LINE, owner_id, i, next_expanded);
+    }
+    if (!next_expanded)
+    {
+      ldk_ui_pop_id(ui);
+      continue;
+    }
+
+    s_editor_inspector_row_group_depth = 1u;
+    changed |= s_editor_inspector_line_vec3_draw(editor, entity, i,
+        LDK_EDITOR_LINE_FIELD_START, "Start", &segment.pos_start,
+        &current->pos_start);
+    changed |= s_editor_inspector_line_vec3_draw(editor, entity, i,
+        LDK_EDITOR_LINE_FIELD_END, "End", &segment.pos_end,
+        &current->pos_end);
+    changed |= s_editor_inspector_line_color_draw(editor, entity, i,
+        LDK_EDITOR_LINE_FIELD_INITIAL_COLOR, "Initial Color",
+        &segment.initial_color, &current->initial_color);
+    changed |= s_editor_inspector_line_color_draw(editor, entity, i,
+        LDK_EDITOR_LINE_FIELD_FINAL_COLOR, "Final Color",
+        &segment.final_color, &current->final_color);
+    changed |= s_editor_inspector_line_float_draw(editor, entity, i,
+        LDK_EDITOR_LINE_FIELD_INITIAL_WIDTH, "Initial Width",
+        &segment.initial_width, &current->initial_width);
+    changed |= s_editor_inspector_line_float_draw(editor, entity, i,
+        LDK_EDITOR_LINE_FIELD_FINAL_WIDTH, "Final Width",
+        &segment.final_width, &current->final_width);
+    changed |= s_editor_inspector_line_float_draw(editor, entity, i,
+        LDK_EDITOR_LINE_FIELD_INITIAL_ALPHA, "Initial Alpha",
+        &segment.initial_alpha, &current->initial_alpha);
+    changed |= s_editor_inspector_line_float_draw(editor, entity, i,
+        LDK_EDITOR_LINE_FIELD_FINAL_ALPHA, "Final Alpha",
+        &segment.final_alpha, &current->final_alpha);
+    s_editor_inspector_row_group_depth = 0u;
+    if (changed && !ldk_line_segment_set(line, i, &segment))
+    {
+      ldki_editor_log_error(editor, "Invalid line segment parameters.");
+    }
+
+    ldk_editor_ui_row_begin(editor, "", 1u);
+    remove = ldk_ui_button_flat(ui, "Remove Segment");
+    ldk_ui_end_horizontal(ui);
+    if (remove)
+    {
+      ldk_editor_undo_discard_component(&editor->undo,
+          owner_id, LDK_COMPONENT_TYPE_LINE);
+      (void)ldk_line_segment_remove(line, i);
+      s_editor_inspector_input_state_clear();
+      ldk_ui_pop_id(ui);
+      break;
+    }
+    ldk_ui_pop_id(ui);
+  }
+}
+
 static void s_editor_inspector_add_component_draw(
     LDKEditorContext *editor, LDKECS *ecs, LDKGame *game, LDKEntity entity)
 {
@@ -4728,8 +5028,8 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
           editor, game, editor->selected_system_id);
       if (editor->editor_state == LDK_EDITOR_STATE_STOPED)
       {
-        ldki_editor_callbacks_draw(game, ui, systems, x_handle_null(),
-            editor->selected_system_id);
+        (void)ldki_editor_callbacks_draw(game, ui, systems, x_handle_null(),
+            editor->selected_system_id, 0u);
       }
       ldk_ui_end_scrollview(ui);
       s_editor_inspector_column_update(editor);
@@ -4808,6 +5108,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
 
   icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_COMPONENT];
   s_editor_inspector_area_state_sync(entity);
+  bool stop_inspector = false;
 
   for (u32 component_i = 0; component_i < info->components.component_count;
       component_i++)
@@ -4815,6 +5116,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
     u32 component_type = info->components.component_type[component_i];
     LDKComponentDesc component_desc = {0};
     bool has_delete_button = true;
+    bool action_invoked = false;
 
     if ((ldk_component_desc_get(
              &ecs->component, component_type, &component_desc) &&
@@ -4984,21 +5286,54 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
         u64 group_owner_id = fields_meta->type != 0u
             ? (u64)fields_meta->type
             : (u64)fields_type;
+        u32 original_line_max = component_type == LDK_COMPONENT_TYPE_LINE
+            ? ((LDKLineComponent *)component)->max_segments : 0u;
         s_editor_inspector_fields_draw(editor, entity, fields_type,
             fields_meta, fields_component,
             LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_COMPONENT, group_owner_id);
+        if (component_type == LDK_COMPONENT_TYPE_LINE)
+        {
+          LDKLineComponent *line = component;
+          if (!ldk_line_max_segments_set(line, line->max_segments))
+          {
+            line->max_segments = original_line_max;
+            ldki_editor_log_error(editor,
+                "Maximum line segments cannot be less than the active count.");
+          }
+        }
       }
       if (fields_type == LDK_COMPONENT_TYPE_MESH_SOURCE ||
           fields_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
       {
         s_editor_inspector_material(editor, fields_component);
       }
-      if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
+      if (editor->editor_state == LDK_EDITOR_STATE_STOPED)
+      {
+        u32 line_count_before = component_type == LDK_COMPONENT_TYPE_LINE
+            ? ((const LDKLineComponent *)component)->segment_count : 0u;
+        action_invoked = ldki_editor_callbacks_draw(game, ui,
+            &editor->current_scene_systems, entity, 0u, component_type);
+        if (component_type == LDK_COMPONENT_TYPE_LINE &&
+            line_count_before != ((const LDKLineComponent *)component)->segment_count)
+        {
+          ldk_editor_undo_discard_component(&editor->undo,
+              ((u64)entity.version << 32) | entity.index,
+              LDK_COMPONENT_TYPE_LINE);
+        }
+      }
+      if (!action_invoked && component_type == LDK_COMPONENT_TYPE_LINE)
+      {
+        s_editor_inspector_line_segments_draw(
+            editor, entity, (LDKLineComponent *)component);
+      }
+      if (!action_invoked &&
+          component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
       {
         s_editor_inspector_instanced_mesh_instances_draw(
             editor, entity, (LDKInstancedMeshSource *)component);
       }
-      if (component_type == LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE)
+      if (!action_invoked &&
+          component_type == LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE)
       {
         s_editor_inspector_keyframe_animations_draw(editor, entity,
             (LDKKeyFrameAnimationSource *)component,
@@ -5006,7 +5341,7 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       }
     }
 
-    if (has_delete_button &&
+    if (!action_invoked && has_delete_button &&
         ldk_ui_widget_icon_button(ui, id, icon, "", delete_rect))
     {
       if (ldk_os_dialog_show_yes_no(editor->window, "Delete Component ?",
@@ -5026,14 +5361,16 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
     ldk_ui_spacer(ui);
     ldk_ui_pop_id(ui);
     ldk_ui_pop_id(ui);
+    if (action_invoked)
+    {
+      stop_inspector = true;
+      break;
+    }
   }
 
-  s_editor_inspector_add_component_draw(editor, ecs, game, entity);
-
-  if (editor->editor_state == LDK_EDITOR_STATE_STOPED)
+  if (!stop_inspector)
   {
-    ldki_editor_callbacks_draw(game, ui, &editor->current_scene_systems,
-        entity, 0u);
+    s_editor_inspector_add_component_draw(editor, ecs, game, entity);
   }
 
   ldk_ui_end_scrollview(ui);

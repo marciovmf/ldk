@@ -14,6 +14,7 @@
 #include <component/ldk_mesh_source.h>
 #include <component/ldk_particle_emitter.h>
 #include <component/ldk_instanced_mesh_source.h>
+#include <component/ldk_line.h>
 #include <component/ldk_transform.h>
 #include <component/ldk_grass_interact.h>
 #include <component/ldk_keyframe_animation_source.h>
@@ -212,6 +213,11 @@ u32 ldk_scene_component_meta_runtime_type(const LDKComponentMeta *meta)
     if (strcmp(meta->name, "LDKMeshSource") == 0)
     {
       return LDK_COMPONENT_TYPE_MESH_SOURCE;
+    }
+
+    if (strcmp(meta->name, "LDKLineComponent") == 0)
+    {
+      return LDK_COMPONENT_TYPE_LINE;
     }
 
     if (strcmp(meta->name, "LDKMaterialInstance") == 0)
@@ -1797,6 +1803,72 @@ static bool s_apply_instances(const TMLDocument *doc, const TMLNode *fields,
   return ok;
 }
 
+/* Lines are authored as ordered segment records, not reflected pointers.
+ * Their transient mesh asset is regenerated after loading. */
+static bool s_apply_line_segments(const TMLDocument *doc,
+    const TMLNode *fields, LDKLineComponent *line, LDKSceneResult *result)
+{
+  const TMLNode *node =
+      fields ? s_node_find_child(doc, fields, "segments") : NULL;
+  if (!node)
+  {
+    return true;
+  }
+  if (node->child_count > line->max_segments)
+  {
+    s_result_error(result, "line segment count exceeds max_segments");
+    return false;
+  }
+  LDKLineSegment *parsed = node->child_count
+      ? calloc(node->child_count, sizeof(*parsed)) : NULL;
+  if (node->child_count && !parsed)
+  {
+    s_result_error(result, "failed to allocate line segments");
+    return false;
+  }
+  for (u32 i = 0u; i < node->child_count; ++i)
+  {
+    const TMLNode *item = tml_node_child_at(doc, node, i);
+    LDKLineSegment *segment = &parsed[i];
+    float start[3], end[3];
+    *segment = ldk_line_segment_default();
+    if (!item ||
+        !s_read_f32_array(doc, s_node_find_entry(doc, item, "pos_start"),
+            start, 3u) ||
+        !s_read_f32_array(doc, s_node_find_entry(doc, item, "pos_end"),
+            end, 3u) ||
+        !s_node_get_u32(doc, item, "initial_color", &segment->initial_color) ||
+        !s_node_get_u32(doc, item, "final_color", &segment->final_color) ||
+        !s_entry_get_float(s_node_find_entry(doc, item, "initial_width"),
+            &segment->initial_width) ||
+        !s_entry_get_float(s_node_find_entry(doc, item, "final_width"),
+            &segment->final_width) ||
+        !s_entry_get_float(s_node_find_entry(doc, item, "initial_alpha"),
+            &segment->initial_alpha) ||
+        !s_entry_get_float(s_node_find_entry(doc, item, "final_alpha"),
+            &segment->final_alpha))
+    {
+      free(parsed);
+      s_result_error(result, "invalid line segment values");
+      return false;
+    }
+    segment->pos_start = vec3_make(start[0], start[1], start[2]);
+    segment->pos_end = vec3_make(end[0], end[1], end[2]);
+  }
+  ldk_line_clear(line);
+  for (u32 i = 0u; i < node->child_count; ++i)
+  {
+    if (!ldk_line_segment_add(line, &parsed[i], NULL))
+    {
+      free(parsed);
+      s_result_error(result, "invalid line segment or allocation failure");
+      return false;
+    }
+  }
+  free(parsed);
+  return true;
+}
+
 static bool s_apply_material_slot(const TMLDocument *doc,
     const TMLNode *fields, LDKMeshSource *mesh, u32 material_slot,
     LDKSceneResult *result)
@@ -2100,6 +2172,14 @@ static bool s_apply_entity_components(const TMLDocument *doc,
       if (!s_apply_component_fields(
               doc, fields_node, map, meta, component, result))
       {
+        continue;
+      }
+      if (component_type == LDK_COMPONENT_TYPE_LINE &&
+          !s_apply_line_segments(
+              doc, fields_node, (LDKLineComponent *)component, NULL))
+      {
+        s_recoverable_error(
+            "failed to restore line segments; keeping available values");
         continue;
       }
       if (component_type == LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE &&
@@ -3593,6 +3673,51 @@ static bool s_write_component(LDKSceneSaveContext *context,
       x_strbuilder_append(context->out, "- path: ");
       s_append_escaped_string(context->out, info->asset_path.buf);
       x_strbuilder_append_char(context->out, '\n');
+    }
+    wrote_any_field = true;
+  }
+
+  if (component_type == LDK_COMPONENT_TYPE_LINE)
+  {
+    const LDKLineComponent *line = component;
+    s_append_indent(context->out, 6u);
+    x_strbuilder_append(context->out, "segments:\n");
+    for (u32 index = 0; index < line->segment_count; ++index)
+    {
+      const LDKLineSegment *segment = ldk_line_segment_get(line, index);
+      if (!segment)
+      {
+        s_result_error(context->result, "invalid line segment during save");
+        return false;
+      }
+      s_append_indent(context->out, 7u);
+      x_strbuilder_append_format(context->out,
+          "- pos_start: %#.9g, %#.9g, %#.9g\n",
+          (double)segment->pos_start.x, (double)segment->pos_start.y,
+          (double)segment->pos_start.z);
+      s_append_indent(context->out, 8u);
+      x_strbuilder_append_format(context->out,
+          "pos_end: %#.9g, %#.9g, %#.9g\n",
+          (double)segment->pos_end.x, (double)segment->pos_end.y,
+          (double)segment->pos_end.z);
+      s_append_indent(context->out, 8u);
+      x_strbuilder_append_format(context->out,
+          "initial_color: %u\n", segment->initial_color);
+      s_append_indent(context->out, 8u);
+      x_strbuilder_append_format(context->out,
+          "final_color: %u\n", segment->final_color);
+      s_append_indent(context->out, 8u);
+      x_strbuilder_append_format(context->out,
+          "initial_width: %#.9g\n", (double)segment->initial_width);
+      s_append_indent(context->out, 8u);
+      x_strbuilder_append_format(context->out,
+          "final_width: %#.9g\n", (double)segment->final_width);
+      s_append_indent(context->out, 8u);
+      x_strbuilder_append_format(context->out,
+          "initial_alpha: %#.9g\n", (double)segment->initial_alpha);
+      s_append_indent(context->out, 8u);
+      x_strbuilder_append_format(context->out,
+          "final_alpha: %#.9g\n", (double)segment->final_alpha);
     }
     wrote_any_field = true;
   }

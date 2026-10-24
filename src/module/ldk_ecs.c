@@ -1,4 +1,5 @@
 #include "component/ldk_mesh_source.h"
+#include <component/ldk_line.h>
 #include <component/ldk_text3d.h>
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_particle_emitter.h>
@@ -949,6 +950,14 @@ bool ldk_ecs_initialize(
     error = true;
   }
 
+  LDKComponentDesc line_component_desc =
+      ldk_line_component_desc(LDK_DEFAULT_MESHSOURCE_COUNT);
+  if (!ldk_component_register(&context->component, &line_component_desc))
+  {
+    ldk_log_error("Failed to register component: Line.");
+    error = true;
+  }
+
   LDKComponentDesc material_instance_desc =
       ldk_material_instance_component_desc(LDK_DEFAULT_MESHSOURCE_COUNT);
   if (!ldk_component_register(&context->component, &material_instance_desc))
@@ -1050,8 +1059,8 @@ void ldk_ecs_terminate(void)
      * Do not detach here: iteration must not swap/remove store entries.
      */
     const u32 mesh_types[] = {LDK_COMPONENT_TYPE_MESH_SOURCE,
-        LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE};
-    for (u32 type_index = 0; type_index < 2; ++type_index)
+        LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, LDK_COMPONENT_TYPE_LINE};
+    for (u32 type_index = 0; type_index < 3; ++type_index)
     {
       XArray *owners = ldk_component_owners_get(
           component_registry, mesh_types[type_index]);

@@ -602,6 +602,7 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/component/ldk_camera.h       src/component/ldk_camera.c
   ${INCLUDE_DIR}/component/ldk_light.h        src/component/ldk_light.c
   ${INCLUDE_DIR}/component/ldk_mesh_source.h  src/component/ldk_mesh_source.c
+  ${INCLUDE_DIR}/component/ldk_line.h         src/component/ldk_line.c
   ${INCLUDE_DIR}/component/ldk_material_instance.h src/component/ldk_material_instance.c
   ${INCLUDE_DIR}/component/ldk_text3d.h       src/component/ldk_text3d.c
   ${INCLUDE_DIR}/component/ldk_instanced_mesh_source.h
@@ -1025,6 +1026,7 @@ if (OPTION_BUILD_TESTS AND TARGET ldk)
   ldk_test_build(TARGET test_module_transform SOURCES src/tests/test_ldk_transform.c)
   ldk_test_build(TARGET test_module_rhi SOURCES src/tests/test_ldk_rhi.c)
   ldk_test_build(TARGET test_material SOURCES src/tests/test_ldk_material.c)
+  ldk_test_build(TARGET test_line SOURCES src/tests/test_ldk_line.c)
   ldk_test_build(TARGET test_texture_atlas SOURCES src/tests/test_ldk_texture_atlas.c)
   ldk_test_build(TARGET test_water SOURCES src/tests/test_ldk_water.c)
   ldk_test_build(TARGET test_material_io SOURCES src/tests/test_ldk_material_io.c)

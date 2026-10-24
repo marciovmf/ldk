@@ -68,6 +68,45 @@ void ldk_editor_undo_clear(LDKEditorUndo *undo)
   }
 }
 
+void ldk_editor_undo_discard_component(
+    LDKEditorUndo *undo, uint64_t owner, uint32_t component_type)
+{
+  size_t write = 0;
+  size_t position = 0;
+  if (!undo)
+  {
+    return;
+  }
+  if (undo->active && undo->active->key.owner == owner &&
+      (uint32_t)(undo->active->key.property >> 32) == component_type)
+  {
+    s_editor_undo_entry_free(undo->active);
+    free(undo->active);
+    undo->active = NULL;
+  }
+  for (size_t read = 0; read < undo->count; ++read)
+  {
+    LDKEditorUndoEntry *entry = &undo->entries[read];
+    if (entry->key.owner == owner &&
+        (uint32_t)(entry->key.property >> 32) == component_type)
+    {
+      s_editor_undo_entry_free(entry);
+      continue;
+    }
+    if (read < undo->position)
+    {
+      ++position;
+    }
+    if (write != read)
+    {
+      undo->entries[write] = *entry;
+    }
+    ++write;
+  }
+  undo->count = write;
+  undo->position = position;
+}
+
 void ldk_editor_undo_terminate(LDKEditorUndo *undo)
 {
   if (undo == NULL)

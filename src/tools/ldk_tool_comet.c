@@ -2607,6 +2607,30 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   }
   fprintf(out, "}\n\n");
 
+  /* Engine metadata can dispatch engine-owned editor callbacks directly.
+   * Game callbacks retain their existing DLL symbol lookup. */
+  fprintf(out, "#ifdef LDK_EDITOR\n");
+  fprintf(out, "LDKEditorComponentCallbackFn game_editor_component_callback_function_get(u32 index)\n{\n  switch (index)\n  {\n");
+  for (i = 0; i < state->editor_callback_count; ++i)
+  {
+    if (state->editor_callbacks[i].component[0])
+    {
+      fprintf(out, "    case %uu: return %s;\n", i,
+          state->editor_callbacks[i].symbol);
+    }
+  }
+  fprintf(out, "    default: return NULL;\n  }\n}\n\n");
+  fprintf(out, "LDKEditorSystemCallbackFn game_editor_system_callback_function_get(u32 index)\n{\n  switch (index)\n  {\n");
+  for (i = 0; i < state->editor_callback_count; ++i)
+  {
+    if (state->editor_callbacks[i].system[0])
+    {
+      fprintf(out, "    case %uu: return %s;\n", i,
+          state->editor_callbacks[i].symbol);
+    }
+  }
+  fprintf(out, "    default: return NULL;\n  }\n}\n#endif\n\n");
+
   fprintf(out, "#endif // LDK_COMPONENT_METADATA_IMPLEMENTATION \n");
   fprintf(out, "#endif // LDK_COMPONENTS_GENERATED_H\n");
 
