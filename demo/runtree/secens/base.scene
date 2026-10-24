@@ -1,8 +1,13 @@
 scene:
   version: 1
   properties:
-    ambient_color: 4294967295
+    ambient_sky_color: 3302817791
+    ambient_ground_color: 2020368639
     ambient_intensity: 0.200000003
+    fog_enabled: false
+    fog_color: 2965690623
+    fog_density: 0.00999999978
+    fog_start: 10.0000000
   entities:
     - entity: 0
       parent: -1
@@ -94,6 +99,11 @@ scene:
             enabled: true
             tonemapping_enabled: false
             exposure: -0.950783730
+            bloom_enabled: false
+            bloom_threshold: 1.00000000
+            bloom_intensity: 0.500000000
+            bloom_radius: 0.500000000
+            bloom_soft_knee: 0.500000000
             blur_enabled: true
             blur_strength: 0.500000000
             blur_focus_size: 0.354131520
@@ -192,7 +202,7 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 5.31266451, 2.94322300, 0.00602841377
+            local_position: 5.31266451, 2.94322300, 1.76785111
             local_scale: 0.895996034, 0.895996034, 0.895996034
             local_rotation: 0.00000000, -0.372884005, 0.00000000, 0.927878022
         - type: 4294967292 # LDKMeshSource
@@ -202,6 +212,22 @@ scene:
             casts_shadows: true
             billboard: false
             material_asset: "assets/materials/castle_checkers.tml"
+        - type: 4294967278 # LDKLineComponent
+          fields:
+            max_segments: 64
+            segments:
+        - type: 4294967277 # LDKTrailComponent
+          fields:
+            enabled: true
+            lifetime: 1.00000000
+            min_distance: 0.100000001
+            local_offset: 0.00000000, 0.00000000, 0.00000000
+            initial_color: 244642047
+            final_color: 4294967040
+            initial_width: 0.00000000
+            final_width: 0.100000001
+            initial_alpha: 0.00000000
+            final_alpha: 1.00000000
     - entity: 8
       parent: -1
       flags: 0

@@ -15,6 +15,7 @@
 #include <component/ldk_particle_emitter.h>
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_line.h>
+#include <component/ldk_trail.h>
 #include <component/ldk_transform.h>
 #include <component/ldk_grass_interact.h>
 #include <component/ldk_keyframe_animation_source.h>
@@ -218,6 +219,11 @@ u32 ldk_scene_component_meta_runtime_type(const LDKComponentMeta *meta)
     if (strcmp(meta->name, "LDKLineComponent") == 0)
     {
       return LDK_COMPONENT_TYPE_LINE;
+    }
+
+    if (strcmp(meta->name, "LDKTrailComponent") == 0)
+    {
+      return LDK_COMPONENT_TYPE_TRAIL;
     }
 
     if (strcmp(meta->name, "LDKMaterialInstance") == 0)

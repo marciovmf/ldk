@@ -1,5 +1,6 @@
 #include "component/ldk_mesh_source.h"
 #include <component/ldk_line.h>
+#include <component/ldk_trail.h>
 #include <component/ldk_text3d.h>
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_particle_emitter.h>
@@ -958,6 +959,14 @@ bool ldk_ecs_initialize(
     error = true;
   }
 
+  LDKComponentDesc trail_component_desc =
+      ldk_trail_component_desc(LDK_DEFAULT_MESHSOURCE_COUNT);
+  if (!ldk_component_register(&context->component, &trail_component_desc))
+  {
+    ldk_log_error("Failed to register component: Trail.");
+    error = true;
+  }
+
   LDKComponentDesc material_instance_desc =
       ldk_material_instance_component_desc(LDK_DEFAULT_MESHSOURCE_COUNT);
   if (!ldk_component_register(&context->component, &material_instance_desc))
@@ -1084,6 +1093,17 @@ void ldk_ecs_terminate(void)
         LDKEntity *owner = x_array_get(particle_owners, i);
         ldk_component_destroy_data(component_registry, entity_registry,
             *owner, LDK_COMPONENT_TYPE_PARTICLE_EMITTER, i);
+      }
+    }
+    XArray *trail_owners = ldk_component_owners_get(
+        component_registry, LDK_COMPONENT_TYPE_TRAIL);
+    if (trail_owners && entity_registry)
+    {
+      for (u32 i = 0; i < x_array_count(trail_owners); ++i)
+      {
+        LDKEntity *owner = x_array_get(trail_owners, i);
+        ldk_component_destroy_data(component_registry, entity_registry,
+            *owner, LDK_COMPONENT_TYPE_TRAIL, i);
       }
     }
     ldk_component_registry_terminate(component_registry);

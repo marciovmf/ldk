@@ -16,6 +16,7 @@
 #include <component/ldk_light.h>
 #include <component/ldk_mesh_source.h>
 #include <component/ldk_line.h>
+#include <component/ldk_trail.h>
 #include <component/ldk_material_instance.h>
 #include <ldk_texture_atlas.h>
 #include <component/ldk_post_processing.h>
@@ -1749,6 +1750,13 @@ void ldk_engine_frame(void)
         ldk_ecs_system_bucket_run(
             &e->ecs, LDK_SYSTEM_BUCKET_POST_UPDATE, delta_time);
       }
+    }
+
+    /* Implicit trail pass follows all gameplay systems so sampled transforms
+     * reflect the final position of the entity for this frame. */
+    if (tick && !e->game_stop_requested)
+    {
+      ldk_trail_update_all(delta_time);
     }
 
     if (step)
