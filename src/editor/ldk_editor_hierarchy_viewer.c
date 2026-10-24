@@ -84,7 +84,7 @@ static bool s_editor_hierarchy_entity_payload_parse(
   return true;
 }
 
-static void s_editor_hierarchy_drop_commit(
+static void s_editor_hierarchy_drop_commit(LDKEditorContext *editor,
     LDKECS *ecs, const LDKEditorHierarchyDropTarget *target)
 {
   XSmallstr payload = {0};
@@ -106,7 +106,13 @@ static void s_editor_hierarchy_drop_commit(
 
   if (target->detach)
   {
-    ldk_scenegraph_detach(source);
+    const LDKTransform *transform =
+        ldk_entity_transform_get_const(&ecs->entity, &ecs->component, source);
+    if (transform && !x_handle_is_null(transform->parent) &&
+        ldk_scenegraph_detach(source))
+    {
+      ldki_editor_scene_dirty_set(editor, true);
+    }
     return;
   }
 
@@ -117,7 +123,13 @@ static void s_editor_hierarchy_drop_commit(
     return;
   }
 
-  ldk_scenegraph_set_parent(source, target->entity);
+  const LDKTransform *transform =
+      ldk_entity_transform_get_const(&ecs->entity, &ecs->component, source);
+  if (transform && !ldki_editor_entity_equal(transform->parent, target->entity) &&
+      ldk_scenegraph_set_parent(source, target->entity))
+  {
+    ldki_editor_scene_dirty_set(editor, true);
+  }
 }
 
 bool ldki_editor_entity_equal(LDKEntity a, LDKEntity b)
@@ -248,6 +260,7 @@ bool ldki_editor_entity_add(
   editor->selected_entity = entity;
   editor->selected_system_id = 0;
   editor->scene_properties_selected = false;
+  ldki_editor_scene_dirty_set(editor, true);
   return true;
 }
 
@@ -289,6 +302,7 @@ bool ldki_editor_selected_entity_remove(
   }
 
   s_editor_hierarchy_entity_destroy_subtree(editor, ecs, entity);
+  ldki_editor_scene_dirty_set(editor, true);
   editor->selected_entity = x_handle_null();
   editor->selected_system_id = 0;
   return true;
@@ -785,7 +799,7 @@ void s_editor_entity_list_window(LDKEditorContext *editor, LDKECS *ecs)
     drop_target.valid = true;
   }
 
-  s_editor_hierarchy_drop_commit(ecs, &drop_target);
+  s_editor_hierarchy_drop_commit(editor, ecs, &drop_target);
 
   if (owns_window)
   {

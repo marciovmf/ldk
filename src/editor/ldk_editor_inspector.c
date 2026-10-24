@@ -742,8 +742,13 @@ static void s_editor_inspector_flags_selector(
   }
   else if (ok)
   {
-    ldk_entity_flags_set(&ecs->entity, entity,
-        s_editor_inspector_flags_state.draft_value);
+    if (ldk_entity_flags_get(&ecs->entity, entity) !=
+        s_editor_inspector_flags_state.draft_value)
+    {
+      ldk_entity_flags_set(&ecs->entity, entity,
+          s_editor_inspector_flags_state.draft_value);
+      ldki_editor_scene_dirty_set(editor, true);
+    }
     s_editor_inspector_flags_state.selector_open = false;
     s_editor_inspector_flags_format(s_editor_inspector_flags_state.input,
         sizeof(s_editor_inspector_flags_state.input),
@@ -793,9 +798,10 @@ static void s_editor_inspector_flags_draw(
       {
         s_editor_inspector_flags_state.draft_value = parsed;
       }
-      else
+      else if (parsed != flags)
       {
         ldk_entity_flags_set(&ecs->entity, entity, parsed);
+        ldki_editor_scene_dirty_set(editor, true);
       }
     }
   }
@@ -1904,7 +1910,8 @@ static void s_editor_inspector_keyframe_current_draw(
       u32 next = ldk_ui_combo_box(ui, names, source->animation_count, current);
       if (!readonly && next != current)
       {
-        (void)ldk_keyframe_animation_source_set_current(entity, (i32)next);
+        if (ldk_keyframe_animation_source_set_current(entity, (i32)next))
+          ldki_editor_scene_dirty_set(editor, true);
       }
       ldk_ui_end_disabled(ui);
       free(names);
@@ -1926,15 +1933,18 @@ static void s_editor_inspector_keyframe_animations_draw(
     ldk_ui_push_id_u32(ui, i);
     LDKAssetKeyframeAnimation asset = source->animations[i];
     if (s_editor_inspector_keyframe_animation_asset_field(
-            editor, label, &asset, readonly) &&
-        !ldk_keyframe_animation_source_replace(entity, i, asset))
+            editor, label, &asset, readonly))
     {
-      ldki_editor_log_error(editor, "Unable to replace animation (already assigned?).");
+      if (!ldk_keyframe_animation_source_replace(entity, i, asset))
+        ldki_editor_log_error(editor, "Unable to replace animation (already assigned?).");
+      else
+        ldki_editor_scene_dirty_set(editor, true);
     }
     ldk_ui_begin_disabled(ui, readonly);
     if (ldk_ui_button(ui, "Remove"))
     {
-      (void)ldk_keyframe_animation_source_remove(entity, i);
+      if (ldk_keyframe_animation_source_remove(entity, i))
+        ldki_editor_scene_dirty_set(editor, true);
       ldk_ui_end_disabled(ui);
       ldk_ui_pop_id(ui);
       break;
@@ -1944,10 +1954,12 @@ static void s_editor_inspector_keyframe_animations_draw(
   }
   LDKAssetKeyframeAnimation addition = ldk_asset_keyframe_animation_null();
   if (s_editor_inspector_keyframe_animation_asset_field(
-          editor, "Add Animation", &addition, readonly) &&
-      !ldk_keyframe_animation_source_add(entity, addition))
+          editor, "Add Animation", &addition, readonly))
   {
-    ldki_editor_log_error(editor, "Unable to add animation (already assigned?).");
+    if (!ldk_keyframe_animation_source_add(entity, addition))
+      ldki_editor_log_error(editor, "Unable to add animation (already assigned?).");
+    else
+      ldki_editor_scene_dirty_set(editor, true);
   }
 }
 
@@ -3212,7 +3224,10 @@ static void s_editor_inspector_scene_properties_draw(
           properties.fog_density != current->fog_density ||
           properties.fog_start != current->fog_start))
   {
-    (void)ldk_scene_properties_set(&properties);
+    if (ldk_scene_properties_set(&properties))
+    {
+      ldki_editor_scene_dirty_set(editor, true);
+    }
   }
 
   ldk_ui_pop_id(&editor->ui);
@@ -4695,6 +4710,7 @@ static void s_editor_inspector_instanced_mesh_instances_draw(
       editor->selected_entity = entity;
       editor->selected_instance_entity = entity;
       editor->selected_instance = source->instance_count - 1u;
+      ldki_editor_scene_dirty_set(editor, true);
       s_editor_inspector_input_state_clear();
       memset(&s_editor_inspector_euler_state, 0,
           sizeof(s_editor_inspector_euler_state));
@@ -4738,6 +4754,7 @@ static void s_editor_inspector_instanced_mesh_instances_draw(
       }
       else
       {
+        ldki_editor_scene_dirty_set(editor, true);
         if (selection_owned)
         {
           if (selected_index == i)
@@ -4779,7 +4796,11 @@ static void s_editor_inspector_instanced_mesh_instances_draw(
       Mat4 matrix = mat4_compose(position, rotation, scale);
       if (s_editor_inspector_instance_matrix_finite(matrix))
       {
-        source->instances[i] = matrix;
+        if (memcmp(&source->instances[i], &matrix, sizeof(matrix)) != 0)
+        {
+          source->instances[i] = matrix;
+          ldki_editor_scene_dirty_set(editor, true);
+        }
       }
       else
       {
@@ -4906,6 +4927,7 @@ static void s_editor_inspector_add_component_draw(
         }
 
         s_editor_inspector_component_expanded_set(component_type, true);
+        ldki_editor_scene_dirty_set(editor, true);
         ldk_ui_close_current_popup(ui);
         added = true;
       }
@@ -5040,10 +5062,13 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   ldk_ui_set_next_width(ui, ldk_ui_px(icon.size.w));
   ldk_ui_icon_label(ui, icon, "");
   u32 name_result = ldk_ui_input_box(ui, entity_name, sizeof(entity_name));
-  if ((name_result & LDK_UI_INPUT_BOX_CHANGED) != 0)
+  if ((name_result & LDK_UI_INPUT_BOX_CHANGED) != 0 &&
+      strcmp(name ? name : "", entity_name) != 0)
   {
     if (!ldk_ecs_entity_name_set(entity, entity_name))
       ldki_editor_log_error(editor, "Failed to rename the selected entity.");
+    else
+      ldki_editor_scene_dirty_set(editor, true);
   }
   ldk_ui_end_horizontal(ui);
   ldk_ui_pop_id(ui);
@@ -5172,11 +5197,12 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       bool enabled = ldk_ecs_component_is_enabled(entity, component_type);
       bool next = ldk_ui_widget_toggle(
           ui, (LDKUIId)0x454e4142u, enabled, enabled_rect);
-      if (next != enabled &&
-          !ldk_ecs_component_enabled_set(entity, component_type, next))
+      if (next != enabled)
       {
-        ldki_editor_log_error(
-            editor, "Failed to change component enabled state.");
+        if (!ldk_ecs_component_enabled_set(entity, component_type, next))
+          ldki_editor_log_error(editor, "Failed to change component enabled state.");
+        else
+          ldki_editor_scene_dirty_set(editor, true);
       }
     }
 
@@ -5273,6 +5299,10 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
         if (!ldk_ecs_component_remove(entity, component_type))
         {
           ldk_os_dialog_show_error(editor->window, "Error", "Error removing component.");
+        }
+        else
+        {
+          ldki_editor_scene_dirty_set(editor, true);
         }
       }
       

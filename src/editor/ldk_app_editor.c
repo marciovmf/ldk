@@ -74,6 +74,7 @@ static bool s_editor_camera_ensure(LDKEditorContext *editor);
 static bool s_project_game_module_load(LDKEditorContext *editor);
 static void s_project_game_module_watch_update(LDKEditorContext *editor);
 static bool s_editor_selected_entity_duplicate(LDKEditorContext *editor);
+static void s_editor_set_title(LDKEditorContext *editor);
 
 /**
  * Tiny function to return a static editor instance.
@@ -326,10 +327,13 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
         !event->keyboard_event.alt_is_down &&
         event->keyboard_event.keyCode == LDK_KEYCODE_Z)
     {
-      if (event->keyboard_event.shift_is_down)
-        (void)ldk_editor_undo_redo(&editor->undo);
-      else
-        (void)ldk_editor_undo_undo(&editor->undo);
+      bool changed = event->keyboard_event.shift_is_down
+          ? ldk_editor_undo_redo(&editor->undo)
+          : ldk_editor_undo_undo(&editor->undo);
+      if (changed)
+      {
+        s_editor_set_title(editor);
+      }
       return true;
     }
 
@@ -796,13 +800,45 @@ static bool on_event_window(const LDKEvent *event, void *state)
   return false;
 }
 
+static bool s_editor_scene_is_dirty(const LDKEditorContext *editor)
+{
+  return editor && (editor->scene_dirty || editor->undo.position > 0);
+}
+
 static void s_editor_set_title(LDKEditorContext *editor)
 {
   XSmallstr title;
   x_smallstr_format(&title, "LDK Engine v%d.%d.%d - %s", LDK_VERSION_MAJOR,
       LDK_VERSION_MINOR, LDK_VERSION_PATCH,
       editor->project.loaded ? editor->project.name.buf : "<NO PROJECT>");
+  if (s_editor_scene_is_dirty(editor))
+  {
+    x_smallstr_append_cstr(&title, " *");
+  }
   ldk_os_window_title_set(editor->window, title.buf);
+}
+
+/* Track changes not represented by undo; the history tracks the rest. */
+void ldki_editor_scene_dirty_set(LDKEditorContext *editor, bool dirty)
+{
+  if (!editor)
+  {
+    return;
+  }
+  editor->scene_dirty = dirty;
+  s_editor_set_title(editor);
+}
+
+bool ldki_editor_scene_discard_confirm(LDKEditorContext *editor)
+{
+  if (!s_editor_scene_is_dirty(editor))
+  {
+    return true;
+  }
+  return ldk_os_dialog_show_ok_cancel(editor->window,
+      "Unsaved scene changes",
+      "You have unsaved changes in the scene. Click OK to proceed and "
+      "discard these changes, or Cancel to return to editing.");
 }
 
 // Clone entity
@@ -1235,6 +1271,7 @@ static bool s_editor_selected_entity_duplicate(LDKEditorContext *editor)
   {
     editor->selected_entity = duplicate;
     editor->selected_system_id = 0;
+    ldki_editor_scene_dirty_set(editor, true);
   }
 
   x_array_destroy(duplicates);
@@ -1729,6 +1766,11 @@ static void s_editor_update(LDKEditorContext *editor, i32 window_width,
   editor->undo_row_seen = false;
   s_draw_editor_ui(editor, delta_time);
   ldki_editor_undo_frame_end(editor);
+  if (editor->undo.position != editor->scene_undo_position_seen)
+  {
+    s_editor_set_title(editor);
+  }
+  editor->scene_undo_position_seen = editor->undo.position;
   LDK_PROFILE_END();
 
   if (!ldk_os_mouse_button_is_pressed(&mouse_state, LDK_MOUSE_BUTTON_LEFT))
@@ -2352,7 +2394,10 @@ static void s_editor_play_scene_restore(LDKEditorContext *editor)
     x_fs_path(&path, editor->project.run_root_path.buf,
         editor->current_scene_path.buf);
     x_fs_path_normalize(&path);
-    if (ldki_editor_scene_load(editor, &path))
+    editor->scene_load_internal = true;
+    bool loaded = ldki_editor_scene_load(editor, &path);
+    editor->scene_load_internal = false;
+    if (loaded)
     {
       if (apply_pending && !ldki_editor_scene_play_apply_restore(editor))
       {
@@ -2362,6 +2407,10 @@ static void s_editor_play_scene_restore(LDKEditorContext *editor)
       else if (!apply_pending)
       {
         ldki_editor_scene_play_apply_discard(editor);
+      }
+      if (apply_pending)
+      {
+        ldki_editor_scene_dirty_set(editor, true);
       }
       return;
     }
@@ -2400,6 +2449,11 @@ static bool s_editor_state_enter_play(LDKEditorContext *editor)
   }
 
   if (editor->editor_state != LDK_EDITOR_STATE_STOPED)
+  {
+    return false;
+  }
+
+  if (!ldki_editor_scene_discard_confirm(editor))
   {
     return false;
   }
@@ -3268,6 +3322,8 @@ static bool s_project_unload(LDKEditorContext *editor)
   if (!editor->project.loaded)
   {
     ldk_editor_undo_clear(&editor->undo);
+    editor->scene_undo_position_seen = 0;
+    ldki_editor_scene_dirty_set(editor, false);
     editor->selected_entity = x_handle_null();
     ldk_scene_systems_clear(&editor->current_scene_systems);
     if (editor->hierarchy_expanded_entities != NULL)
@@ -3333,6 +3389,8 @@ static bool s_project_unload(LDKEditorContext *editor)
   }
   ldki_editor_file_explorer_package_mounts_clear();
   ldk_editor_undo_clear(&editor->undo);
+  editor->scene_undo_position_seen = 0;
+  ldki_editor_scene_dirty_set(editor, false);
   ldk_project_unload(&editor->project);
   editor->editor_state = LDK_EDITOR_STATE_STOPED;
   s_editor_set_title(editor);
@@ -4077,6 +4135,10 @@ static void s_editor_project_build_report_finish(
 
   if (action_type == LDK_EDITOR_PROJECT_ACTION_CREATE)
   {
+    if (!ldki_editor_scene_discard_confirm(editor))
+    {
+      return;
+    }
     if (!s_project_switch(editor, project_file_path.buf))
     {
       ldki_editor_log_error(editor, "Failed to load created project.");
@@ -4414,6 +4476,10 @@ static bool s_editor_project_action_process(LDKEditorContext *editor)
 
   if (action.type == LDK_EDITOR_PROJECT_ACTION_OPEN)
   {
+    if (!ldki_editor_scene_discard_confirm(editor))
+    {
+      return true;
+    }
     result = s_project_switch(editor, action.project_file_path.buf);
     if (!result)
     {
@@ -4488,22 +4554,25 @@ static void s_editor_terminate(LDKEditorContext *editor)
 
 void ldki_editor_confirm_quit(LDKEditorContext *editor)
 {
-  bool close = false;
-
-  if (!editor->project.loaded)
-    close = true;
-
-  else if (ldk_os_dialog_show_yes_no(editor->window, "Quit editor ?",
-               "Are you sure you want to quit the editor ?"))
+  if (!editor)
   {
-    close = true;
+    return;
   }
 
-  if (close)
+  if (!ldki_editor_scene_discard_confirm(editor))
   {
-    ldk_log_info("Closing game window\n");
-    ldk_engine_stop(0);
+    return;
   }
+
+  if (!s_editor_scene_is_dirty(editor) && editor->project.loaded &&
+      !ldk_os_dialog_show_yes_no(editor->window, "Quit editor ?",
+          "Are you sure you want to quit the editor ?"))
+  {
+    return;
+  }
+
+  ldk_log_info("Closing game window\n");
+  ldk_engine_stop(0);
 }
 
 void ldki_editor_theme_icons_set(LDKEditorContext *editor, LDKUITheme *theme)
