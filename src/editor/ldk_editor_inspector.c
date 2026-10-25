@@ -14,12 +14,12 @@
 #include <ldk_scene.h>
 #include <ldk_property.h>
 #include <component/ldk_mesh_source.h>
-#include <component/ldk_line.h>
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_keyframe_animation_source.h>
 #include <module/ldk_scene_manager.h>
 #include <module/ldk_ecs.h>
 #include <stdx/stdx_string.h>
+#include <stdx/stdx_array.h>
 #include <ctype.h>
 #include <errno.h>
 #include <inttypes.h>
@@ -225,7 +225,7 @@ enum
 {
   LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_COMPONENT = 1u,
   LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_SYSTEM = 2u,
-  LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_LINE = 3u,
+  LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_ARRAY = 3u,
 };
 
 static LDKEditorInspectorInputState s_editor_inspector_input_state = {0};
@@ -982,6 +982,30 @@ static void s_editor_inspector_field_value_format(char *out, size_t out_size,
   }
 }
 
+/* Generic array undo keys: 0x8..0xE = element field, 0xFF = list
+ * structure. The remaining bits encode reflected list field, element index
+ * and reflected element field. Indices stay stable across reversed
+ * structural operations in the Undo history. */
+#define LDK_EDITOR_ARRAY_FIELD_BASE 0x80000000u
+#define LDK_EDITOR_ARRAY_STRUCT_BASE 0xff000000u
+
+static size_t s_editor_inspector_undo_field_size(
+    const LDKComponentFieldMeta *field);
+typedef struct LDKInspectorArrayEditContext
+{
+  LDKEntity entity;
+  u32 component_type;
+  u32 array_field_index;
+  u32 element_index;
+  const LDKComponentMeta *element_meta;
+  const LDKArrayFieldMeta *array_meta;
+  void *component;
+  void *element;
+} LDKInspectorArrayEditContext;
+
+/* Only active while rendering a single reflected array element. */
+static LDKInspectorArrayEditContext s_editor_array_edit;
+
 typedef struct LDKInspectorNumericRowContext
 {
   LDKEntity entity;
@@ -1050,6 +1074,47 @@ static bool s_editor_inspector_property_write(LDKEntity entity,
   if (!component_type || !field || !raw)
   {
     return false;
+  }
+  if (s_editor_array_edit.element &&
+      s_editor_array_edit.component_type == component_type &&
+      s_editor_array_edit.element_meta &&
+      field >= s_editor_array_edit.element_meta->fields &&
+      field < s_editor_array_edit.element_meta->fields +
+          s_editor_array_edit.element_meta->field_count)
+  {
+    size_t size = s_editor_inspector_undo_field_size(field);
+    if (!size || field->offset > s_editor_array_edit.element_meta->size ||
+        size > s_editor_array_edit.element_meta->size - field->offset)
+      return false;
+    void *destination = (u8 *)s_editor_array_edit.element + field->offset;
+    if (memcmp(destination, raw, size) != 0)
+      memcpy(destination, raw, size);
+    return true;
+  }
+  /* An array limit is an ordinary reflected u32 field. Validate it against
+   * all collections that use it, rather than special-casing a component. */
+  if (field->type == LDK_FIELD_U32)
+  {
+    const LDKComponentMeta *meta =
+        ldk_property_component_meta(component_type);
+    void *component = ldk_ecs_component_get(entity, component_type);
+    if (meta && component)
+    {
+      for (u32 i = 0; i < meta->field_count; ++i)
+      {
+        const LDKComponentFieldMeta *array_field = &meta->fields[i];
+        if (array_field->type != LDK_FIELD_ARRAY ||
+            !array_field->array_meta ||
+            !array_field->array_meta->limit_field ||
+            strcmp(array_field->array_meta->limit_field, field->name) != 0 ||
+            array_field->offset > meta->size ||
+            sizeof(XArray *) > meta->size - array_field->offset)
+          continue;
+        XArray *array = *(XArray **)((u8 *)component + array_field->offset);
+        if (array && x_array_count(array) > *(const u32 *)raw)
+          return false;
+      }
+    }
   }
   LDKPropertyValue value = {0};
   value.type = field->type;
@@ -2153,7 +2218,23 @@ static LDKEditorUIUndoProperty s_editor_inspector_undo_property(
     return property;
   }
   property.key.owner = ((u64)entity.version << 32) | entity.index;
-  property.key.property = ((u64)component_type << 32) | field->offset;
+  if (s_editor_array_edit.element &&
+      s_editor_array_edit.element_meta == meta &&
+      s_editor_array_edit.array_field_index < 112u &&
+      s_editor_array_edit.element_index < 65536u &&
+      field >= meta->fields && field < meta->fields + meta->field_count &&
+      (u32)(field - meta->fields) < 256u)
+  {
+    property.key.property = ((u64)component_type << 32) |
+        LDK_EDITOR_ARRAY_FIELD_BASE |
+        (s_editor_array_edit.array_field_index << 24) |
+        (s_editor_array_edit.element_index << 8) |
+        (u32)(field - meta->fields);
+  }
+  else
+  {
+    property.key.property = ((u64)component_type << 32) | field->offset;
+  }
   property.type = field->type;
   property.value = value;
   property.size = size;
@@ -2241,109 +2322,165 @@ static const LDKComponentFieldMeta *s_editor_undo_field_resolve(
   return NULL;
 }
 
-/* Synthetic Inspector properties identify an individual line segment field.
- * The segment data itself is not reflected by Comet. Resolve its current
- * address each time, because the segment allocation can move on append. */
-enum
+typedef enum LDKEditorArrayUndoAction
 {
-  LDK_EDITOR_LINE_FIELD_START = 0,
-  LDK_EDITOR_LINE_FIELD_END,
-  LDK_EDITOR_LINE_FIELD_INITIAL_COLOR,
-  LDK_EDITOR_LINE_FIELD_FINAL_COLOR,
-  LDK_EDITOR_LINE_FIELD_INITIAL_WIDTH,
-  LDK_EDITOR_LINE_FIELD_FINAL_WIDTH,
-  LDK_EDITOR_LINE_FIELD_INITIAL_ALPHA,
-  LDK_EDITOR_LINE_FIELD_FINAL_ALPHA,
-  LDK_EDITOR_LINE_FIELD_COUNT,
-  LDK_EDITOR_LINE_FIELD_OFFSET_BASE = 0x90000000u,
-};
+  LDK_EDITOR_ARRAY_INSERT = 1,
+  LDK_EDITOR_ARRAY_REMOVE = 2,
+  LDK_EDITOR_ARRAY_SWAP = 3,
+  LDK_EDITOR_ARRAY_SWAP_INVERSE = 4,
+  LDK_EDITOR_ARRAY_RESTORE_ALL = 5,
+  LDK_EDITOR_ARRAY_CLEAR_ALL = 6,
+} LDKEditorArrayUndoAction;
 
-static u32 s_editor_line_field_offset(u32 index, u32 field_index)
+typedef struct LDKEditorArrayUndoOp
 {
-  return LDK_EDITOR_LINE_FIELD_OFFSET_BASE +
-      index * LDK_EDITOR_LINE_FIELD_COUNT + field_index;
+  u32 index;
+  u32 action;
+} LDKEditorArrayUndoOp;
+
+static bool s_editor_array_undo_key(LDKEditorUndoKey key)
+{
+  u32 offset = (u32)key.property;
+  return (offset & 0x80000000u) != 0u;
 }
 
-static bool s_editor_line_undo_key(LDKEditorUndoKey key)
-{
-  return (u32)(key.property >> 32) == LDK_COMPONENT_TYPE_LINE &&
-      (u32)key.property >= LDK_EDITOR_LINE_FIELD_OFFSET_BASE;
-}
-
-static void *s_editor_line_undo_resolve(LDKEditorUndoKey key,
-    LDKFieldType type, size_t size, LDKLineComponent **out_line,
-    u32 *out_index)
+static void *s_editor_array_undo_resolve(LDKEditorUndoKey key,
+    LDKFieldType type, size_t size, void **out_component,
+    const LDKArrayFieldMeta **out_array)
 {
   LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
   LDKEntity entity = {(u32)key.owner, (u32)(key.owner >> 32)};
-  u32 offset = (u32)key.property - LDK_EDITOR_LINE_FIELD_OFFSET_BASE;
-  u32 index = offset / LDK_EDITOR_LINE_FIELD_COUNT;
-  u32 field = offset % LDK_EDITOR_LINE_FIELD_COUNT;
-  LDKLineComponent *line;
-  LDKLineSegment *segment;
+  u32 component_type = (u32)(key.property >> 32);
+  u32 offset = (u32)key.property;
+  bool structural = (offset & 0xff000000u) == LDK_EDITOR_ARRAY_STRUCT_BASE;
+  u32 array_index = structural ? ((offset >> 16) & 0xffu) :
+      ((offset >> 24) & 0x7fu);
+  u32 element_index = (offset >> 8) & 0xffffu;
+  u32 field_index = offset & 0xffu;
+  const LDKComponentMeta *meta = ldk_property_component_meta(component_type);
+  if (!ecs || !ldk_entity_is_alive(&ecs->entity, entity) || !meta ||
+      array_index >= meta->field_count) return NULL;
+  const LDKComponentFieldMeta *array_field = &meta->fields[array_index];
+  if (array_field->type != LDK_FIELD_ARRAY || !array_field->array_meta ||
+      array_field->offset > meta->size ||
+      sizeof(XArray *) > meta->size - array_field->offset) return NULL;
+  void *component = ldk_ecs_component_get(entity, component_type);
+  if (!component) return NULL;
+  XArray **array = (XArray **)((u8 *)component + array_field->offset);
+  const LDKArrayFieldMeta *array_meta = array_field->array_meta;
+  if (out_component) *out_component = component;
+  if (out_array) *out_array = array_meta;
+  if (structural)
+    return type == LDK_FIELD_ARRAY && size > sizeof(LDKEditorArrayUndoOp)
+        ? array : NULL;
+  const LDKComponentMeta *element_meta = array_meta->element_meta
+      ? array_meta->element_meta() : NULL;
+  if (!*array || !element_meta || field_index >= element_meta->field_count ||
+      element_index >= x_array_count(*array)) return NULL;
+  const LDKComponentFieldMeta *field = &element_meta->fields[field_index];
+  if (field->type != type || !size ||
+      field->offset > element_meta->size ||
+      size > element_meta->size - field->offset ||
+      s_editor_inspector_undo_field_size(field) != size) return NULL;
+  return (u8 *)x_array_get(*array, element_index) + field->offset;
+}
 
-  if (!s_editor_line_undo_key(key) || !ecs ||
-      !ldk_entity_is_alive(&ecs->entity, entity) ||
-      !(line = ldk_ecs_component_get(entity, LDK_COMPONENT_TYPE_LINE)) ||
-      !line->segments || index >= line->segment_count)
+static bool s_editor_array_apply_structure(XArray **array,
+    const LDKArrayFieldMeta *array_meta, void *component,
+    const void *bytes, size_t size)
+{
+  const LDKComponentMeta *element_meta = array_meta->element_meta
+      ? array_meta->element_meta() : NULL;
+  const LDKEditorArrayUndoOp *op = bytes;
+  if (!array || !element_meta || !bytes || !element_meta->size)
+    return false;
+  bool whole_array = op->action == LDK_EDITOR_ARRAY_RESTORE_ALL ||
+      op->action == LDK_EDITOR_ARRAY_CLEAR_ALL;
+  if (whole_array)
   {
-    return NULL;
+    if (op->index > (SIZE_MAX - sizeof(*op)) / element_meta->size ||
+        size != sizeof(*op) + (size_t)op->index * element_meta->size)
+      return false;
   }
-  segment = &line->segments[index];
-  void *value = NULL;
-  LDKFieldType expected_type = LDK_FIELD_FLOAT;
-  size_t expected_size = sizeof(float);
-  switch (field)
+  else if (size != sizeof(*op) + element_meta->size) return false;
+  if (!*array)
   {
-  case LDK_EDITOR_LINE_FIELD_START:
-    value = &segment->pos_start;
-    expected_type = LDK_FIELD_VEC3;
-    expected_size = sizeof(Vec3);
-    break;
-  case LDK_EDITOR_LINE_FIELD_END:
-    value = &segment->pos_end;
-    expected_type = LDK_FIELD_VEC3;
-    expected_size = sizeof(Vec3);
-    break;
-  case LDK_EDITOR_LINE_FIELD_INITIAL_COLOR:
-    value = &segment->initial_color;
-    expected_type = LDK_FIELD_U32;
-    expected_size = sizeof(u32);
-    break;
-  case LDK_EDITOR_LINE_FIELD_FINAL_COLOR:
-    value = &segment->final_color;
-    expected_type = LDK_FIELD_U32;
-    expected_size = sizeof(u32);
-    break;
-  case LDK_EDITOR_LINE_FIELD_INITIAL_WIDTH:
-    value = &segment->initial_width;
-    break;
-  case LDK_EDITOR_LINE_FIELD_FINAL_WIDTH:
-    value = &segment->final_width;
-    break;
-  case LDK_EDITOR_LINE_FIELD_INITIAL_ALPHA:
-    value = &segment->initial_alpha;
-    break;
-  case LDK_EDITOR_LINE_FIELD_FINAL_ALPHA:
-    value = &segment->final_alpha;
-    break;
+    *array = x_array_create(element_meta->size, 0u);
+    if (!*array) return false;
   }
-  if (!value || type != expected_type || size != expected_size)
+  u32 count = x_array_count(*array);
+  if (op->action == LDK_EDITOR_ARRAY_INSERT)
   {
-    return NULL;
+    if (op->index > count ||
+        x_array_insert(*array, (void *)(op + 1), op->index) != XARRAY_OK)
+      return false;
   }
-  if (out_line) *out_line = line;
-  if (out_index) *out_index = index;
-  return value;
+  else if (op->action == LDK_EDITOR_ARRAY_REMOVE)
+  {
+    if (op->index >= count) return false;
+    x_array_delete_at(*array, op->index);
+  }
+  else if (op->action == LDK_EDITOR_ARRAY_SWAP ||
+      op->action == LDK_EDITOR_ARRAY_SWAP_INVERSE)
+  {
+    if (op->index >= count || op->index + 1u >= count) return false;
+    u8 *a = x_array_get(*array, op->index);
+    u8 *b = x_array_get(*array, op->index + 1u);
+    for (size_t i = 0; i < element_meta->size; ++i)
+    {
+      u8 t = a[i]; a[i] = b[i]; b[i] = t;
+    }
+  }
+  else if (op->action == LDK_EDITOR_ARRAY_RESTORE_ALL)
+  {
+    x_array_clear(*array);
+    if (op->index && x_array_add_range(*array, op + 1, op->index) != XARRAY_OK)
+      return false;
+  }
+  else if (op->action == LDK_EDITOR_ARRAY_CLEAR_ALL)
+    x_array_clear(*array);
+  else return false;
+  if (array_meta->on_change) array_meta->on_change(component);
+  return true;
+}
+
+/* Undo records structural edits as inverse operation pairs with a copy of
+ * the element. There are no persistent pointers into XArray storage. */
+static bool s_editor_array_undo_record(LDKEditorContext *editor,
+    LDKEntity entity, u32 component_type, u32 array_field_index,
+    u32 index, const LDKComponentMeta *element_meta,
+    LDKEditorArrayUndoAction before_action,
+    LDKEditorArrayUndoAction after_action, const void *element)
+{
+  if (!editor || !element_meta || !element || array_field_index > 255u ||
+      ldk_editor_undo_has_active_change(&editor->undo)) return false;
+  size_t size = sizeof(LDKEditorArrayUndoOp) + element_meta->size;
+  u8 *before = malloc(size), *after = malloc(size);
+  if (!before || !after) { free(before); free(after); return false; }
+  LDKEditorArrayUndoOp before_op = {index, before_action};
+  LDKEditorArrayUndoOp after_op = {index, after_action};
+  memcpy(before, &before_op, sizeof(before_op));
+  memcpy(after, &after_op, sizeof(after_op));
+  memcpy(before + sizeof(before_op), element, element_meta->size);
+  memcpy(after + sizeof(after_op), element, element_meta->size);
+  LDKEditorUndoKey key = {
+      ((u64)entity.version << 32) | entity.index,
+      ((u64)component_type << 32) | LDK_EDITOR_ARRAY_STRUCT_BASE |
+          (array_field_index << 16)};
+  bool ok = ldk_editor_undo_begin_change(&editor->undo, key,
+      LDK_FIELD_ARRAY, before, size);
+  if (ok) ok = ldk_editor_undo_end_change(&editor->undo, after);
+  free(before); free(after);
+  return ok;
 }
 
 void *ldki_editor_undo_property_resolve(
     void *user, LDKEditorUndoKey key, LDKFieldType type, size_t size)
 {
   void *value = NULL;
-  if (s_editor_line_undo_key(key))
+  if (s_editor_array_undo_key(key))
   {
-    return s_editor_line_undo_resolve(key, type, size, NULL, NULL);
+    return s_editor_array_undo_resolve(key, type, size, NULL, NULL);
   }
   if ((key.property >> 32) == 0)
   {
@@ -2372,21 +2509,19 @@ bool ldki_editor_undo_property_apply(void *user, LDKEditorUndoKey key,
   {
     return false;
   }
-  if (s_editor_line_undo_key(key))
+  if (s_editor_array_undo_key(key))
   {
-    LDKLineComponent *line = NULL;
-    u32 index = 0;
-    void *destination = s_editor_line_undo_resolve(
-        key, type, size, &line, &index);
-    LDKLineSegment segment;
-    if (!destination || !line)
-    {
-      return false;
-    }
-    segment = *ldk_line_segment_get(line, index);
-    memcpy((u8 *)&segment +
-        ((u8 *)destination - (u8 *)&line->segments[index]), value, size);
-    return ldk_line_segment_set(line, index, &segment);
+    void *component = NULL;
+    const LDKArrayFieldMeta *array_meta = NULL;
+    void *destination = s_editor_array_undo_resolve(
+        key, type, size, &component, &array_meta);
+    if (!destination || !component || !array_meta) return false;
+    if (type == LDK_FIELD_ARRAY)
+      return s_editor_array_apply_structure((XArray **)destination,
+          array_meta, component, value, size);
+    memcpy(destination, value, size);
+    if (array_meta->on_change) array_meta->on_change(component);
+    return true;
   }
   if ((key.property >> 32) == 0)
   {
@@ -3020,6 +3155,24 @@ static u32 s_editor_inspector_group_path_build(
   return count;
 }
 
+static void s_editor_inspector_array_draw(LDKEditorContext *editor,
+    LDKEntity entity, u32 component_type, const LDKComponentMeta *component_meta,
+    void *component, u32 array_index);
+
+static void s_editor_inspector_field_or_array_draw(LDKEditorContext *editor,
+    LDKEntity entity, u32 component_type, const LDKComponentMeta *meta,
+    const LDKComponentFieldMeta *field, void *component)
+{
+  if (field->type == LDK_FIELD_ARRAY && field->array_meta)
+  {
+    if (field >= meta->fields && field < meta->fields + meta->field_count)
+      s_editor_inspector_array_draw(editor, entity, component_type,
+          meta, component, (u32)(field - meta->fields));
+  }
+  else s_editor_inspector_field_draw(editor, entity, component_type,
+      meta, field, component);
+}
+
 static void s_editor_inspector_fields_draw(
     LDKEditorContext *editor, LDKEntity entity, u32 component_type,
     const LDKComponentMeta *meta, void *component, u32 group_domain,
@@ -3042,7 +3195,7 @@ static void s_editor_inspector_fields_draw(
     s_editor_inspector_row_group_depth = 0u;
     for (u32 field_i = 0; field_i < meta->field_count; ++field_i)
     {
-      s_editor_inspector_field_draw(editor, entity, component_type,
+      s_editor_inspector_field_or_array_draw(editor, entity, component_type,
           meta, &meta->fields[field_i], component);
     }
     return;
@@ -3057,7 +3210,7 @@ static void s_editor_inspector_fields_draw(
     s_editor_inspector_row_group_depth = 0u;
     for (u32 field_i = 0; field_i < meta->field_count; ++field_i)
     {
-      s_editor_inspector_field_draw(editor, entity, component_type,
+      s_editor_inspector_field_or_array_draw(editor, entity, component_type,
           meta, &meta->fields[field_i], component);
     }
     return;
@@ -3123,7 +3276,7 @@ static void s_editor_inspector_fields_draw(
     if (visible)
     {
       s_editor_inspector_row_group_depth = current_count;
-      s_editor_inspector_field_draw(editor, entity, component_type,
+      s_editor_inspector_field_or_array_draw(editor, entity, component_type,
           meta, field, component);
     }
 
@@ -4657,186 +4810,232 @@ static void s_editor_inspector_instanced_mesh_instances_draw(
   }
 }
 
-/* Line segments are authored through normal Inspector rows. Their Undo
- * properties reference the live segment, whereas row edits use a local copy
- * and commit through ldk_line_segment_set() to invalidate the generated mesh. */
-static LDKComponentFieldMeta s_editor_line_field(
-    const char *name, LDKFieldType type, u32 index, u32 field_index)
+/* STDX arrays use a shared Inspector vocabulary: collection fold, per-item
+ * fold, ordinary reflected rows, and standard structural controls. */
+static bool s_editor_array_undo_clear_record(LDKEditorContext *editor,
+    LDKEntity entity, u32 component_type, u32 array_field_index,
+    const LDKComponentMeta *element_meta, XArray *array)
 {
-  LDKComponentFieldMeta field = {0};
-  field.name = name;
-  field.type = type;
-  field.offset = s_editor_line_field_offset(index, field_index);
-  field.widget = type == LDK_FIELD_VEC3 ? LDK_FIELD_WIDGET_VEC3 :
-      (type == LDK_FIELD_U32 ? LDK_FIELD_WIDGET_COLOR : LDK_FIELD_WIDGET_FLOAT);
-  return field;
+  if (!array || !element_meta || !element_meta->size ||
+      !x_array_count(array) || array_field_index > 255u ||
+      ldk_editor_undo_has_active_change(&editor->undo)) return false;
+  u32 count = x_array_count(array);
+  if (count > (SIZE_MAX - sizeof(LDKEditorArrayUndoOp)) / element_meta->size)
+    return false;
+  size_t size = sizeof(LDKEditorArrayUndoOp) +
+      (size_t)count * element_meta->size;
+  u8 *before = malloc(size), *after = malloc(size);
+  if (!before || !after) { free(before); free(after); return false; }
+  LDKEditorArrayUndoOp before_op = {count, LDK_EDITOR_ARRAY_RESTORE_ALL};
+  LDKEditorArrayUndoOp after_op = {count, LDK_EDITOR_ARRAY_CLEAR_ALL};
+  memcpy(before, &before_op, sizeof(before_op));
+  memcpy(after, &after_op, sizeof(after_op));
+  memcpy(before + sizeof(before_op), x_array_data(array),
+      size - sizeof(before_op));
+  memcpy(after + sizeof(after_op), x_array_data(array),
+      size - sizeof(after_op));
+  LDKEditorUndoKey key = {((u64)entity.version << 32) | entity.index,
+      ((u64)component_type << 32) | LDK_EDITOR_ARRAY_STRUCT_BASE |
+          (array_field_index << 16)};
+  bool ok = ldk_editor_undo_begin_change(&editor->undo, key,
+      LDK_FIELD_ARRAY, before, size);
+  if (ok) ok = ldk_editor_undo_end_change(&editor->undo, after);
+  free(before); free(after);
+  return ok;
 }
 
-static LDKEditorUIUndoProperty s_editor_line_undo_property(
-    LDKEditorContext *editor, LDKEntity entity, u32 index,
-    u32 field_index, LDKFieldType type, const void *original, size_t size)
+static void s_editor_inspector_array_draw(LDKEditorContext *editor,
+    LDKEntity entity, u32 component_type, const LDKComponentMeta *component_meta,
+    void *component, u32 array_index)
 {
-  LDKEditorUIUndoProperty property = {0};
-  if (editor->editor_state == LDK_EDITOR_STATE_STOPED && original)
-  {
-    property.key.owner = ((u64)entity.version << 32) | entity.index;
-    property.key.property = ((u64)LDK_COMPONENT_TYPE_LINE << 32) |
-        s_editor_line_field_offset(index, field_index);
-    property.type = type;
-    property.value = original;
-    property.size = size;
-  }
-  return property;
-}
-
-static bool s_editor_inspector_line_vec3_draw(LDKEditorContext *editor,
-    LDKEntity entity, u32 index, u32 field_index, const char *label,
-    Vec3 *value, const Vec3 *original)
-{
-  LDKComponentFieldMeta field = s_editor_line_field(
-      label, LDK_FIELD_VEC3, index, field_index);
-  LDKInspectorNumericRowContext context = {
-      entity, LDK_COMPONENT_TYPE_LINE, &field};
-  LDKEditorUIUndoProperty undo = s_editor_line_undo_property(editor,
-      entity, index, field_index, LDK_FIELD_VEC3, original, sizeof(*original));
-  float *values[] = {&value->x, &value->y, &value->z};
-  ldk_ui_push_id_cstr(&editor->ui, label);
-  bool changed = ldk_editor_ui_row_vec3(editor, label,
-      s_editor_inspector_row_group_depth, values, false,
-      s_editor_inspector_vector_row_input, &context,
-      undo.size ? &undo : NULL);
-  ldk_ui_end_horizontal(&editor->ui);
-  ldk_ui_pop_id(&editor->ui);
-  return changed;
-}
-
-static bool s_editor_inspector_line_float_draw(LDKEditorContext *editor,
-    LDKEntity entity, u32 index, u32 field_index, const char *label,
-    float *value, const float *original)
-{
-  LDKComponentFieldMeta field = s_editor_line_field(
-      label, LDK_FIELD_FLOAT, index, field_index);
-  LDKInspectorNumericRowContext context = {
-      entity, LDK_COMPONENT_TYPE_LINE, &field};
-  LDKEditorUIUndoProperty undo = s_editor_line_undo_property(editor,
-      entity, index, field_index, LDK_FIELD_FLOAT, original, sizeof(*original));
-  char buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY];
-  float parsed;
-  ldk_ui_push_id_cstr(&editor->ui, label);
-  u32 result = ldk_editor_ui_row_float(editor, label,
-      s_editor_inspector_row_group_depth, buffer, (u32)sizeof(buffer),
-      value, false, s_editor_inspector_numeric_row_input, &context,
-      undo.size ? &undo : NULL);
-  ldk_ui_end_horizontal(&editor->ui);
-  ldk_ui_pop_id(&editor->ui);
-  if ((result & LDK_UI_INPUT_BOX_CHANGED) &&
-      s_editor_inspector_parse_float(buffer, &parsed) && isfinite(parsed))
-  {
-    *value = parsed;
-    return true;
-  }
-  return false;
-}
-
-static bool s_editor_inspector_line_color_draw(LDKEditorContext *editor,
-    LDKEntity entity, u32 index, u32 field_index, const char *label,
-    u32 *color, const u32 *original)
-{
-  LDKEditorUIUndoProperty undo = s_editor_line_undo_property(editor,
-      entity, index, field_index, LDK_FIELD_U32, original, sizeof(*original));
-  ldk_ui_push_id_cstr(&editor->ui, label);
-  bool changed = ldk_editor_ui_row_color(editor, label,
-      s_editor_inspector_row_group_depth, (rgba32 *)color, false,
-      undo.size ? &undo : NULL);
-  ldk_ui_pop_id(&editor->ui);
-  return changed;
-}
-
-static void s_editor_inspector_line_segments_draw(
-    LDKEditorContext *editor, LDKEntity entity, LDKLineComponent *line)
-{
+  if (!editor || !component_meta || !component ||
+      array_index >= component_meta->field_count) return;
+  const LDKComponentFieldMeta *field = &component_meta->fields[array_index];
+  const LDKArrayFieldMeta *array_meta = field->array_meta;
+  const LDKComponentMeta *element_meta = array_meta && array_meta->element_meta
+      ? array_meta->element_meta() : NULL;
+  if (!element_meta || !element_meta->size ||
+      field->offset > component_meta->size ||
+      sizeof(XArray *) > component_meta->size - field->offset) return;
+  XArray **array = (XArray **)((u8 *)component + field->offset);
   LDKUIContext *ui = &editor->ui;
-  char title[64];
-  u64 owner_id = ((u64)entity.version << 32) | entity.index;
-  ldk_ui_horizontal_line(ui);
-  snprintf(title, sizeof(title), "Segments (%u)", line->segment_count);
-  ldk_ui_label(ui, title);
-
-  for (u32 i = 0; i < line->segment_count; ++i)
+  LDKUIIcon icon = {0};
+  icon.size = ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT,
+      LDK_UI_DEFAULT_CONTROL_HEIGHT);
+  icon.texture =
+      ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+  icon.color = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+  u64 owner_id = (((u64)entity.version << 32) | entity.index) ^
+      (((u64)component_type * 0x9e3779b97f4a7c15ULL) >> 1);
+  u32 group_id = (array_index << 16) | 0xffffu;
+  bool editable = editor->editor_state == LDK_EDITOR_STATE_STOPED &&
+      (field->flags & LDK_FIELD_FLAG_READONLY) == 0u;
+  u32 count = *array ? x_array_count(*array) : 0u;
+  char title[128];
+  snprintf(title, sizeof(title), "%s (%u)",
+      s_editor_inspector_field_display_name(field), count);
+  ldk_ui_push_id_cstr(ui, field->name);
+  bool expanded = s_editor_inspector_group_expanded(
+      LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_ARRAY, owner_id, group_id);
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_next_weight(ui, 1.0f);
+  bool next = ldk_ui_tree_node(ui, title, expanded, 0u, LDK_UI_TREE_NODE_NONE);
+  if (next != expanded)
+    s_editor_inspector_group_expanded_set(
+        LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_ARRAY, owner_id, group_id, next);
+  u32 limit = UINT32_MAX;
+  if (array_meta->limit_field)
   {
-    const LDKLineSegment *current = ldk_line_segment_get(line, i);
-    bool expanded;
-    bool next_expanded;
-    bool changed = false;
-    bool remove = false;
-    LDKLineSegment segment;
-    if (!current)
+    for (u32 k = 0; k < component_meta->field_count; ++k)
     {
-      break;
+      const LDKComponentFieldMeta *candidate = &component_meta->fields[k];
+      if (candidate->type == LDK_FIELD_U32 &&
+          strcmp(candidate->name, array_meta->limit_field) == 0 &&
+          candidate->offset <= component_meta->size - sizeof(u32))
+      {
+        limit = *(u32 *)((u8 *)component + candidate->offset);
+        break;
+      }
     }
-    segment = *current;
-    ldk_ui_push_id_u32(ui, i);
-    expanded = s_editor_inspector_group_expanded(
-        LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_LINE, owner_id, i);
-    snprintf(title, sizeof(title), "Segment %u", i);
-    next_expanded = ldk_ui_tree_node(ui, title,
-        expanded, 0u, LDK_UI_TREE_NODE_NONE);
-    if (next_expanded != expanded)
+  }
+  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+  ldk_ui_set_next_disabled(ui, !editable || count >= limit ||
+      count >= 65535u || ldk_editor_undo_has_active_change(&editor->undo));
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_PLUS_BUTTON];
+  {
+    if (ldk_ui_icon_button(ui, icon, NULL))
     {
-      s_editor_inspector_group_expanded_set(
-          LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_LINE, owner_id, i, next_expanded);
+      void *element = calloc(1, element_meta->size);
+      if (element)
+      {
+        if (array_meta->element_initialize)
+          array_meta->element_initialize(element);
+        if (!*array) *array = x_array_create(element_meta->size, 0u);
+        if (*array && x_array_add(*array, element) == XARRAY_OK)
+        {
+          if (s_editor_array_undo_record(editor, entity, component_type,
+                  array_index, count, element_meta, LDK_EDITOR_ARRAY_REMOVE,
+                  LDK_EDITOR_ARRAY_INSERT, element))
+          {
+            if (array_meta->on_change) array_meta->on_change(component);
+            ++count;
+          }
+          else
+            x_array_delete_at(*array, count);
+        }
+        free(element);
+      }
     }
-    if (!next_expanded)
+  }
+  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+  ldk_ui_set_next_disabled(ui, !editable || !count ||
+      ldk_editor_undo_has_active_change(&editor->undo));
+  icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DELETE];
+  if (ldk_ui_icon_button(ui, icon, NULL))
+  {
+    if (s_editor_array_undo_clear_record(editor, entity, component_type,
+            array_index, element_meta, *array))
     {
-      ldk_ui_pop_id(ui);
-      continue;
-    }
-
-    s_editor_inspector_row_group_depth = 1u;
-    changed |= s_editor_inspector_line_vec3_draw(editor, entity, i,
-        LDK_EDITOR_LINE_FIELD_START, "Start", &segment.pos_start,
-        &current->pos_start);
-    changed |= s_editor_inspector_line_vec3_draw(editor, entity, i,
-        LDK_EDITOR_LINE_FIELD_END, "End", &segment.pos_end,
-        &current->pos_end);
-    changed |= s_editor_inspector_line_color_draw(editor, entity, i,
-        LDK_EDITOR_LINE_FIELD_INITIAL_COLOR, "Initial Color",
-        &segment.initial_color, &current->initial_color);
-    changed |= s_editor_inspector_line_color_draw(editor, entity, i,
-        LDK_EDITOR_LINE_FIELD_FINAL_COLOR, "Final Color",
-        &segment.final_color, &current->final_color);
-    changed |= s_editor_inspector_line_float_draw(editor, entity, i,
-        LDK_EDITOR_LINE_FIELD_INITIAL_WIDTH, "Initial Width",
-        &segment.initial_width, &current->initial_width);
-    changed |= s_editor_inspector_line_float_draw(editor, entity, i,
-        LDK_EDITOR_LINE_FIELD_FINAL_WIDTH, "Final Width",
-        &segment.final_width, &current->final_width);
-    changed |= s_editor_inspector_line_float_draw(editor, entity, i,
-        LDK_EDITOR_LINE_FIELD_INITIAL_ALPHA, "Initial Alpha",
-        &segment.initial_alpha, &current->initial_alpha);
-    changed |= s_editor_inspector_line_float_draw(editor, entity, i,
-        LDK_EDITOR_LINE_FIELD_FINAL_ALPHA, "Final Alpha",
-        &segment.final_alpha, &current->final_alpha);
-    s_editor_inspector_row_group_depth = 0u;
-    if (changed && !ldk_line_segment_set(line, i, &segment))
-    {
-      ldki_editor_log_error(editor, "Invalid line segment parameters.");
-    }
-
-    ldk_editor_ui_row_begin(editor, "", 1u);
-    remove = ldk_ui_button_flat(ui, "Remove Segment");
-    ldk_ui_end_horizontal(ui);
-    if (remove)
-    {
-      ldk_editor_undo_discard_component(&editor->undo,
-          owner_id, LDK_COMPONENT_TYPE_LINE);
-      (void)ldk_line_segment_remove(line, i);
+      x_array_clear(*array);
+      if (array_meta->on_change) array_meta->on_change(component);
       s_editor_inspector_input_state_clear();
-      ldk_ui_pop_id(ui);
-      break;
+      count = 0u;
+    }
+  }
+  ldk_ui_end_horizontal(ui);
+  if (!next) { ldk_ui_pop_id(ui); return; }
+  for (u32 i = 0; i < count; ++i)
+  {
+    if (!*array) break;
+    void *element = x_array_get(*array, i);
+    if (!element) break;
+    u32 item_group = (array_index << 16) | i;
+    ldk_ui_push_id_u32(ui, i);
+    snprintf(title, sizeof(title), "Element %u", i);
+    bool item_open = s_editor_inspector_group_expanded(
+        LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_ARRAY, owner_id, item_group);
+    bool can_modify = editable &&
+        !ldk_editor_undo_has_active_change(&editor->undo);
+    ldk_ui_begin_horizontal(ui);
+    ldk_ui_set_next_weight(ui, 1.0f);
+    next = ldk_ui_tree_node(ui, title, item_open, 1u, LDK_UI_TREE_NODE_NONE);
+    if (next != item_open)
+      s_editor_inspector_group_expanded_set(
+          LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_ARRAY, owner_id, item_group, next);
+
+    ldk_ui_set_next_width(ui, ldk_ui_px(24.0f));
+    ldk_ui_set_next_disabled(ui, !can_modify || i == 0u);
+    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_UP_ARROW];
+    bool move_up = ldk_ui_icon_button(ui, icon, NULL);
+
+    ldk_ui_set_next_width(ui, ldk_ui_px(24.0f));
+    ldk_ui_set_next_disabled(ui, !can_modify || i + 1u >= count);
+    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DOWN_ARROW];
+    bool move_down = ldk_ui_icon_button(ui, icon, NULL);
+
+    ldk_ui_set_next_width(ui, ldk_ui_px(24.0f));
+    ldk_ui_set_next_disabled(ui, !can_modify);
+    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_MINUS_BUTTON];
+    bool remove = ldk_ui_icon_button(ui, icon, NULL);
+    ldk_ui_end_horizontal(ui);
+
+    if (next)
+    {
+      void *old_element = x_arena_alloc(ui->frame_arena, element_meta->size);
+      if (old_element) memcpy(old_element, element, element_meta->size);
+      s_editor_array_edit = (LDKInspectorArrayEditContext){entity,
+          component_type, array_index, i, element_meta, array_meta,
+          component, element};
+      for (u32 k = 0; k < element_meta->field_count; ++k)
+      {
+        s_editor_inspector_row_group_depth = 2u;
+        s_editor_inspector_field_draw(editor, entity, component_type,
+            element_meta, &element_meta->fields[k], element);
+      }
+      s_editor_inspector_row_group_depth = 0u;
+      memset(&s_editor_array_edit, 0, sizeof(s_editor_array_edit));
+      if (old_element && memcmp(old_element, element, element_meta->size) != 0 &&
+          array_meta->on_change)
+        array_meta->on_change(component);
+    }
+    if (can_modify)
+    {
+      if (move_up || move_down)
+      {
+        u32 a = move_up ? i - 1u : i;
+        if (s_editor_array_undo_record(editor, entity, component_type,
+                array_index, a, element_meta, LDK_EDITOR_ARRAY_SWAP,
+                LDK_EDITOR_ARRAY_SWAP_INVERSE, element))
+        {
+          u8 *lhs = x_array_get(*array, a);
+          u8 *rhs = x_array_get(*array, a + 1u);
+          for (size_t j = 0; j < element_meta->size; ++j)
+          {
+            u8 tmp = lhs[j]; lhs[j] = rhs[j]; rhs[j] = tmp;
+          }
+          if (array_meta->on_change) array_meta->on_change(component);
+          s_editor_inspector_input_state_clear();
+          ldk_ui_pop_id(ui);
+          break;
+        }
+      }
+      if (remove)
+      {
+        if (s_editor_array_undo_record(editor, entity, component_type,
+                array_index, i, element_meta, LDK_EDITOR_ARRAY_INSERT,
+                LDK_EDITOR_ARRAY_REMOVE, element))
+        {
+          x_array_delete_at(*array, i);
+          if (array_meta->on_change) array_meta->on_change(component);
+          s_editor_inspector_input_state_clear();
+          ldk_ui_pop_id(ui);
+          break;
+        }
+      }
     }
     ldk_ui_pop_id(ui);
   }
+  ldk_ui_pop_id(ui);
 }
 
 static void s_editor_inspector_add_component_draw(
@@ -5286,21 +5485,9 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
         u64 group_owner_id = fields_meta->type != 0u
             ? (u64)fields_meta->type
             : (u64)fields_type;
-        u32 original_line_max = component_type == LDK_COMPONENT_TYPE_LINE
-            ? ((LDKLineComponent *)component)->max_segments : 0u;
         s_editor_inspector_fields_draw(editor, entity, fields_type,
             fields_meta, fields_component,
             LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_COMPONENT, group_owner_id);
-        if (component_type == LDK_COMPONENT_TYPE_LINE)
-        {
-          LDKLineComponent *line = component;
-          if (!ldk_line_max_segments_set(line, line->max_segments))
-          {
-            line->max_segments = original_line_max;
-            ldki_editor_log_error(editor,
-                "Maximum line segments cannot be less than the active count.");
-          }
-        }
       }
       if (fields_type == LDK_COMPONENT_TYPE_MESH_SOURCE ||
           fields_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
@@ -5309,22 +5496,8 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       }
       if (editor->editor_state == LDK_EDITOR_STATE_STOPED)
       {
-        u32 line_count_before = component_type == LDK_COMPONENT_TYPE_LINE
-            ? ((const LDKLineComponent *)component)->segment_count : 0u;
         action_invoked = ldki_editor_callbacks_draw(game, ui,
             &editor->current_scene_systems, entity, 0u, component_type);
-        if (component_type == LDK_COMPONENT_TYPE_LINE &&
-            line_count_before != ((const LDKLineComponent *)component)->segment_count)
-        {
-          ldk_editor_undo_discard_component(&editor->undo,
-              ((u64)entity.version << 32) | entity.index,
-              LDK_COMPONENT_TYPE_LINE);
-        }
-      }
-      if (!action_invoked && component_type == LDK_COMPONENT_TYPE_LINE)
-      {
-        s_editor_inspector_line_segments_draw(
-            editor, entity, (LDKLineComponent *)component);
       }
       if (!action_invoked &&
           component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)

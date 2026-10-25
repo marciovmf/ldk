@@ -1,4 +1,5 @@
 #include <ldk_scene.h>
+#include <stdx/stdx_array.h>
 #include "ldk_scene_internal.h"
 #include <ldk_scene_systems.h>
 #include <inttypes.h>
@@ -1694,6 +1695,64 @@ static bool s_mesh_material_field_name(const char *name)
   return false;
 }
 
+/* Restore an XArray through its Comet element metadata. Build a new list
+ * completely before replacing the old one so invalid TML cannot corrupt it. */
+static bool s_apply_array_field(const TMLDocument *doc,
+    const TMLNode *fields, const LDKComponentMeta *component_meta,
+    const LDKComponentFieldMeta *field, void *component,
+    const LDKSceneEntityMap *entity_map)
+{
+  const TMLNode *node = s_node_find_child(doc, fields, field->name);
+  const LDKArrayFieldMeta *array_meta = field->array_meta;
+  const LDKComponentMeta *item_meta = array_meta && array_meta->element_meta
+      ? array_meta->element_meta() : NULL;
+  if (!node || !item_meta || !item_meta->size || !item_meta->field_count ||
+      field->offset > component_meta->size ||
+      sizeof(XArray *) > component_meta->size - field->offset) return false;
+  if (array_meta->limit_field)
+  {
+    for (u32 i = 0; i < component_meta->field_count; ++i)
+    {
+      const LDKComponentFieldMeta *limit = &component_meta->fields[i];
+      if (strcmp(limit->name, array_meta->limit_field) == 0 &&
+          limit->type == LDK_FIELD_U32 &&
+          limit->offset <= component_meta->size - sizeof(u32) &&
+          node->child_count > *(u32 *)((u8 *)component + limit->offset))
+        return false;
+    }
+  }
+  XArray *parsed = x_array_create(item_meta->size, node->child_count);
+  if (!parsed) return false;
+  for (u32 i = 0; i < node->child_count; ++i)
+  {
+    const TMLNode *item_node = tml_node_child_at(doc, node, i);
+    void *item = calloc(1, item_meta->size);
+    if (!item || !item_node)
+    {
+      free(item); x_array_destroy(parsed); return false;
+    }
+    if (array_meta->element_initialize) array_meta->element_initialize(item);
+    bool ok = true;
+    for (u32 j = 0; j < item_meta->field_count; ++j)
+    {
+      const LDKComponentFieldMeta *subfield = &item_meta->fields[j];
+      if (!ldk_scene_component_field_is_serializable(item_meta, subfield))
+        continue;
+      const TMLEntry *entry = s_node_find_entry(doc, item_node, subfield->name);
+      if (!entry || !s_apply_field_value(doc, entry,
+              entity_map, subfield, item)) { ok = false; break; }
+    }
+    if (ok) ok = x_array_add(parsed, item) == XARRAY_OK;
+    free(item);
+    if (!ok) { x_array_destroy(parsed); return false; }
+  }
+  XArray **destination = (XArray **)((u8 *)component + field->offset);
+  if (*destination) x_array_destroy(*destination);
+  *destination = parsed;
+  if (array_meta->on_change) array_meta->on_change(component);
+  return true;
+}
+
 static bool s_apply_component_fields(const TMLDocument *doc,
     const TMLNode *fields_node, const LDKSceneEntityMap *map,
     const LDKComponentMeta *meta, void *component, LDKSceneResult *result)
@@ -1759,6 +1818,18 @@ static bool s_apply_component_fields(const TMLDocument *doc,
     }
   }
 
+  for (u32 i = 0; i < meta->field_count; ++i)
+  {
+    const LDKComponentFieldMeta *field = &meta->fields[i];
+    if (field->type != LDK_FIELD_ARRAY ||
+        !ldk_scene_component_field_is_serializable(meta, field)) continue;
+    if (!s_node_find_child(doc, fields_node, field->name)) continue;
+    if (!s_apply_array_field(doc, fields_node, meta, field,
+            component, map))
+      s_recoverable_error_format(
+          "invalid component array; keeping defaults: %s.%s",
+          meta->name, field->name);
+  }
   return true;
 }
 
@@ -1807,72 +1878,6 @@ static bool s_apply_instances(const TMLDocument *doc, const TMLNode *fields,
     s_result_error(result, "failed to set mesh instances");
   }
   return ok;
-}
-
-/* Lines are authored as ordered segment records, not reflected pointers.
- * Their transient mesh asset is regenerated after loading. */
-static bool s_apply_line_segments(const TMLDocument *doc,
-    const TMLNode *fields, LDKLineComponent *line, LDKSceneResult *result)
-{
-  const TMLNode *node =
-      fields ? s_node_find_child(doc, fields, "segments") : NULL;
-  if (!node)
-  {
-    return true;
-  }
-  if (node->child_count > line->max_segments)
-  {
-    s_result_error(result, "line segment count exceeds max_segments");
-    return false;
-  }
-  LDKLineSegment *parsed = node->child_count
-      ? calloc(node->child_count, sizeof(*parsed)) : NULL;
-  if (node->child_count && !parsed)
-  {
-    s_result_error(result, "failed to allocate line segments");
-    return false;
-  }
-  for (u32 i = 0u; i < node->child_count; ++i)
-  {
-    const TMLNode *item = tml_node_child_at(doc, node, i);
-    LDKLineSegment *segment = &parsed[i];
-    float start[3], end[3];
-    *segment = ldk_line_segment_default();
-    if (!item ||
-        !s_read_f32_array(doc, s_node_find_entry(doc, item, "pos_start"),
-            start, 3u) ||
-        !s_read_f32_array(doc, s_node_find_entry(doc, item, "pos_end"),
-            end, 3u) ||
-        !s_node_get_u32(doc, item, "initial_color", &segment->initial_color) ||
-        !s_node_get_u32(doc, item, "final_color", &segment->final_color) ||
-        !s_entry_get_float(s_node_find_entry(doc, item, "initial_width"),
-            &segment->initial_width) ||
-        !s_entry_get_float(s_node_find_entry(doc, item, "final_width"),
-            &segment->final_width) ||
-        !s_entry_get_float(s_node_find_entry(doc, item, "initial_alpha"),
-            &segment->initial_alpha) ||
-        !s_entry_get_float(s_node_find_entry(doc, item, "final_alpha"),
-            &segment->final_alpha))
-    {
-      free(parsed);
-      s_result_error(result, "invalid line segment values");
-      return false;
-    }
-    segment->pos_start = vec3_make(start[0], start[1], start[2]);
-    segment->pos_end = vec3_make(end[0], end[1], end[2]);
-  }
-  ldk_line_clear(line);
-  for (u32 i = 0u; i < node->child_count; ++i)
-  {
-    if (!ldk_line_segment_add(line, &parsed[i], NULL))
-    {
-      free(parsed);
-      s_result_error(result, "invalid line segment or allocation failure");
-      return false;
-    }
-  }
-  free(parsed);
-  return true;
 }
 
 static bool s_apply_material_slot(const TMLDocument *doc,
@@ -2178,14 +2183,6 @@ static bool s_apply_entity_components(const TMLDocument *doc,
       if (!s_apply_component_fields(
               doc, fields_node, map, meta, component, result))
       {
-        continue;
-      }
-      if (component_type == LDK_COMPONENT_TYPE_LINE &&
-          !s_apply_line_segments(
-              doc, fields_node, (LDKLineComponent *)component, NULL))
-      {
-        s_recoverable_error(
-            "failed to restore line segments; keeping available values");
         continue;
       }
       if (component_type == LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE &&
@@ -3570,6 +3567,41 @@ static bool s_write_materials(LDKSceneSaveContext *context,
   return true;
 }
 
+/* Standard scene representation for an XArray of reflected structs. */
+static bool s_write_array_field(LDKSceneSaveContext *context,
+    const LDKComponentFieldMeta *field, const void *component, bool symbolic)
+{
+  const LDKArrayFieldMeta *array_meta = field->array_meta;
+  const LDKComponentMeta *item_meta = array_meta && array_meta->element_meta
+      ? array_meta->element_meta() : NULL;
+  if (!item_meta || !item_meta->field_count) return false;
+  XArray *const *array = (XArray *const *)((const u8 *)component + field->offset);
+  u32 count = *array ? x_array_count(*array) : 0u;
+  s_append_indent(context->out, 6u);
+  x_strbuilder_append_format(context->out, "%s:\n", field->name);
+  for (u32 i = 0u; i < count; ++i)
+  {
+    const void *item = x_array_get(*array, i);
+    if (!item) return false;
+    bool first = true;
+    for (u32 j = 0u; j < item_meta->field_count; ++j)
+    {
+      const LDKComponentFieldMeta *subfield = &item_meta->fields[j];
+      if (!ldk_scene_component_field_is_serializable(item_meta, subfield))
+        continue;
+      s_append_indent(context->out, first ? 7u : 8u);
+      x_strbuilder_append_format(context->out, "%s%s: ",
+          first ? "- " : "", subfield->name);
+      if (!s_write_field_value(context->out, &context->map,
+              subfield, item, symbolic)) return false;
+      x_strbuilder_append_char(context->out, '\n');
+      first = false;
+    }
+    if (first) return false;
+  }
+  return true;
+}
+
 static bool s_write_component(LDKSceneSaveContext *context,
     LDKEntity entity, u32 component_type, bool *out_wrote_any)
 {
@@ -3631,6 +3663,21 @@ static bool s_write_component(LDKSceneSaveContext *context,
       continue;
     }
 
+    if (field->type == LDK_FIELD_ARRAY)
+    {
+      if (!field->array_meta ||
+          !s_write_array_field(context, field, component,
+              !s_component_uses_engine_metadata(meta)))
+      {
+        s_result_error_format(context->result,
+            "failed to serialize component array: %s.%s", meta->name,
+            field->name);
+        return false;
+      }
+      wrote_any_field = true;
+      continue;
+    }
+
     s_append_indent(context->out, 6u);
     x_strbuilder_append_format(context->out, "%s: ", field->name);
 
@@ -3683,50 +3730,6 @@ static bool s_write_component(LDKSceneSaveContext *context,
     wrote_any_field = true;
   }
 
-  if (component_type == LDK_COMPONENT_TYPE_LINE)
-  {
-    const LDKLineComponent *line = component;
-    s_append_indent(context->out, 6u);
-    x_strbuilder_append(context->out, "segments:\n");
-    for (u32 index = 0; index < line->segment_count; ++index)
-    {
-      const LDKLineSegment *segment = ldk_line_segment_get(line, index);
-      if (!segment)
-      {
-        s_result_error(context->result, "invalid line segment during save");
-        return false;
-      }
-      s_append_indent(context->out, 7u);
-      x_strbuilder_append_format(context->out,
-          "- pos_start: %#.9g, %#.9g, %#.9g\n",
-          (double)segment->pos_start.x, (double)segment->pos_start.y,
-          (double)segment->pos_start.z);
-      s_append_indent(context->out, 8u);
-      x_strbuilder_append_format(context->out,
-          "pos_end: %#.9g, %#.9g, %#.9g\n",
-          (double)segment->pos_end.x, (double)segment->pos_end.y,
-          (double)segment->pos_end.z);
-      s_append_indent(context->out, 8u);
-      x_strbuilder_append_format(context->out,
-          "initial_color: %u\n", segment->initial_color);
-      s_append_indent(context->out, 8u);
-      x_strbuilder_append_format(context->out,
-          "final_color: %u\n", segment->final_color);
-      s_append_indent(context->out, 8u);
-      x_strbuilder_append_format(context->out,
-          "initial_width: %#.9g\n", (double)segment->initial_width);
-      s_append_indent(context->out, 8u);
-      x_strbuilder_append_format(context->out,
-          "final_width: %#.9g\n", (double)segment->final_width);
-      s_append_indent(context->out, 8u);
-      x_strbuilder_append_format(context->out,
-          "initial_alpha: %#.9g\n", (double)segment->initial_alpha);
-      s_append_indent(context->out, 8u);
-      x_strbuilder_append_format(context->out,
-          "final_alpha: %#.9g\n", (double)segment->final_alpha);
-    }
-    wrote_any_field = true;
-  }
 
   if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
   {

@@ -48,37 +48,6 @@ static bool s_line_segment_valid(const LDKLineSegment *segment)
       segment->final_alpha >= 0.0f && segment->final_alpha <= 1.0f;
 }
 
-static bool s_line_segments_reserve(LDKLineComponent *line, u32 count)
-{
-  if (count <= line->segment_capacity)
-  {
-    return true;
-  }
-  if (count > line->max_segments || !s_line_max_valid(line->max_segments))
-  {
-    return false;
-  }
-  u32 capacity = line->segment_capacity ? line->segment_capacity : 8u;
-  while (capacity < count)
-  {
-    if (capacity > line->max_segments / 2u)
-    {
-      capacity = line->max_segments;
-      break;
-    }
-    capacity *= 2u;
-  }
-  LDKLineSegment *segments = realloc(
-      line->segments, (size_t)capacity * sizeof(*segments));
-  if (!segments)
-  {
-    return false;
-  }
-  line->segments = segments;
-  line->segment_capacity = capacity;
-  return true;
-}
-
 LDKLineSegment ldk_line_segment_default(void)
 {
   LDKLineSegment segment = {0};
@@ -91,12 +60,25 @@ LDKLineSegment ldk_line_segment_default(void)
   return segment;
 }
 
+void ldk_line_segment_initialize(void *element)
+{
+  if (element) *(LDKLineSegment *)element = ldk_line_segment_default();
+}
+
+void ldk_line_segments_changed(void *component)
+{
+  if (component) ((LDKLineComponent *)component)->dirty = true;
+}
+
+u32 ldk_line_segment_count(const LDKLineComponent *line)
+{
+  return line && line->segments ? x_array_count(line->segments) : 0u;
+}
+
 bool ldk_line_max_segments_set(LDKLineComponent *line, u32 maximum)
 {
-  if (!line || !s_line_max_valid(maximum) || maximum < line->segment_count)
-  {
-    return false;
-  }
+  if (!line || !s_line_max_valid(maximum) ||
+      maximum < ldk_line_segment_count(line)) return false;
   line->max_segments = maximum;
   return true;
 }
@@ -105,32 +87,30 @@ bool ldk_line_segment_add(LDKLineComponent *line,
     const LDKLineSegment *segment, u32 *out_index)
 {
   if (!line || !s_line_segment_valid(segment) ||
-      line->segment_count >= line->max_segments ||
-      !s_line_segments_reserve(line, line->segment_count + 1u))
+      ldk_line_segment_count(line) >= line->max_segments) return false;
+  if (!line->segments)
   {
+    line->segments = x_array_LDKLineSegment_create(0);
+    if (!line->segments) return false;
+  }
+  u32 index = ldk_line_segment_count(line);
+  if (x_array_LDKLineSegment_add_ptr(line->segments, segment) != XARRAY_OK)
     return false;
-  }
-  u32 index = line->segment_count++;
-  line->segments[index] = *segment;
+  if (out_index) *out_index = index;
   line->dirty = true;
-  if (out_index)
-  {
-    *out_index = index;
-  }
   return true;
 }
 
 bool ldk_line_segment_set(LDKLineComponent *line, u32 index,
     const LDKLineSegment *segment)
 {
-  if (!line || index >= line->segment_count ||
-      !s_line_segment_valid(segment) || !line->segments)
+  LDKLineSegment *existing = line && line->segments
+      ? x_array_LDKLineSegment_get(line->segments, index) : NULL;
+  if (!line || index >= ldk_line_segment_count(line) ||
+      !s_line_segment_valid(segment) || !existing) return false;
+  if (memcmp(existing, segment, sizeof(*segment)) != 0)
   {
-    return false;
-  }
-  if (memcmp(&line->segments[index], segment, sizeof(*segment)) != 0)
-  {
-    line->segments[index] = *segment;
+    *existing = *segment;
     line->dirty = true;
   }
   return true;
@@ -139,69 +119,28 @@ bool ldk_line_segment_set(LDKLineComponent *line, u32 index,
 const LDKLineSegment *ldk_line_segment_get(
     const LDKLineComponent *line, u32 index)
 {
-  return line && line->segments && index < line->segment_count
-      ? &line->segments[index]
-      : NULL;
+  if (!line || !line->segments || index >= ldk_line_segment_count(line))
+    return NULL;
+  return x_array_LDKLineSegment_get_const(line->segments, index);
 }
 
 bool ldk_line_segment_remove(LDKLineComponent *line, u32 index)
 {
-  if (!line || index >= line->segment_count || !line->segments)
-  {
+  if (!line || !line->segments || index >= ldk_line_segment_count(line))
     return false;
-  }
-  --line->segment_count;
-  if (index < line->segment_count)
-  {
-    memmove(&line->segments[index], &line->segments[index + 1u],
-        (size_t)(line->segment_count - index) * sizeof(*line->segments));
-  }
+  x_array_delete_at(line->segments, index);
   line->dirty = true;
   return true;
 }
 
 void ldk_line_clear(LDKLineComponent *line)
 {
-  if (line && line->segment_count)
+  if (line && ldk_line_segment_count(line))
   {
-    line->segment_count = 0;
+    x_array_clear(line->segments);
     line->dirty = true;
   }
 }
-
-u32 ldk_line_segment_count(const LDKLineComponent *line)
-{
-  return line ? line->segment_count : 0u;
-}
-
-#ifdef LDK_EDITOR
-void ldk_line_editor_add_segment(LDKEntity entity, float dt)
-{
-  LDKLineComponent *line =
-      ldk_ecs_component_get(entity, LDK_COMPONENT_TYPE_LINE);
-  LDKLineSegment segment = ldk_line_segment_default();
-  (void)dt;
-  if (!line || line->segment_count >= line->max_segments)
-  {
-    return;
-  }
-  if (line->segment_count)
-  {
-    segment.pos_start = line->segments[line->segment_count - 1u].pos_end;
-  }
-  segment.pos_end = vec3_add(segment.pos_start,
-      vec3_make(1.0f, 0.0f, 0.0f));
-  (void)ldk_line_segment_add(line, &segment, NULL);
-}
-
-void ldk_line_editor_clear_segments(LDKEntity entity, float dt)
-{
-  LDKLineComponent *line =
-      ldk_ecs_component_get(entity, LDK_COMPONENT_TYPE_LINE);
-  (void)dt;
-  ldk_line_clear(line);
-}
-#endif
 
 #ifdef LDK_ENGINE
 static u32 s_line_vertex_color(u32 color, float alpha)
@@ -295,14 +234,14 @@ bool ldk_line_mesh_sync(LDKLineComponent *line, LDKAssetManager *assets)
   {
     return false;
   }
-  if (!line->segment_count)
+  if (!ldk_line_segment_count(line))
   {
     /* Keep the mesh buffers, but don't render them while there are no lines. */
     line->dirty = false;
     return true;
   }
   if (!line->segments || !s_line_max_valid(line->max_segments) ||
-      line->segment_count > line->max_segments)
+      ldk_line_segment_count(line) > line->max_segments)
   {
     return false;
   }
@@ -347,20 +286,20 @@ bool ldk_line_mesh_sync(LDKLineComponent *line, LDKAssetManager *assets)
   else
   {
     data = ldk_asset_manager_mesh_get(assets, line->source.source_asset);
-    if (!data || !s_line_mesh_reserve(line, data, line->segment_count))
+    if (!data || !s_line_mesh_reserve(line, data, ldk_line_segment_count(line)))
     {
       return false;
     }
   }
 
-  for (u32 i = 0; i < line->segment_count; ++i)
+  for (u32 i = 0; i < ldk_line_segment_count(line); ++i)
   {
-    s_line_segment_build(&line->segments[i],
+    s_line_segment_build(x_array_LDKLineSegment_get(line->segments, i),
         &data->mesh.vertices[i * LDK_LINE_VERTICES_PER_SEGMENT],
         &data->mesh.indices[i * LDK_LINE_INDICES_PER_SEGMENT], i);
   }
-  data->mesh.vertex_count = line->segment_count * LDK_LINE_VERTICES_PER_SEGMENT;
-  data->mesh.index_count = line->segment_count * LDK_LINE_INDICES_PER_SEGMENT;
+  data->mesh.vertex_count = ldk_line_segment_count(line) * LDK_LINE_VERTICES_PER_SEGMENT;
+  data->mesh.index_count = ldk_line_segment_count(line) * LDK_LINE_INDICES_PER_SEGMENT;
   data->mesh.has_tangents = false;
   line->source.dirty = true;
   line->dirty = false;
@@ -379,42 +318,30 @@ static bool s_line_attach(LDKEntityRegistry *entities,
   }
 
   u32 maximum = initial ? initial->max_segments : LDK_LINE_DEFAULT_MAX_SEGMENTS;
-  u32 count = initial ? initial->segment_count : 0u;
-  if (!s_line_max_valid(maximum) || count > maximum ||
-      (count && (!initial->segments || !maximum)))
+  u32 count = initial ? ldk_line_segment_count(initial) : 0u;
+  if (!s_line_max_valid(maximum) || count > maximum) return false;
+  XArray_LDKLineSegment *segments = x_array_LDKLineSegment_create(count);
+  if (!segments) return false;
+  for (u32 i = 0; i < count; ++i)
   {
-    return false;
-  }
-  LDKLineSegment *segments = NULL;
-  if (count)
-  {
-    segments = malloc((size_t)count * sizeof(*segments));
-    if (!segments)
+    const LDKLineSegment *item = ldk_line_segment_get(initial, i);
+    if (!s_line_segment_valid(item) ||
+        x_array_LDKLineSegment_add_ptr(segments, item) != XARRAY_OK)
     {
+      x_array_destroy(segments);
       return false;
     }
-    for (u32 i = 0; i < count; ++i)
-    {
-      if (!s_line_segment_valid(&initial->segments[i]))
-      {
-        free(segments);
-        return false;
-      }
-    }
-    memcpy(segments, initial->segments, (size_t)count * sizeof(*segments));
   }
 
   LDKComponentDesc base = ldk_mesh_source_component_desc(0);
   if (!base.attach(entities, components, entity, &line->source, index,
           NULL, user))
   {
-    free(segments);
+    x_array_destroy(segments);
     return false;
   }
   line->max_segments = maximum;
-  line->segment_count = count;
   line->segments = segments;
-  line->segment_capacity = count;
   line->mesh_capacity = 0u;
   line->dirty = true;
   ldk_material_desc_defaults(
@@ -442,10 +369,8 @@ static void s_line_destroy(LDKEntityRegistry *entities,
   {
     ldk_asset_manager_mesh_unload(assets, asset);
   }
-  free(line->segments);
+  x_array_destroy(line->segments);
   line->segments = NULL;
-  line->segment_count = 0u;
-  line->segment_capacity = 0u;
   line->mesh_capacity = 0u;
   line->source.source_asset = ldk_asset_mesh_null();
 }

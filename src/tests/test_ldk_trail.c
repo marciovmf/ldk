@@ -32,35 +32,35 @@ static int test_trail_record_expire(void)
   LDKTrailComponent trail = ldk_trail_component_make_default();
   ASSERT_TRUE(ldk_line_max_segments_set(&line, 3u));
   ASSERT_TRUE(ldk_trail_update(&trail, &line, s_translation(0, 0, 0), 0.0f));
-  ASSERT_EQ(line.segment_count, 0u);
+  ASSERT_EQ(ldk_line_segment_count(&line), 0u);
   ASSERT_EQ(trail.point_count, 1u);
 
   ASSERT_TRUE(ldk_trail_update(&trail, &line, s_translation(1, 0, 0), 0.1f));
-  ASSERT_EQ(line.segment_count, 1u);
+  ASSERT_EQ(ldk_line_segment_count(&line), 1u);
   const LDKLineSegment *segment = ldk_line_segment_get(&line, 0u);
   ASSERT_TRUE(segment != NULL);
   ASSERT_TRUE(fabsf(segment->pos_start.x + 1.0f) < 0.001f);
   ASSERT_TRUE(fabsf(segment->pos_end.x) < 0.001f);
 
   ASSERT_TRUE(ldk_trail_update(&trail, &line, s_translation(2, 0, 0), 0.1f));
-  ASSERT_EQ(line.segment_count, 2u);
+  ASSERT_EQ(ldk_line_segment_count(&line), 2u);
   ASSERT_TRUE(ldk_trail_update(&trail, &line, s_translation(3, 0, 0), 0.1f));
-  ASSERT_EQ(line.segment_count, 3u);
+  ASSERT_EQ(ldk_line_segment_count(&line), 3u);
   ASSERT_TRUE(ldk_trail_update(&trail, &line, s_translation(4, 0, 0), 0.1f));
-  ASSERT_EQ(line.segment_count, 3u);
+  ASSERT_EQ(ldk_line_segment_count(&line), 3u);
   ASSERT_EQ(trail.point_count, 4u);
 
   ASSERT_TRUE(ldk_trail_update(&trail, &line, s_translation(4, 0, 0), 1.1f));
-  ASSERT_EQ(line.segment_count, 0u);
+  ASSERT_EQ(ldk_line_segment_count(&line), 0u);
   ASSERT_EQ(trail.point_count, 1u);
   ASSERT_TRUE(ldk_trail_update(&trail, &line, s_translation(5, 0, 0), 0.1f));
-  ASSERT_EQ(line.segment_count, 1u);
+  ASSERT_EQ(ldk_line_segment_count(&line), 1u);
   segment = ldk_line_segment_get(&line, 0u);
   ASSERT_TRUE(fabsf(segment->pos_start.x + 1.0f) < 0.001f);
 
   ldk_trail_clear(&trail, &line);
   ASSERT_EQ(trail.point_count, 0u);
-  ASSERT_EQ(line.segment_count, 0u);
+  ASSERT_EQ(ldk_line_segment_count(&line), 0u);
   free(trail.points);
   free(line.segments);
   return 0;
@@ -75,9 +75,9 @@ static int test_trail_distance_disable_and_parameters(void)
   trail.local_offset = (Vec3){0.0f, 1.0f, 0.0f};
   ASSERT_TRUE(ldk_trail_update(&trail, &line, s_translation(0, 0, 0), 0.0f));
   ASSERT_TRUE(ldk_trail_update(&trail, &line, s_translation(1, 0, 0), 0.1f));
-  ASSERT_EQ(line.segment_count, 0u);
+  ASSERT_EQ(ldk_line_segment_count(&line), 0u);
   ASSERT_TRUE(ldk_trail_update(&trail, &line, s_translation(2, 0, 0), 0.1f));
-  ASSERT_EQ(line.segment_count, 1u);
+  ASSERT_EQ(ldk_line_segment_count(&line), 1u);
   const LDKLineSegment *seg = ldk_line_segment_get(&line, 0u);
   ASSERT_TRUE(fabsf(seg->pos_start.y - 1.0f) < 0.001f);
   ASSERT_TRUE(fabsf(seg->final_width - 0.1f) < 0.001f);
@@ -85,10 +85,10 @@ static int test_trail_distance_disable_and_parameters(void)
   trail.enabled = false;
   ASSERT_TRUE(ldk_trail_update(&trail, &line, s_translation(3, 0, 0), 0.1f));
   ASSERT_EQ(trail.point_count, 0u);
-  ASSERT_EQ(line.segment_count, 0u);
+  ASSERT_EQ(ldk_line_segment_count(&line), 0u);
   trail.enabled = true;
   ASSERT_TRUE(ldk_trail_update(&trail, &line, s_translation(20, 0, 0), 0.1f));
-  ASSERT_EQ(line.segment_count, 0u);
+  ASSERT_EQ(ldk_line_segment_count(&line), 0u);
   free(trail.points);
   free(line.segments);
   return 0;

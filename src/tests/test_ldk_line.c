@@ -1,4 +1,5 @@
 #if defined(LDK_SHAREDLIB)
+#define X_IMPL_ARRAY
 #define X_IMPL_HPOOL
 #define X_IMPL_FILESYSTEM
 #define X_IMPL_STRING
@@ -55,7 +56,7 @@ static int test_line_segment_api(void)
   ASSERT_TRUE(ldk_line_segment_get(&line, 0) == NULL);
   ASSERT_TRUE(ldk_line_max_segments_set(&line, 0));
   ASSERT_FALSE(ldk_line_segment_add(&line, &first, NULL));
-  free(line.segments);
+  if (line.segments) x_array_destroy(line.segments);
   return 0;
 }
 
@@ -111,7 +112,7 @@ static int test_line_mesh_lifecycle(void)
   ASSERT_EQ(data->mesh.vertex_count, 16u);
   ASSERT_EQ(data->mesh.index_count, 48u);
 
-  free(line.segments);
+  if (line.segments) x_array_destroy(line.segments);
   ldk_asset_manager_mesh_unload(&assets, line.source.source_asset);
   ldk_asset_manager_terminate(&assets);
   ldk_asset_source_terminate(&source);

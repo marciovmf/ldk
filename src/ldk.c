@@ -2119,7 +2119,7 @@ void ldk_engine_frame(void)
 
         mesh->renderer = &e->renderer;
         if (line && (!ldk_line_mesh_sync(line, &e->asset_manager) ||
-                        !line->segment_count))
+                        !ldk_line_segment_count(line)))
         {
           continue;
         }

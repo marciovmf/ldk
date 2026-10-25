@@ -135,7 +135,7 @@ static bool s_trail_line_sync(LDKTrailComponent *trail,
         trail->initial_alpha, trail->final_alpha, ta);
     segment.final_alpha = s_trail_lerp(
         trail->initial_alpha, trail->final_alpha, tb);
-    if (i < line->segment_count)
+    if (i < ldk_line_segment_count(line))
     {
       if (!ldk_line_segment_set(line, i, &segment))
       {
@@ -147,9 +147,9 @@ static bool s_trail_line_sync(LDKTrailComponent *trail,
       return false;
     }
   }
-  while (line->segment_count > count)
+  while (ldk_line_segment_count(line) > count)
   {
-    if (!ldk_line_segment_remove(line, line->segment_count - 1u))
+    if (!ldk_line_segment_remove(line, ldk_line_segment_count(line) - 1u))
     {
       return false;
     }

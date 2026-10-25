@@ -10,6 +10,7 @@
 #define LDK_LINE_H
 
 #include <component/ldk_mesh_source.h>
+#include <stdx/stdx_array.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,13 +22,26 @@ extern "C" {
     Vec3 pos_start;
     Vec3 pos_end;
     /* RGBA colors in 0xRRGGBBAA format, multiplied by the alpha fields. */
+    //@inspect widget=COLOR
     u32 initial_color;
+    //@inspect widget=COLOR
     u32 final_color;
+    //@inspect min=0 max=1000
     float initial_width;
+    //@inspect min=0 max=1000
     float final_width;
+    //@inspect slider min=0 max=1
     float initial_alpha;
+    //@inspect slider min=0 max=1
     float final_alpha;
   } LDKLineSegment;
+
+  X_ARRAY_TYPE(LDKLineSegment)
+
+  /** Initialize a newly added segment with useful visible defaults. */
+  LDK_API void ldk_line_segment_initialize(void *segment);
+  /** Notify generated mesh cache when an Inspector array element changes. */
+  LDK_API void ldk_line_segments_changed(void *component);
 
   /** @group ldk.component.line */
   //@component
@@ -36,12 +50,8 @@ extern "C" {
     /* Maximum number of active segments. Zero is allowed. */
     //@inspect min=0 max=4096
     u32 max_segments;
-    //@inspect readonly runtime
-    u32 segment_count;
-    //@inspect hidden runtime
-    LDKLineSegment *segments;
-    //@inspect hidden runtime
-    u32 segment_capacity;
+    //@inspect element_type=LDKLineSegment initializer=ldk_line_segment_initialize on_change=ldk_line_segments_changed limit_field=max_segments
+    XArray_LDKLineSegment *segments;
     //@inspect hidden runtime
     u32 mesh_capacity;
     /* Embedded mesh source, not a separate ECS component. */
@@ -77,15 +87,6 @@ extern "C" {
 
   /** Count active segments. */
   LDK_API u32 ldk_line_segment_count(const LDKLineComponent *line);
-
-#ifdef LDK_EDITOR
-  /* Manual actions appear in the Inspector when this component is selected. */
-  //@editor_callback component=LDKLineComponent flags=Manual label=Add_Segment
-  LDK_API void ldk_line_editor_add_segment(LDKEntity entity, float dt);
-
-  //@editor_callback component=LDKLineComponent flags=Manual label=Clear_Segments
-  LDK_API void ldk_line_editor_clear_segments(LDKEntity entity, float dt);
-#endif
 
 #ifdef LDK_ENGINE
   /** Convert dirty segments into the private mesh asset before rendering. */
