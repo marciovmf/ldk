@@ -11,6 +11,7 @@
 #include <editor/ldk_editor.h>
 #include "ldk_editor_atlas.h"
 #include "ldk_editor_theme.h"
+#include "ldk_editor_undo.h"
 #include "../ldk_stdx.h"
 
 #define LDK_EDITOR_COLOR_FILE 0xFFFFFFFF
@@ -295,6 +296,15 @@ typedef struct LDKEditorContext
 {
   LDKWindow window;
   LDKUIContext ui;
+  LDKEditorUndo undo;
+  /* Scene changes not represented by the undo history. */
+  bool scene_dirty;
+  bool scene_load_internal;
+  size_t scene_undo_position_seen;
+  LDKUIId undo_widget_id;
+  LDKEditorUndoKey undo_row_key;
+  bool undo_row_seen;
+  bool undo_end_requested;
   float ui_frame_scale;
   float inspector_label_width;
   float project_label_width;
@@ -389,6 +399,11 @@ typedef struct LDKEditorContext
   u32 file_association_count;
 } LDKEditorContext;
 
+void *ldki_editor_undo_property_resolve(
+    void *user, LDKEditorUndoKey key, LDKFieldType type, size_t size);
+bool ldki_editor_undo_property_apply(void *user, LDKEditorUndoKey key,
+    LDKFieldType type, const void *value, size_t size);
+void ldki_editor_undo_frame_end(LDKEditorContext *editor);
 void ldki_editor_menubar_show(LDKEditorContext *editor);
 void ldki_editor_toolbar_show(LDKEditorContext *editor);
 void ldki_editor_status_show(LDKEditorContext *editor);
@@ -434,6 +449,8 @@ bool ldki_editor_package_build_request(
 bool ldki_editor_project_release_request(LDKEditorContext *editor);
 bool ldki_editor_project_build_cancel_request(LDKEditorContext *editor);
 void ldki_editor_register_commands(LDKEditorContext *editor);
+void ldki_editor_scene_dirty_set(LDKEditorContext *editor, bool dirty);
+bool ldki_editor_scene_discard_confirm(LDKEditorContext *editor);
 void ldki_editor_confirm_quit(LDKEditorContext *editor);
 bool ldki_editor_show_open_project_dialog(
     LDKEditorContext *editor, XFSPath *project_path_out);

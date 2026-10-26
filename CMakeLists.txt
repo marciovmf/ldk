@@ -852,6 +852,8 @@ if (OPTION_BUILD_EDITOR)
     src/editor/ldk_app_editor.c
     include/editor/ldk_editor.h
     src/editor/ldk_editor_ui.c
+    src/editor/ldk_editor_undo.h
+    src/editor/ldk_editor_undo.c
     src/editor/ldk_editor_settings.h
     src/editor/ldk_editor_settings.c
     src/editor/ldk_editor_project_options.h
@@ -1014,6 +1016,8 @@ endif()
 
 # --- TESTS ------------------------------------------------------------------
 if (OPTION_BUILD_TESTS AND TARGET ldk)
+  ldk_test_build(TARGET test_ldk_editor_undo SOURCES src/tests/test_ldk_editor_undo.c src/editor/ldk_editor_undo.c)
+  target_include_directories(test_ldk_editor_undo PRIVATE "${LDK_ROOT_DIR}/src/editor")
   ldk_test_build(TARGET test_stdx_hashtable SOURCES src/tests/test_stdx_hashtable.c)
   ldk_test_build(TARGET test_module_entity SOURCES src/tests/test_ldk_entity.c)
   ldk_test_build(TARGET test_module_component SOURCES src/tests/test_ldk_component.c)

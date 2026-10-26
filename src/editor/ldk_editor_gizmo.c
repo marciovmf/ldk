@@ -1978,6 +1978,13 @@ void ldki_editor_gizmo_update(LDKEditorContext *editor)
   LDKMouseState mouse;
   bool update_ok;
   bool released;
+  Vec3 initial_position = {0};
+  Vec3 initial_scale = {0};
+  Quat initial_rotation = {0};
+  Vec3 final_position = {0};
+  Vec3 final_scale = {0};
+  Quat final_rotation = {0};
+  bool has_initial;
 
   if (editor == NULL)
   {
@@ -2011,6 +2018,9 @@ void ldki_editor_gizmo_update(LDKEditorContext *editor)
     return;
   }
 
+  has_initial = s_editor_gizmo_target_local_trs_get(
+      &target, &initial_position, &initial_rotation, &initial_scale);
+
   if (editor->gizmo.drag_mode == LDK_EDITOR_GIZMO_MODE_TRANSLATE)
   {
     update_ok =
@@ -2034,6 +2044,15 @@ void ldki_editor_gizmo_update(LDKEditorContext *editor)
   {
     s_editor_gizmo_drag_end(editor);
     return;
+  }
+
+  if (has_initial && s_editor_gizmo_target_local_trs_get(&target,
+          &final_position, &final_rotation, &final_scale) &&
+      (memcmp(&initial_position, &final_position, sizeof(Vec3)) != 0 ||
+          memcmp(&initial_rotation, &final_rotation, sizeof(Quat)) != 0 ||
+          memcmp(&initial_scale, &final_scale, sizeof(Vec3)) != 0))
+  {
+    ldki_editor_scene_dirty_set(editor, true);
   }
 
   if (released)

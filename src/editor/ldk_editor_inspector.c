@@ -6,6 +6,7 @@
 #include <module/ldk_asset_manager.h>
 #include "ldk_editor_color_picker.h"
 #include "ldk_editor_internal.h"
+#include "ldk_editor_ui.h"
 #include "ldk_editor_scene_ops.h"
 #include "ldk_ui_drag_n_drop.h"
 #include "module/ldk_entity.h"
@@ -212,13 +213,6 @@ typedef struct LDKEditorInspectorFlagsState
   bool selector_open;
 } LDKEditorInspectorFlagsState;
 
-typedef struct LDKEditorInspectorColumnState
-{
-  float drag_start_width;
-  i32 drag_start_x;
-  bool dragging;
-} LDKEditorInspectorColumnState;
-
 typedef struct LDKEditorInspectorCollapsedGroup
 {
   u64 owner_id;
@@ -236,7 +230,6 @@ static LDKEditorInspectorInputState s_editor_inspector_input_state = {0};
 static LDKEditorInspectorAreaState s_editor_inspector_area_state = {0};
 static LDKEditorInspectorFlagsState s_editor_inspector_flags_state = {0};
 static LDKEditorInspectorEulerState s_editor_inspector_euler_state = {0};
-static LDKEditorInspectorColumnState s_editor_inspector_column_state = {0};
 static LDKEditorInspectorCollapsedGroup *s_editor_inspector_collapsed_groups = NULL;
 static u32 s_editor_inspector_collapsed_group_count = 0u;
 static u32 s_editor_inspector_collapsed_group_capacity = 0u;
@@ -244,10 +237,6 @@ static u32 s_editor_inspector_row_group_depth = 0u;
 static char
     s_editor_inspector_input_buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY] = {0};
 
-static const float s_editor_inspector_label_width_min = 60.0f;
-static const float s_editor_inspector_control_width_min = 80.0f;
-static const float s_editor_inspector_splitter_hit_width = 8.0f;
-static const float s_editor_inspector_row_height = 26.0f;
 
 static LDKUIPoint s_editor_inspector_scroll_begin(
     LDKUIContext *ui, LDKUIPoint scroll)
@@ -298,155 +287,15 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
     LDKAssetMaterial *material_asset, bool readonly,
     const LDKMaterialIOContext *context);
 
-static float s_editor_inspector_label_width_clamp(
-    LDKUIContext *ui, float width)
-{
-  float max_width = s_editor_inspector_label_width_min;
-
-  if (ui && ui->current_layout)
-  {
-    max_width = ui->current_layout->content_rect.w -
-                s_editor_inspector_control_width_min;
-    if (max_width < s_editor_inspector_label_width_min)
-    {
-      max_width = s_editor_inspector_label_width_min;
-    }
-  }
-
-  if (width < s_editor_inspector_label_width_min)
-  {
-    return s_editor_inspector_label_width_min;
-  }
-  if (width > max_width)
-  {
-    return max_width;
-  }
-  return width;
-}
-
 static void s_editor_inspector_column_update(LDKEditorContext *editor)
 {
-  LDKEditorInspectorColumnState *state = &s_editor_inspector_column_state;
-  LDKUIContext *ui;
-  LDKPoint cursor;
-
-  if (!editor)
-  {
-    return;
-  }
-
-  ui = &editor->ui;
-  if (!isfinite(editor->inspector_label_width) ||
-      editor->inspector_label_width <= 0.0f)
-  {
-    editor->inspector_label_width =
-        LDK_EDITOR_INSPECTOR_LABEL_WIDTH_DEFAULT;
-  }
-
-  editor->inspector_label_width = s_editor_inspector_label_width_clamp(
-      ui, editor->inspector_label_width);
-
-  if (!state->dragging)
-  {
-    return;
-  }
-
-  if (!ui->mouse)
-  {
-    state->dragging = false;
-    return;
-  }
-
-  cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-  editor->inspector_label_width = s_editor_inspector_label_width_clamp(ui,
-      state->drag_start_width + (float)(cursor.x - state->drag_start_x));
-  ui->cursor_type = LDK_CURSOR_SIZE_WE;
-
-  if (!ldk_os_mouse_button_is_pressed(
-          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
-  {
-    state->dragging = false;
-  }
+  ldk_editor_ui_row_column_update(editor);
 }
 
 static void s_editor_inspector_row_begin(
     LDKEditorContext *editor, const char *label)
 {
-  LDKEditorInspectorColumnState *state = &s_editor_inspector_column_state;
-  LDKUIContext *ui;
-  LDKUIRect label_rect;
-  LDKUIRect splitter_rect;
-  LDKPoint cursor;
-  float spacing;
-  float hit_width;
-  float indent_width = 0.0f;
-  float label_width;
-  bool hovered;
-
-  if (!editor)
-  {
-    return;
-  }
-
-  ui = &editor->ui;
-  if (s_editor_inspector_row_group_depth > 0u)
-  {
-    indent_width = LDK_UI_TREE_NODE_CHEVRON_WIDTH + LDK_UI_DEFAULT_SPACING +
-        (float)(s_editor_inspector_row_group_depth - 1u) *
-            LDK_UI_TREE_NODE_INDENT_WIDTH;
-  }
-  label_width = editor->inspector_label_width - indent_width;
-  if (label_width < 1.0f)
-  {
-    label_width = 1.0f;
-  }
-
-  ldk_ui_set_next_height(ui, ldk_ui_px(s_editor_inspector_row_height));
-  ldk_ui_begin_horizontal(ui);
-  if (indent_width > 0.0f)
-  {
-    ldk_ui_set_next_width(ui, ldk_ui_px(indent_width));
-    ldk_ui_spacer(ui);
-  }
-  ldk_ui_set_next_width(ui, ldk_ui_px(label_width));
-  ldk_ui_label(ui, label ? label : "");
-
-  if (!ui->mouse || !ui->current_window)
-  {
-    return;
-  }
-
-  label_rect = ldk_ui_last_bounding_rect(ui);
-  spacing = ui->current_layout ? ui->current_layout->spacing
-                               : LDK_UI_DEFAULT_SPACING;
-  hit_width = spacing > s_editor_inspector_splitter_hit_width
-                  ? spacing
-                  : s_editor_inspector_splitter_hit_width;
-  splitter_rect = label_rect;
-  splitter_rect.x =
-      label_rect.x + label_rect.w - (hit_width - spacing);
-  splitter_rect.w = hit_width;
-
-  cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-  hovered = ui->hovered_window_id == ui->current_window->id &&
-            ldk_rectf_contains(
-                &splitter_rect, (float)cursor.x, (float)cursor.y) &&
-            ldk_rectf_contains(
-                &ui->clip_rect, (float)cursor.x, (float)cursor.y);
-
-  if (hovered || state->dragging)
-  {
-    ui->cursor_type = LDK_CURSOR_SIZE_WE;
-  }
-
-  if (hovered && !state->dragging &&
-      ldk_os_mouse_button_down(
-          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
-  {
-    state->dragging = true;
-    state->drag_start_x = cursor.x;
-    state->drag_start_width = editor->inspector_label_width;
-  }
+  ldk_editor_ui_row_begin(editor, label, s_editor_inspector_row_group_depth);
 }
 
 static void s_editor_inspector_area_state_sync(LDKEntity entity)
@@ -893,8 +742,13 @@ static void s_editor_inspector_flags_selector(
   }
   else if (ok)
   {
-    ldk_entity_flags_set(&ecs->entity, entity,
-        s_editor_inspector_flags_state.draft_value);
+    if (ldk_entity_flags_get(&ecs->entity, entity) !=
+        s_editor_inspector_flags_state.draft_value)
+    {
+      ldk_entity_flags_set(&ecs->entity, entity,
+          s_editor_inspector_flags_state.draft_value);
+      ldki_editor_scene_dirty_set(editor, true);
+    }
     s_editor_inspector_flags_state.selector_open = false;
     s_editor_inspector_flags_format(s_editor_inspector_flags_state.input,
         sizeof(s_editor_inspector_flags_state.input),
@@ -944,9 +798,10 @@ static void s_editor_inspector_flags_draw(
       {
         s_editor_inspector_flags_state.draft_value = parsed;
       }
-      else
+      else if (parsed != flags)
       {
         ldk_entity_flags_set(&ecs->entity, entity, parsed);
+        ldki_editor_scene_dirty_set(editor, true);
       }
     }
   }
@@ -1131,6 +986,22 @@ static void s_editor_inspector_field_value_format(char *out, size_t out_size,
   }
 }
 
+typedef struct LDKInspectorNumericRowContext
+{
+  LDKEntity entity;
+  u32 component_type;
+  const LDKComponentFieldMeta *field;
+} LDKInspectorNumericRowContext;
+
+static u32 s_editor_inspector_numeric_row_input(LDKUIContext *ui, void *user,
+    u32 index, char *buffer, u32 capacity, const float *float_value)
+{
+  LDKInspectorNumericRowContext *context = user;
+  return s_editor_inspector_field_input_box(ui, context->entity,
+      context->component_type, context->field, index, buffer, capacity,
+      float_value);
+}
+
 static bool s_editor_inspector_float_input(LDKUIContext *ui, LDKEntity entity,
     u32 component_type, const LDKComponentFieldMeta *field, u32 value_index,
     float *value, bool readonly)
@@ -1165,6 +1036,14 @@ static bool s_editor_inspector_float_input(LDKUIContext *ui, LDKEntity entity,
 
   *value = parsed;
   return true;
+}
+
+static bool s_editor_inspector_vector_row_input(LDKUIContext *ui, void *user,
+    u32 index, float *value, bool readonly)
+{
+  LDKInspectorNumericRowContext *context = user;
+  return s_editor_inspector_float_input(ui, context->entity,
+      context->component_type, context->field, index, value, readonly);
 }
 
 /* Generic reflected edits use the same writer as animation playback.
@@ -1498,6 +1377,24 @@ static void s_editor_inspector_euler_field_draw(LDKUIContext *ui,
   }
 }
 
+typedef struct LDKInspectorEulerRowContext
+{
+  LDKEntity entity;
+  u32 component_type;
+  const LDKComponentFieldMeta *field;
+  void *component;
+  void *field_value;
+  bool readonly;
+} LDKInspectorEulerRowContext;
+
+static void s_editor_inspector_euler_row_content(LDKUIContext *ui, void *user)
+{
+  LDKInspectorEulerRowContext *context = user;
+  s_editor_inspector_euler_field_draw(ui, context->entity,
+      context->component_type, context->field, context->component,
+      context->field_value, context->readonly);
+}
+
 static void s_editor_inspector_mesh_selector(
     LDKEditorContext *editor, LDKMeshSource *mesh, bool readonly)
 {
@@ -1624,34 +1521,13 @@ static bool s_editor_inspector_asset_path_validate(
   return true;
 }
 
-static void s_editor_inspector_asset_reveal_on_click(
-    LDKEditorContext *editor, const LDKAssetInfo *info, LDKUIRect rect)
-{
-  LDKUIContext *ui = &editor->ui;
-  if (!info || !info->asset_path.length || !ui->mouse || ui->active_id ||
-      !ui->current_window ||
-      ui->hovered_window_id != ui->current_window->id ||
-      !ldk_os_mouse_button_down((LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
-  {
-    return;
-  }
-  LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-  if (ldk_rectf_contains(&rect, (float)cursor.x, (float)cursor.y) &&
-      ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
-  {
-    ldki_editor_file_explorer_reveal_asset(editor, info->asset_path.buf);
-  }
-}
-
 static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
     const char *label, LDKAssetMesh *value, bool readonly)
 {
-  LDKUIContext *ui;
   LDKAssetManager *assets;
   LDKAssetHandle handle;
   const LDKAssetInfo *info;
   XFSPath path = {0};
-  char display[sizeof(path.buf)];
   bool assign = false;
 
   if (!editor || !value)
@@ -1659,49 +1535,15 @@ static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
     return false;
   }
 
-  ui = &editor->ui;
   assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
   handle.h = value->h;
   info = assets && !x_handle_is_null(value->h)
       ? ldk_asset_get_info_const(assets, handle)
       : NULL;
 
-  snprintf(display, sizeof(display), "%s", info ? info->asset_path.buf : "");
-
-  s_editor_inspector_row_begin(editor, label);
-
-  ldk_ui_begin_disabled(ui, true);
-  ldk_ui_input_box(ui, display, sizeof(display));
-  LDKUIRect target = ldk_ui_last_bounding_rect(ui);
-  ldk_ui_end_disabled(ui);
-  s_editor_inspector_asset_reveal_on_click(editor, info, target);
-
-  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
-      ui->hovered_window_id == ui->current_window->id &&
-      ldk_os_mouse_button_up(
-          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
-  {
-    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
-        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
-    {
-      u32 payload_type = 0;
-      assign = ldk_ui_drag_n_drop_payload_get_and_remove(
-                   &payload_type, &path) &&
-          (payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
-           payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
-    }
-  }
-
-  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
-  ldk_ui_begin_disabled(ui, readonly);
-  if (ldk_ui_button(ui, "..."))
-  {
-    assign = ldk_os_dialog_show_open_file(
-        editor->window, "Choose mesh", "Meshes\0*.mesh\0\0", &path);
-  }
-  ldk_ui_end_disabled(ui);
-  ldk_ui_end_horizontal(ui);
+  assign = ldk_editor_ui_row_slot_mesh(editor, label,
+      s_editor_inspector_row_group_depth, info, readonly, &path, NULL) ==
+      LDK_EDITOR_UI_ROW_SLOT_ASSIGN;
 
   if (!assign)
   {
@@ -1737,12 +1579,10 @@ static bool s_editor_inspector_mesh_asset_field(LDKEditorContext *editor,
 static bool s_editor_inspector_font_asset_field(LDKEditorContext *editor,
     const char *label, LDKAssetFont *value, bool readonly)
 {
-  LDKUIContext *ui;
   LDKAssetManager *assets;
   LDKAssetHandle handle;
   const LDKAssetInfo *info;
   XFSPath path = {0};
-  char display[sizeof(path.buf)];
   bool assign = false;
 
   if (!editor || !value)
@@ -1750,47 +1590,14 @@ static bool s_editor_inspector_font_asset_field(LDKEditorContext *editor,
     return false;
   }
 
-  ui = &editor->ui;
   assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
   handle.h = value->h;
   info = assets && !x_handle_is_null(value->h)
       ? ldk_asset_get_info_const(assets, handle)
       : NULL;
-  snprintf(display, sizeof(display), "%s", info ? info->asset_path.buf : "");
-
-  s_editor_inspector_row_begin(editor, label);
-  ldk_ui_begin_disabled(ui, true);
-  ldk_ui_input_box(ui, display, sizeof(display));
-  LDKUIRect target = ldk_ui_last_bounding_rect(ui);
-  ldk_ui_end_disabled(ui);
-  s_editor_inspector_asset_reveal_on_click(editor, info, target);
-
-  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
-      ui->hovered_window_id == ui->current_window->id &&
-      ldk_os_mouse_button_up((LDKMouseState *)ui->mouse,
-          LDK_MOUSE_BUTTON_LEFT))
-  {
-    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
-        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
-    {
-      u32 payload_type = 0;
-      assign = ldk_ui_drag_n_drop_payload_get_and_remove(
-                   &payload_type, &path) &&
-          (payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
-           payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
-    }
-  }
-
-  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
-  ldk_ui_begin_disabled(ui, readonly);
-  if (ldk_ui_button(ui, "..."))
-  {
-    assign = ldk_os_dialog_show_open_file(
-        editor->window, "Choose font", "Fonts\0*.ttf;*.otf\0\0", &path);
-  }
-  ldk_ui_end_disabled(ui);
-  ldk_ui_end_horizontal(ui);
+  assign = ldk_editor_ui_row_slot_font(editor, label,
+      s_editor_inspector_row_group_depth, info, readonly, &path, NULL) ==
+      LDK_EDITOR_UI_ROW_SLOT_ASSIGN;
 
   if (!assign)
   {
@@ -1824,12 +1631,10 @@ static bool s_editor_inspector_font_asset_field(LDKEditorContext *editor,
 static bool s_editor_inspector_audio_asset_field(LDKEditorContext *editor,
     const char *label, LDKAssetAudio *value, bool readonly)
 {
-  LDKUIContext *ui;
   LDKAssetManager *assets;
   LDKAssetHandle handle;
   const LDKAssetInfo *info;
   XFSPath path = {0};
-  char display[sizeof(path.buf)];
   bool assign = false;
 
   if (!editor || !value)
@@ -1837,47 +1642,14 @@ static bool s_editor_inspector_audio_asset_field(LDKEditorContext *editor,
     return false;
   }
 
-  ui = &editor->ui;
   assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
   handle.h = value->h;
   info = assets && !x_handle_is_null(value->h)
       ? ldk_asset_get_info_const(assets, handle)
       : NULL;
-  snprintf(display, sizeof(display), "%s", info ? info->asset_path.buf : "");
-
-  s_editor_inspector_row_begin(editor, label);
-  ldk_ui_begin_disabled(ui, true);
-  ldk_ui_input_box(ui, display, sizeof(display));
-  LDKUIRect target = ldk_ui_last_bounding_rect(ui);
-  ldk_ui_end_disabled(ui);
-  s_editor_inspector_asset_reveal_on_click(editor, info, target);
-
-  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
-      ui->hovered_window_id == ui->current_window->id &&
-      ldk_os_mouse_button_up((LDKMouseState *)ui->mouse,
-          LDK_MOUSE_BUTTON_LEFT))
-  {
-    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
-        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
-    {
-      u32 payload_type = 0;
-      assign = ldk_ui_drag_n_drop_payload_get_and_remove(
-                   &payload_type, &path) &&
-          (payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
-           payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
-    }
-  }
-
-  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
-  ldk_ui_begin_disabled(ui, readonly);
-  if (ldk_ui_button(ui, "..."))
-  {
-    assign = ldk_os_dialog_show_open_file(
-        editor->window, "Choose audio", "Audio\0*.wav;*.mp3;*.flac\0\0", &path);
-  }
-  ldk_ui_end_disabled(ui);
-  ldk_ui_end_horizontal(ui);
+  assign = ldk_editor_ui_row_slot_audio(editor, label,
+      s_editor_inspector_row_group_depth, info, readonly, &path, NULL) ==
+      LDK_EDITOR_UI_ROW_SLOT_ASSIGN;
 
   if (!assign)
   {
@@ -1913,12 +1685,10 @@ static bool s_editor_inspector_audio_asset_field(LDKEditorContext *editor,
 static bool s_editor_inspector_keyframe_animation_asset_field(LDKEditorContext *editor,
     const char *label, LDKAssetKeyframeAnimation *value, bool readonly)
 {
-  LDKUIContext *ui;
   LDKAssetManager *assets;
   LDKAssetHandle handle;
   const LDKAssetInfo *info;
   XFSPath path = {0};
-  char display[sizeof(path.buf)];
   bool assign = false;
 
   if (!editor || !value)
@@ -1926,47 +1696,14 @@ static bool s_editor_inspector_keyframe_animation_asset_field(LDKEditorContext *
     return false;
   }
 
-  ui = &editor->ui;
   assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
   handle.h = value->h;
   info = assets && !x_handle_is_null(value->h)
       ? ldk_asset_get_info_const(assets, handle)
       : NULL;
-  snprintf(display, sizeof(display), "%s", info ? info->asset_path.buf : "");
-
-  s_editor_inspector_row_begin(editor, label);
-  ldk_ui_begin_disabled(ui, true);
-  ldk_ui_input_box(ui, display, sizeof(display));
-  LDKUIRect target = ldk_ui_last_bounding_rect(ui);
-  ldk_ui_end_disabled(ui);
-  s_editor_inspector_asset_reveal_on_click(editor, info, target);
-
-  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
-      ui->hovered_window_id == ui->current_window->id &&
-      ldk_os_mouse_button_up((LDKMouseState *)ui->mouse,
-          LDK_MOUSE_BUTTON_LEFT))
-  {
-    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
-        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
-    {
-      u32 payload_type = 0;
-      assign = ldk_ui_drag_n_drop_payload_get_and_remove(
-                   &payload_type, &path) &&
-          (payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
-           payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
-    }
-  }
-
-  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
-  ldk_ui_begin_disabled(ui, readonly);
-  if (ldk_ui_button(ui, "..."))
-  {
-    assign = ldk_os_dialog_show_open_file(
-        editor->window, "Choose animation", "Animation\0*.anim\0\0", &path);
-  }
-  ldk_ui_end_disabled(ui);
-  ldk_ui_end_horizontal(ui);
+  assign = ldk_editor_ui_row_slot_animation(editor, label,
+      s_editor_inspector_row_group_depth, info, readonly, &path, NULL) ==
+      LDK_EDITOR_UI_ROW_SLOT_ASSIGN;
 
   if (!assign)
   {
@@ -2009,12 +1746,10 @@ static bool s_editor_inspector_keyframe_animation_asset_field(LDKEditorContext *
 static bool s_editor_inspector_material_asset_field(LDKEditorContext *editor,
     const char *label, LDKAssetMaterial *value, bool readonly, bool optional)
 {
-  LDKUIContext *ui;
   LDKAssetManager *assets;
   LDKAssetHandle handle;
   const LDKAssetInfo *info;
   XFSPath path = {0};
-  char display[sizeof(path.buf)];
   bool assign = false;
   bool clear = false;
 
@@ -2023,58 +1758,17 @@ static bool s_editor_inspector_material_asset_field(LDKEditorContext *editor,
     return false;
   }
 
-  ui = &editor->ui;
   assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
   handle.h = value->h;
   info = assets && !x_handle_is_null(value->h)
       ? ldk_asset_get_info_const(assets, handle)
       : NULL;
 
-  snprintf(display, sizeof(display), "%s", info ? info->asset_path.buf : "");
-
-  s_editor_inspector_row_begin(editor, label);
-
-  ldk_ui_begin_disabled(ui, true);
-  ldk_ui_input_box(ui, display, sizeof(display));
-  LDKUIRect target = ldk_ui_last_bounding_rect(ui);
-  ldk_ui_end_disabled(ui);
-  s_editor_inspector_asset_reveal_on_click(editor, info, target);
-
-  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
-      ui->hovered_window_id == ui->current_window->id &&
-      ldk_os_mouse_button_up(
-          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
-  {
-    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
-        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
-    {
-      u32 payload_type = 0;
-      assign = ldk_ui_drag_n_drop_payload_get_and_remove(
-                   &payload_type, &path) &&
-          (payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
-           payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
-    }
-  }
-
-  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
-  ldk_ui_begin_disabled(ui, readonly);
-  if (ldk_ui_button(ui, "..."))
-  {
-    assign = ldk_os_dialog_show_open_file(
-        editor->window, "Choose material", "Materials\0*.tml\0\0", &path);
-  }
-  ldk_ui_end_disabled(ui);
-
-  if (optional)
-  {
-    ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
-    ldk_ui_begin_disabled(ui, readonly || x_handle_is_null(value->h));
-    clear = ldk_ui_button(ui, "X");
-    ldk_ui_end_disabled(ui);
-  }
-
-  ldk_ui_end_horizontal(ui);
+  LDKEditorUIRowSlotAction action = ldk_editor_ui_row_slot_material(editor,
+      label, s_editor_inspector_row_group_depth, info, readonly, optional,
+      !x_handle_is_null(value->h), &path, NULL);
+  clear = action == LDK_EDITOR_UI_ROW_SLOT_CLEAR;
+  assign = action == LDK_EDITOR_UI_ROW_SLOT_ASSIGN;
 
   if (clear)
   {
@@ -2120,12 +1814,10 @@ static bool s_editor_inspector_material_asset_field(LDKEditorContext *editor,
 static bool s_editor_inspector_skybox_asset_field(LDKEditorContext *editor,
     const char *label, LDKAssetSkybox *value, bool readonly, bool optional)
 {
-  LDKUIContext *ui;
   LDKAssetManager *assets;
   LDKAssetHandle handle;
   const LDKAssetInfo *info;
   XFSPath path = {0};
-  char display[sizeof(path.buf)];
   bool assign = false;
   bool clear = false;
 
@@ -2134,58 +1826,17 @@ static bool s_editor_inspector_skybox_asset_field(LDKEditorContext *editor,
     return false;
   }
 
-  ui = &editor->ui;
   assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
   handle.h = value->h;
   info = assets && !x_handle_is_null(value->h)
       ? ldk_asset_get_info_const(assets, handle)
       : NULL;
 
-  snprintf(display, sizeof(display), "%s", info ? info->asset_path.buf : "");
-
-  s_editor_inspector_row_begin(editor, label);
-
-  ldk_ui_begin_disabled(ui, true);
-  ldk_ui_input_box(ui, display, sizeof(display));
-  LDKUIRect target = ldk_ui_last_bounding_rect(ui);
-  ldk_ui_end_disabled(ui);
-  s_editor_inspector_asset_reveal_on_click(editor, info, target);
-
-  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
-      ui->hovered_window_id == ui->current_window->id &&
-      ldk_os_mouse_button_up(
-          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
-  {
-    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
-        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
-    {
-      u32 payload_type = 0;
-      assign = ldk_ui_drag_n_drop_payload_get_and_remove(
-                   &payload_type, &path) &&
-          (payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
-           payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
-    }
-  }
-
-  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
-  ldk_ui_begin_disabled(ui, readonly);
-  if (ldk_ui_button(ui, "..."))
-  {
-    assign = ldk_os_dialog_show_open_file(
-        editor->window, "Choose skybox", "Skyboxes\0*.skybox\0\0", &path);
-  }
-  ldk_ui_end_disabled(ui);
-
-  if (optional)
-  {
-    ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
-    ldk_ui_begin_disabled(ui, readonly || x_handle_is_null(value->h));
-    clear = ldk_ui_button(ui, "X");
-    ldk_ui_end_disabled(ui);
-  }
-
-  ldk_ui_end_horizontal(ui);
+  LDKEditorUIRowSlotAction action = ldk_editor_ui_row_slot_skybox(editor,
+      label, s_editor_inspector_row_group_depth, info, readonly, optional,
+      !x_handle_is_null(value->h), &path, NULL);
+  clear = action == LDK_EDITOR_UI_ROW_SLOT_CLEAR;
+  assign = action == LDK_EDITOR_UI_ROW_SLOT_ASSIGN;
 
   if (clear)
   {
@@ -2259,7 +1910,8 @@ static void s_editor_inspector_keyframe_current_draw(
       u32 next = ldk_ui_combo_box(ui, names, source->animation_count, current);
       if (!readonly && next != current)
       {
-        (void)ldk_keyframe_animation_source_set_current(entity, (i32)next);
+        if (ldk_keyframe_animation_source_set_current(entity, (i32)next))
+          ldki_editor_scene_dirty_set(editor, true);
       }
       ldk_ui_end_disabled(ui);
       free(names);
@@ -2281,15 +1933,18 @@ static void s_editor_inspector_keyframe_animations_draw(
     ldk_ui_push_id_u32(ui, i);
     LDKAssetKeyframeAnimation asset = source->animations[i];
     if (s_editor_inspector_keyframe_animation_asset_field(
-            editor, label, &asset, readonly) &&
-        !ldk_keyframe_animation_source_replace(entity, i, asset))
+            editor, label, &asset, readonly))
     {
-      ldki_editor_log_error(editor, "Unable to replace animation (already assigned?).");
+      if (!ldk_keyframe_animation_source_replace(entity, i, asset))
+        ldki_editor_log_error(editor, "Unable to replace animation (already assigned?).");
+      else
+        ldki_editor_scene_dirty_set(editor, true);
     }
     ldk_ui_begin_disabled(ui, readonly);
     if (ldk_ui_button(ui, "Remove"))
     {
-      (void)ldk_keyframe_animation_source_remove(entity, i);
+      if (ldk_keyframe_animation_source_remove(entity, i))
+        ldki_editor_scene_dirty_set(editor, true);
       ldk_ui_end_disabled(ui);
       ldk_ui_pop_id(ui);
       break;
@@ -2299,10 +1954,12 @@ static void s_editor_inspector_keyframe_animations_draw(
   }
   LDKAssetKeyframeAnimation addition = ldk_asset_keyframe_animation_null();
   if (s_editor_inspector_keyframe_animation_asset_field(
-          editor, "Add Animation", &addition, readonly) &&
-      !ldk_keyframe_animation_source_add(entity, addition))
+          editor, "Add Animation", &addition, readonly))
   {
-    ldki_editor_log_error(editor, "Unable to add animation (already assigned?).");
+    if (!ldk_keyframe_animation_source_add(entity, addition))
+      ldki_editor_log_error(editor, "Unable to add animation (already assigned?).");
+    else
+      ldki_editor_scene_dirty_set(editor, true);
   }
 }
 
@@ -2326,14 +1983,24 @@ static const char *s_editor_inspector_field_display_name(
  * index. The atlas itself is an LDKAssetTextureAtlas field of the same system
  * or component, referenced by the widget's source= annotation. */
 static void s_editor_inspector_atlas_region_field_draw(
-    LDKEditorContext *editor, const LDKComponentMeta *meta,
-    const LDKComponentFieldMeta *field, void *component, bool readonly)
+    LDKEditorContext *editor, LDKEntity entity, u32 component_type,
+    const LDKComponentMeta *meta, const LDKComponentFieldMeta *field,
+    void *component, bool readonly)
 {
   LDKUIContext *ui = &editor->ui;
   const LDKComponentFieldMeta *source = NULL;
   const LDKTextureAtlas *atlas = NULL;
   LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
   u64 *chosen = (u64 *)((u8 *)component + field->offset);
+  LDKEditorUIUndoProperty undo_property = {0};
+  if (component_type && !readonly && ldk_property_field_supported(field))
+  {
+    undo_property.key.owner = ((u64)entity.version << 32) | entity.index;
+    undo_property.key.property = ((u64)component_type << 32) | field->offset;
+    undo_property.type = field->type;
+    undo_property.value = chosen;
+    undo_property.size = sizeof(*chosen);
+  }
 
   if (field->widget_source)
   {
@@ -2364,10 +2031,10 @@ static void s_editor_inspector_atlas_region_field_draw(
   u32 region_count = atlas ? atlas->region_count : 0u;
   const char **names = x_arena_alloc(ui->frame_arena,
       (size_t)(region_count + 2u) * sizeof(*names));
-  s_editor_inspector_row_begin(editor,
-      s_editor_inspector_field_display_name(field));
   if (!names)
   {
+    s_editor_inspector_row_begin(editor,
+        s_editor_inspector_field_display_name(field));
     ldk_ui_label(ui, "Atlas regions unavailable");
     ldk_ui_end_horizontal(ui);
     return;
@@ -2391,10 +2058,11 @@ static void s_editor_inspector_atlas_region_field_draw(
 
   u32 count = region_count + 1u +
       (selected == region_count + 1u ? 1u : 0u);
-  ldk_ui_begin_disabled(ui, readonly || !atlas || !source);
-  u32 next = ldk_ui_combo_box(ui, names, count, selected);
-  ldk_ui_end_disabled(ui);
-  ldk_ui_end_horizontal(ui);
+  u32 next = ldk_editor_ui_row_atlas_region(editor,
+      s_editor_inspector_field_display_name(field),
+      s_editor_inspector_row_group_depth, names, count, selected,
+      readonly || !atlas || !source,
+      undo_property.size ? &undo_property : NULL);
   if (!readonly && atlas && source && next != selected && next <= region_count)
     *chosen = next == 0u ? 0u : atlas->regions[next - 1u].id;
 }
@@ -2403,51 +2071,19 @@ static bool s_editor_inspector_texture_atlas_asset_field(
     LDKEditorContext *editor, const char *label,
     LDKAssetTextureAtlas *value, bool readonly)
 {
-  LDKUIContext *ui = &editor->ui;
   LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
   LDKAssetHandle handle = {value->h};
   const LDKAssetInfo *info = assets && !x_handle_is_null(value->h)
       ? ldk_asset_get_info_const(assets, handle) : NULL;
   XFSPath path = {0};
-  char display[X_FS_PATH_MAX_LENGTH] = {0};
   bool assign = false;
+  bool clear = false;
 
-  if (info)
-    snprintf(display, sizeof(display), "%s", info->asset_path.buf);
-  s_editor_inspector_row_begin(editor, label);
-  ldk_ui_begin_disabled(ui, true);
-  ldk_ui_input_box(ui, display, sizeof(display));
-  LDKUIRect target = ldk_ui_last_bounding_rect(ui);
-  ldk_ui_end_disabled(ui);
-  s_editor_inspector_asset_reveal_on_click(editor, info, target);
-
-  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
-      ui->hovered_window_id == ui->current_window->id &&
-      ldk_os_mouse_button_up(
-          (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
-  {
-    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
-        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
-    {
-      u32 type = 0;
-      assign = ldk_ui_drag_n_drop_payload_get_and_remove(&type, &path) &&
-          (type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
-           type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
-    }
-  }
-
-  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
-  ldk_ui_begin_disabled(ui, readonly);
-  if (ldk_ui_button(ui, "..."))
-    assign = ldk_os_dialog_show_open_file(editor->window, "Choose texture atlas",
-        "Texture Atlas\0*.atlas\0\0", &path);
-  ldk_ui_end_disabled(ui);
-  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
-  ldk_ui_begin_disabled(ui, readonly || x_handle_is_null(value->h));
-  bool clear = ldk_ui_button(ui, "X");
-  ldk_ui_end_disabled(ui);
-  ldk_ui_end_horizontal(ui);
+  LDKEditorUIRowSlotAction action = ldk_editor_ui_row_slot_texture_atlas(editor,
+      label, s_editor_inspector_row_group_depth, info, readonly,
+      !x_handle_is_null(value->h), &path, NULL);
+  clear = action == LDK_EDITOR_UI_ROW_SLOT_CLEAR;
+  assign = action == LDK_EDITOR_UI_ROW_SLOT_ASSIGN;
 
   if (clear)
   {
@@ -2483,6 +2119,363 @@ static bool s_editor_inspector_texture_atlas_asset_field(
   return true;
 }
 
+/* Undo identities use the versioned entity handle and reflected field offset. */
+static size_t s_editor_inspector_undo_field_size(
+    const LDKComponentFieldMeta *field)
+{
+  if (!ldk_property_field_supported(field))
+  {
+    return 0;
+  }
+  switch (field->type)
+  {
+  case LDK_FIELD_BOOL: return sizeof(bool);
+  case LDK_FIELD_I32: return sizeof(i32);
+  case LDK_FIELD_U32: return sizeof(u32);
+  case LDK_FIELD_U64: return sizeof(u64);
+  case LDK_FIELD_FLOAT: return sizeof(float);
+  case LDK_FIELD_VEC2: return sizeof(Vec2);
+  case LDK_FIELD_VEC3: return sizeof(Vec3);
+  case LDK_FIELD_VEC4: return sizeof(Vec4);
+  case LDK_FIELD_QUAT: return sizeof(Quat);
+  case LDK_FIELD_STRING: return sizeof(XSmallstr);
+  case LDK_FIELD_ENUM:
+    return field->enum_meta ? field->enum_meta->size : 0;
+  default: return 0;
+  }
+}
+
+static LDKEditorUIUndoProperty s_editor_inspector_undo_property(
+    LDKEntity entity, u32 component_type, const LDKComponentMeta *meta,
+    const LDKComponentFieldMeta *field, const void *value)
+{
+  LDKEditorUIUndoProperty property = {0};
+  size_t size = s_editor_inspector_undo_field_size(field);
+  /* A zero component type identifies a scene system. Scene properties use
+   * the null entity handle and are not currently tracked by undo. */
+  if (component_type == 0 && x_handle_is_null(entity))
+  {
+    return property;
+  }
+  if (!size || !value || !meta || size > meta->size ||
+      field->offset > meta->size - size)
+  {
+    return property;
+  }
+  property.key.owner = ((u64)entity.version << 32) | entity.index;
+  property.key.property = ((u64)component_type << 32) | field->offset;
+  property.type = field->type;
+  property.value = value;
+  property.size = size;
+  return property;
+}
+
+/* System fields use the full 64-bit system ID as owner, and a zero
+ * component type in the upper 32 bits of the property key. The data is
+ * resolved on demand rather than retaining the address of a scene system. */
+static LDKSceneSystems *s_editor_inspector_scene_systems(
+    LDKEditorContext *editor);
+static bool s_editor_inspector_system_index(
+    const LDKSceneSystems *systems, u64 id, u32 *out_index);
+static const LDKSystemMeta *s_editor_inspector_system_meta(
+    LDKGame *game, u64 id);
+
+static const LDKComponentFieldMeta *s_editor_undo_system_field_resolve(
+    LDKEditorContext *editor, LDKEditorUndoKey key, LDKFieldType type,
+    size_t size, void **out_field)
+{
+  const LDKSystemMeta *meta;
+  LDKSceneSystems *systems;
+  void *data;
+  u32 system_index;
+  u32 offset = (u32)key.property;
+
+  if (!editor || editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      key.owner == 0 || (key.property >> 32) != 0 ||
+      !(meta = s_editor_inspector_system_meta(ldk_game_get(), key.owner)) ||
+      !meta->fields || size == 0 || size > meta->size ||
+      offset > meta->size - size ||
+      !(systems = s_editor_inspector_scene_systems(editor)) ||
+      !s_editor_inspector_system_index(systems, key.owner, &system_index) ||
+      !systems->data_sizes || systems->data_sizes[system_index] != meta->size ||
+      !(data = ldk_scene_systems_data_get(systems, key.owner)))
+  {
+    return NULL;
+  }
+
+  for (u32 i = 0; i < meta->field_count; ++i)
+  {
+    const LDKComponentFieldMeta *field = &meta->fields[i];
+    if (field->offset == offset && field->type == type &&
+        s_editor_inspector_undo_field_size(field) == size)
+    {
+      if (out_field)
+      {
+        *out_field = (u8 *)data + offset;
+      }
+      return field;
+    }
+  }
+  return NULL;
+}
+
+static const LDKComponentFieldMeta *s_editor_undo_field_resolve(
+    LDKEditorUndoKey key, LDKFieldType type, size_t size,
+    LDKEntity *out_entity, u32 *out_component, void **out_field)
+{
+  LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
+  LDKEntity entity = {(u32)key.owner, (u32)(key.owner >> 32)};
+  u32 component_type = (u32)(key.property >> 32);
+  u32 offset = (u32)key.property;
+  const LDKComponentMeta *meta;
+  void *component;
+  if (!ecs || !ldk_entity_is_alive(&ecs->entity, entity) ||
+      !(meta = ldk_property_component_meta(component_type)) ||
+      !(component = ldk_ecs_component_get(entity, component_type)))
+  {
+    return NULL;
+  }
+  for (u32 i = 0; i < meta->field_count; ++i)
+  {
+    const LDKComponentFieldMeta *field = &meta->fields[i];
+    if (field->offset == offset && field->type == type &&
+        s_editor_inspector_undo_field_size(field) == size &&
+        size && size <= meta->size && offset <= meta->size - size)
+    {
+      if (out_entity) *out_entity = entity;
+      if (out_component) *out_component = component_type;
+      if (out_field) *out_field = (u8 *)component + offset;
+      return field;
+    }
+  }
+  return NULL;
+}
+
+/* Material undo snapshots carry complete descriptors. Their keys use a
+ * reserved property domain, independent of ECS field offsets and system IDs. */
+enum
+{
+  LDK_EDITOR_UNDO_MATERIAL_ASSET = UINT32_MAX,
+  LDK_EDITOR_UNDO_MATERIAL_MESH = UINT32_MAX - 1u,
+  LDK_EDITOR_UNDO_MATERIAL_INSTANCED_MESH = UINT32_MAX - 2u,
+};
+
+static LDKAssetMaterial s_editor_mesh_material_asset(
+    const LDKMeshSource *mesh, u32 material_slot);
+static u64 s_editor_mesh_material_revision(
+    const LDKMeshSource *mesh, u32 material_slot);
+
+static u32 s_editor_undo_material_domain(LDKEditorUndoKey key)
+{
+  return (u32)(key.property >> 32);
+}
+
+/* Builtin component IDs overlap the material domains. Match the stored
+ * representation too, so Transform and Camera fields remain distinguishable. */
+static bool s_editor_undo_material_key_matches(
+    LDKEditorUndoKey key, LDKFieldType type, size_t size)
+{
+  u32 domain = s_editor_undo_material_domain(key);
+  return type == LDK_FIELD_ASSET_MATERIAL &&
+      size == sizeof(LDKMaterialDesc) &&
+      (domain == LDK_EDITOR_UNDO_MATERIAL_ASSET ||
+          domain == LDK_EDITOR_UNDO_MATERIAL_MESH ||
+          domain == LDK_EDITOR_UNDO_MATERIAL_INSTANCED_MESH);
+}
+
+static LDKMeshSource *s_editor_undo_material_mesh(
+    LDKEditorUndoKey key, u32 domain)
+{
+  LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
+  LDKEntity entity = {(u32)key.owner, (u32)(key.owner >> 32)};
+  u32 type = domain == LDK_EDITOR_UNDO_MATERIAL_INSTANCED_MESH
+      ? LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE
+      : LDK_COMPONENT_TYPE_MESH_SOURCE;
+  void *component;
+
+  if (!ecs || !ldk_entity_is_alive(&ecs->entity, entity) ||
+      !(component = ldk_ecs_component_get(entity, type)))
+  {
+    return NULL;
+  }
+
+  return domain == LDK_EDITOR_UNDO_MATERIAL_INSTANCED_MESH
+      ? &((LDKInstancedMeshSource *)component)->source
+      : (LDKMeshSource *)component;
+}
+
+static const LDKMaterialDesc *s_editor_undo_material_resolve(
+    LDKEditorContext *editor, LDKEditorUndoKey key,
+    LDKFieldType type, size_t size)
+{
+  u32 domain = s_editor_undo_material_domain(key);
+  LDKAssetManager *assets;
+  const LDKAssetMaterialData *data;
+  LDKMeshSource *mesh;
+  u32 slot;
+
+  if (!editor || editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      type != LDK_FIELD_ASSET_MATERIAL || size != sizeof(LDKMaterialDesc))
+  {
+    return NULL;
+  }
+
+  if (domain == LDK_EDITOR_UNDO_MATERIAL_ASSET)
+  {
+    LDKAssetMaterial asset = ldk_asset_material_null();
+    asset.h.index = (u32)key.owner;
+    asset.h.version = (u32)(key.owner >> 32);
+    assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    data = assets ? ldk_asset_manager_material_get_const(assets, asset) : NULL;
+    return data && !data->is_missing ? &data->descriptor : NULL;
+  }
+
+  if (domain != LDK_EDITOR_UNDO_MATERIAL_MESH &&
+      domain != LDK_EDITOR_UNDO_MATERIAL_INSTANCED_MESH)
+  {
+    return NULL;
+  }
+
+  slot = (u32)key.property;
+  mesh = s_editor_undo_material_mesh(key, domain);
+  if (!mesh || slot >= ldk_mesh_source_material_count(mesh) ||
+      s_editor_mesh_material_revision(mesh, slot) != 0 ||
+      !x_handle_is_null(s_editor_mesh_material_asset(mesh, slot).h))
+  {
+    return NULL;
+  }
+
+  if (slot == 0u)
+  {
+    return &mesh->material;
+  }
+  const LDKMeshSourceMaterialBinding *binding =
+      ldk_mesh_source_additional_material_binding_const(mesh, slot);
+  return binding ? &binding->material : NULL;
+}
+
+static bool s_editor_undo_material_apply(LDKEditorContext *editor,
+    LDKEditorUndoKey key, LDKFieldType type, const void *value, size_t size)
+{
+  u32 domain = s_editor_undo_material_domain(key);
+  if (!value || !s_editor_undo_material_resolve(editor, key, type, size))
+  {
+    return false;
+  }
+
+  if (domain == LDK_EDITOR_UNDO_MATERIAL_ASSET)
+  {
+    LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    LDKAssetMaterial asset = ldk_asset_material_null();
+    asset.h.index = (u32)key.owner;
+    asset.h.version = (u32)(key.owner >> 32);
+    return assets && ldk_asset_manager_material_update(
+        assets, asset, (const LDKMaterialDesc *)value);
+  }
+
+  return ldk_mesh_source_set_material_at(
+      s_editor_undo_material_mesh(key, domain),
+      (u32)key.property, (const LDKMaterialDesc *)value);
+}
+
+void *ldki_editor_undo_property_resolve(
+    void *user, LDKEditorUndoKey key, LDKFieldType type, size_t size)
+{
+  void *value = NULL;
+  if (s_editor_undo_material_key_matches(key, type, size))
+  {
+    return (void *)s_editor_undo_material_resolve(
+        (LDKEditorContext *)user, key, type, size);
+  }
+  if ((key.property >> 32) == 0)
+  {
+    if (!s_editor_undo_system_field_resolve(
+            (LDKEditorContext *)user, key, type, size, &value))
+    {
+      return NULL;
+    }
+  }
+  else if (!s_editor_undo_field_resolve(
+               key, type, size, NULL, NULL, &value))
+  {
+    return NULL;
+  }
+  return value;
+}
+
+bool ldki_editor_undo_property_apply(void *user, LDKEditorUndoKey key,
+    LDKFieldType type, const void *value, size_t size)
+{
+  LDKEntity entity;
+  u32 component_type;
+  const LDKComponentFieldMeta *field;
+  LDKPropertyValue property = {0};
+  if (!value)
+  {
+    return false;
+  }
+  if (s_editor_undo_material_key_matches(key, type, size))
+  {
+    return s_editor_undo_material_apply(
+        (LDKEditorContext *)user, key, type, value, size);
+  }
+  if ((key.property >> 32) == 0)
+  {
+    void *destination = NULL;
+    field = s_editor_undo_system_field_resolve(
+        (LDKEditorContext *)user, key, type, size, &destination);
+    if (!field || !destination)
+    {
+      return false;
+    }
+    /* System fields are edited directly by the Inspector. Restore the same
+     * representation; enums use their Comet-defined writer. */
+    if (type == LDK_FIELD_ENUM)
+    {
+      field->enum_meta->write(
+          destination, field->enum_meta->read(value));
+    }
+    else
+    {
+      memcpy(destination, value, size);
+    }
+    return true;
+  }
+  if (!(field = s_editor_undo_field_resolve(key, type, size,
+          &entity, &component_type, NULL)))
+  {
+    return false;
+  }
+  property.type = type;
+  switch (type)
+  {
+  case LDK_FIELD_BOOL: property.integer = *(const bool *)value; break;
+  case LDK_FIELD_I32: property.integer = *(const i32 *)value; break;
+  case LDK_FIELD_U32: property.integer = *(const u32 *)value; break;
+  case LDK_FIELD_U64: property.integer = (i64)*(const u64 *)value; break;
+  case LDK_FIELD_ENUM: property.integer = field->enum_meta->read(value); break;
+  case LDK_FIELD_FLOAT: property.vector.x = *(const float *)value; break;
+  case LDK_FIELD_VEC2:
+    property.vector.x = ((const Vec2 *)value)->x;
+    property.vector.y = ((const Vec2 *)value)->y;
+    break;
+  case LDK_FIELD_VEC3:
+    property.vector.x = ((const Vec3 *)value)->x;
+    property.vector.y = ((const Vec3 *)value)->y;
+    property.vector.z = ((const Vec3 *)value)->z;
+    break;
+  case LDK_FIELD_VEC4: property.vector = *(const Vec4 *)value; break;
+  case LDK_FIELD_QUAT:
+    property.vector = vec4_make(((const Quat *)value)->x,
+        ((const Quat *)value)->y, ((const Quat *)value)->z,
+        ((const Quat *)value)->w);
+    break;
+  case LDK_FIELD_STRING: property.string = *(const XSmallstr *)value; break;
+  default: return false;
+  }
+  return ldk_property_set(entity, component_type, field->name, &property);
+}
+
 static void s_editor_inspector_field_draw(
     LDKEditorContext *editor, LDKEntity entity,
     u32 component_type, const LDKComponentMeta *meta,
@@ -2493,6 +2486,8 @@ static void s_editor_inspector_field_draw(
   const char *display_name;
   u8 *field_value;
   bool readonly;
+  LDKEditorUIUndoProperty undo_property;
+  const LDKEditorUIUndoProperty *undo_meta = NULL;
 
   if (!editor || !meta || !field || !component || field->offset >= meta->size)
   {
@@ -2521,6 +2516,12 @@ static void s_editor_inspector_field_draw(
 
   field_value = (u8 *)component + field->offset;
   readonly = (field->flags & LDK_FIELD_FLAG_READONLY) != 0;
+  undo_property = s_editor_inspector_undo_property(
+      entity, component_type, meta, field, field_value);
+  if (undo_property.size && editor->editor_state == LDK_EDITOR_STATE_STOPED)
+  {
+    undo_meta = &undo_property;
+  }
 
   ldk_ui_push_id_cstr(ui, field->name);
 
@@ -2545,8 +2546,8 @@ static void s_editor_inspector_field_draw(
       field->offset <= meta->size &&
       sizeof(u64) <= meta->size - field->offset)
   {
-    s_editor_inspector_atlas_region_field_draw(editor, meta, field,
-        component, readonly);
+    s_editor_inspector_atlas_region_field_draw(editor, entity, component_type,
+        meta, field, component, readonly);
     ldk_ui_pop_id(ui);
     return;
   }
@@ -2647,7 +2648,23 @@ static void s_editor_inspector_field_draw(
     return;
   }
 
-  s_editor_inspector_row_begin(editor, display_name);
+  bool specialized_row = field->type == LDK_FIELD_BOOL ||
+      field->type == LDK_FIELD_STRING ||
+      (field->type == LDK_FIELD_ENUM && field->enum_meta) ||
+      (field->type == LDK_FIELD_U32 &&
+          field->widget == LDK_FIELD_WIDGET_COLOR) ||
+      field->type == LDK_FIELD_I32 ||
+      (field->type == LDK_FIELD_ENUM && !field->enum_meta) ||
+      field->type == LDK_FIELD_VEC2 ||
+      field->type == LDK_FIELD_VEC3 ||
+      field->type == LDK_FIELD_VEC4 ||
+      field->type == LDK_FIELD_QUAT ||
+      (field->type == LDK_FIELD_U32 && field->widget != LDK_FIELD_WIDGET_COLOR) ||
+      field->type == LDK_FIELD_FLOAT;
+  if (!specialized_row)
+  {
+    s_editor_inspector_row_begin(editor, display_name);
+  }
 
   if (field->type == LDK_FIELD_ENUM && field->enum_meta)
   {
@@ -2670,9 +2687,9 @@ static void s_editor_inspector_field_draw(
       snprintf(unknown, sizeof(unknown), "Unknown (%" PRId64 ")", raw);
       labels[meta->count] = unknown;
       u32 count = meta->count + (selected == meta->count ? 1u : 0u);
-      ldk_ui_begin_disabled(ui, readonly);
-      u32 next = ldk_ui_combo_box(ui, labels, count, selected);
-      ldk_ui_end_disabled(ui);
+      u32 next = ldk_editor_ui_row_enum(editor, display_name,
+          s_editor_inspector_row_group_depth, labels, count, selected,
+          readonly, undo_meta);
       if (!readonly && next != selected && next < meta->count)
       {
         if (component_type)
@@ -2690,9 +2707,10 @@ static void s_editor_inspector_field_draw(
     }
     else
     {
+      s_editor_inspector_row_begin(editor, display_name);
       ldk_ui_label(ui, "Enum options unavailable");
+      ldk_ui_end_horizontal(ui);
     }
-    ldk_ui_end_horizontal(ui);
     ldk_ui_pop_id(ui);
     return;
   }
@@ -2703,9 +2721,8 @@ static void s_editor_inspector_field_draw(
   {
     bool value = *(bool *)field_value;
 
-    ldk_ui_begin_disabled(ui, readonly);
-    value = ldk_ui_toggle(ui, value);
-    ldk_ui_end_disabled(ui);
+    value = ldk_editor_ui_row_bool(editor, display_name,
+        s_editor_inspector_row_group_depth, value, readonly, undo_meta);
 
     if (!readonly && value != *(bool *)field_value)
     {
@@ -2726,10 +2743,10 @@ static void s_editor_inspector_field_draw(
     u32 result;
 
     snprintf(buffer, sizeof(buffer), "%d", original);
-    ldk_ui_begin_disabled(ui, readonly);
-    result = s_editor_inspector_field_input_box(
-        ui, entity, component_type, field, 0, buffer, (u32)sizeof(buffer), NULL);
-    ldk_ui_end_disabled(ui);
+    LDKInspectorNumericRowContext context = {entity, component_type, field};
+    result = ldk_editor_ui_row_int(editor, display_name,
+        s_editor_inspector_row_group_depth, buffer, (u32)sizeof(buffer),
+        readonly, s_editor_inspector_numeric_row_input, &context, undo_meta);
 
     if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0)
     {
@@ -2753,14 +2770,16 @@ static void s_editor_inspector_field_draw(
     if (field->widget == LDK_FIELD_WIDGET_COLOR)
     {
       rgba32 color = *(rgba32 *)field_value;
-      if (ldki_editor_color_field(editor, &color, readonly))
+      if (ldk_editor_ui_row_color(editor, display_name,
+              s_editor_inspector_row_group_depth, &color, readonly, undo_meta))
       {
         if (component_type)
           (void)s_editor_inspector_property_write(entity, component_type, field, &color);
         else
           *(rgba32 *)field_value = color;
       }
-      break;
+      ldk_ui_pop_id(ui);
+      return;
     }
     char buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY];
     u32 original = *(u32 *)field_value;
@@ -2768,10 +2787,10 @@ static void s_editor_inspector_field_draw(
     u32 result;
 
     snprintf(buffer, sizeof(buffer), "%u", original);
-    ldk_ui_begin_disabled(ui, readonly);
-    result = s_editor_inspector_field_input_box(
-        ui, entity, component_type, field, 0, buffer, (u32)sizeof(buffer), NULL);
-    ldk_ui_end_disabled(ui);
+    LDKInspectorNumericRowContext context = {entity, component_type, field};
+    result = ldk_editor_ui_row_uint(editor, display_name,
+        s_editor_inspector_row_group_depth, buffer, (u32)sizeof(buffer),
+        readonly, s_editor_inspector_numeric_row_input, &context, undo_meta);
 
     if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0)
     {
@@ -2797,10 +2816,9 @@ static void s_editor_inspector_field_draw(
     if (field->widget == LDK_FIELD_WIDGET_SLIDER &&
         field->min_value < field->max_value)
     {
-      ldk_ui_begin_disabled(ui, readonly);
-      value =
-          ldk_ui_slider_input(ui, value, field->min_value, field->max_value);
-      ldk_ui_end_disabled(ui);
+      value = ldk_editor_ui_row_slider_float(editor, display_name,
+          s_editor_inspector_row_group_depth, value,
+          field->min_value, field->max_value, readonly, undo_meta);
 
       if (!readonly)
       {
@@ -2812,9 +2830,16 @@ static void s_editor_inspector_field_draw(
     }
     else
     {
-      if (s_editor_inspector_float_input(
-              ui, entity, component_type, field, 0, &value, readonly))
+      char buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY];
+      float parsed;
+      LDKInspectorNumericRowContext context = {entity, component_type, field};
+      u32 result = ldk_editor_ui_row_float(editor, display_name,
+          s_editor_inspector_row_group_depth, buffer, (u32)sizeof(buffer),
+          &value, readonly, s_editor_inspector_numeric_row_input, &context, undo_meta);
+      if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0 &&
+          s_editor_inspector_parse_float(buffer, &parsed))
       {
+        value = parsed;
         if (component_type)
           (void)s_editor_inspector_property_write(entity, component_type, field, &value);
         else
@@ -2833,13 +2858,14 @@ static void s_editor_inspector_field_draw(
         value.buf[value.length] != 0 ||
         strlen(value.buf) != value.length)
     {
+      s_editor_inspector_row_begin(editor, display_name);
       ldk_ui_label(ui, "<invalid string>");
       break;
     }
 
-    ldk_ui_begin_disabled(ui, readonly);
-    result = ldk_ui_input_box(ui, value.buf, (u32)sizeof(value.buf));
-    ldk_ui_end_disabled(ui);
+    result = ldk_editor_ui_row_text(editor, display_name,
+        s_editor_inspector_row_group_depth, value.buf,
+        (u32)sizeof(value.buf), readonly, undo_meta);
 
     if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0)
     {
@@ -2857,12 +2883,11 @@ static void s_editor_inspector_field_draw(
   {
     Vec2 value = *(Vec2 *)field_value;
 
-    bool changed = false;
-
-    changed |= s_editor_inspector_float_input(
-        ui, entity, component_type, field, 0, &value.x, readonly);
-    changed |= s_editor_inspector_float_input(
-        ui, entity, component_type, field, 1, &value.y, readonly);
+    LDKInspectorNumericRowContext context = {entity, component_type, field};
+    float *values[] = {&value.x, &value.y};
+    bool changed = ldk_editor_ui_row_vec2(editor, display_name,
+        s_editor_inspector_row_group_depth, values, readonly,
+        s_editor_inspector_vector_row_input, &context, undo_meta);
 
     if (changed)
     {
@@ -2878,22 +2903,11 @@ static void s_editor_inspector_field_draw(
   {
     Vec3 value = *(Vec3 *)field_value;
 
-    bool changed = false;
-
-    ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
-    ldk_ui_label(ui, "X");
-    changed |= s_editor_inspector_float_input(
-        ui, entity, component_type, field, 0, &value.x, readonly);
-
-    ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
-    ldk_ui_label(ui, "Y");
-    changed |= s_editor_inspector_float_input(
-        ui, entity, component_type, field, 1, &value.y, readonly);
-
-    ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
-    ldk_ui_label(ui, "Z");
-    changed |= s_editor_inspector_float_input(
-        ui, entity, component_type, field, 2, &value.z, readonly);
+    LDKInspectorNumericRowContext context = {entity, component_type, field};
+    float *values[] = {&value.x, &value.y, &value.z};
+    bool changed = ldk_editor_ui_row_vec3(editor, display_name,
+        s_editor_inspector_row_group_depth, values, readonly,
+        s_editor_inspector_vector_row_input, &context, undo_meta);
 
     if (changed)
     {
@@ -2909,16 +2923,11 @@ static void s_editor_inspector_field_draw(
   {
     Vec4 value = *(Vec4 *)field_value;
 
-    bool changed = false;
-
-    changed |= s_editor_inspector_float_input(
-        ui, entity, component_type, field, 0, &value.x, readonly);
-    changed |= s_editor_inspector_float_input(
-        ui, entity, component_type, field, 1, &value.y, readonly);
-    changed |= s_editor_inspector_float_input(
-        ui, entity, component_type, field, 2, &value.z, readonly);
-    changed |= s_editor_inspector_float_input(
-        ui, entity, component_type, field, 3, &value.w, readonly);
+    LDKInspectorNumericRowContext context = {entity, component_type, field};
+    float *values[] = {&value.x, &value.y, &value.z, &value.w};
+    bool changed = ldk_editor_ui_row_vec4(editor, display_name,
+        s_editor_inspector_row_group_depth, values, readonly,
+        s_editor_inspector_vector_row_input, &context, undo_meta);
 
     if (changed)
     {
@@ -2934,23 +2943,21 @@ static void s_editor_inspector_field_draw(
   {
     if (field->widget == LDK_FIELD_WIDGET_EULER)
     {
-      s_editor_inspector_euler_field_draw(ui, entity, component_type, field,
-          component, field_value, readonly);
+      LDKInspectorEulerRowContext context = {
+          entity, component_type, field, component, field_value, readonly};
+      ldk_editor_ui_row_euler(editor, display_name,
+          s_editor_inspector_row_group_depth,
+          s_editor_inspector_euler_row_content, &context, undo_meta);
       break;
     }
 
     Quat value = *(Quat *)field_value;
 
-    bool changed = false;
-
-    changed |= s_editor_inspector_float_input(
-        ui, entity, component_type, field, 0, &value.x, readonly);
-    changed |= s_editor_inspector_float_input(
-        ui, entity, component_type, field, 1, &value.y, readonly);
-    changed |= s_editor_inspector_float_input(
-        ui, entity, component_type, field, 2, &value.z, readonly);
-    changed |= s_editor_inspector_float_input(
-        ui, entity, component_type, field, 3, &value.w, readonly);
+    LDKInspectorNumericRowContext context = {entity, component_type, field};
+    float *values[] = {&value.x, &value.y, &value.z, &value.w};
+    bool changed = ldk_editor_ui_row_vec4(editor, display_name,
+        s_editor_inspector_row_group_depth, values, readonly,
+        s_editor_inspector_vector_row_input, &context, undo_meta);
 
     if (changed)
     {
@@ -2979,7 +2986,11 @@ static void s_editor_inspector_field_draw(
     break;
   }
 
-  ldk_ui_end_horizontal(ui);
+  if (field->type != LDK_FIELD_QUAT ||
+      field->widget != LDK_FIELD_WIDGET_EULER)
+  {
+    ldk_ui_end_horizontal(ui);
+  }
   ldk_ui_pop_id(ui);
 }
 
@@ -3213,7 +3224,10 @@ static void s_editor_inspector_scene_properties_draw(
           properties.fog_density != current->fog_density ||
           properties.fog_start != current->fog_start))
   {
-    (void)ldk_scene_properties_set(&properties);
+    if (ldk_scene_properties_set(&properties))
+    {
+      ldki_editor_scene_dirty_set(editor, true);
+    }
   }
 
   ldk_ui_pop_id(&editor->ui);
@@ -3295,19 +3309,123 @@ static bool s_editor_material_asset_equal(
   return a.h.index == b.h.index && a.h.version == b.h.version;
 }
 
+static LDKEditorUIUndoProperty s_editor_material_undo_property(
+    LDKEditorContext *editor, const LDKMaterialDesc *desc,
+    LDKAssetMaterial asset, LDKEntity entity, u32 component_type, u32 slot)
+{
+  LDKEditorUIUndoProperty property = {0};
+  u32 domain;
+
+  if (!editor || !desc || editor->editor_state != LDK_EDITOR_STATE_STOPED)
+  {
+    return property;
+  }
+
+  if (!x_handle_is_null(asset.h))
+  {
+    domain = LDK_EDITOR_UNDO_MATERIAL_ASSET;
+    property.key.owner = ((u64)asset.h.version << 32) | asset.h.index;
+    slot = 0;
+  }
+  else if (component_type == LDK_COMPONENT_TYPE_MESH_SOURCE ||
+      component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
+  {
+    domain = component_type == LDK_COMPONENT_TYPE_MESH_SOURCE
+        ? LDK_EDITOR_UNDO_MATERIAL_MESH
+        : LDK_EDITOR_UNDO_MATERIAL_INSTANCED_MESH;
+    property.key.owner = ((u64)entity.version << 32) | entity.index;
+  }
+  else
+  {
+    return property; /* Unsaved drafts have no restorable identity. */
+  }
+
+  property.key.property = ((u64)domain << 32) | slot;
+  property.type = LDK_FIELD_ASSET_MATERIAL;
+  property.value = desc;
+  property.size = sizeof(*desc);
+  return property;
+}
+
+/* An interaction edits a temporary descriptor. Capture its value before the
+ * control writes it, but finalize only after the owning setter has run. */
+static void s_editor_material_undo_update(LDKEditorContext *editor,
+    const LDKEditorUIUndoProperty *property,
+    const LDKMaterialDesc *initial, bool changed)
+{
+  LDKUIContext *ui;
+  LDKEditorUndo *undo;
+  bool matches;
+  bool mouse_pressed;
+  bool mouse_up;
+  bool text_focused;
+  bool enter_pressed;
+
+  if (!editor || !property || !property->size || !initial)
+  {
+    return;
+  }
+
+  ui = &editor->ui;
+  undo = &editor->undo;
+  mouse_pressed = ui->mouse && ldk_os_mouse_button_is_pressed(
+      (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+  mouse_up = ui->mouse && ldk_os_mouse_button_up(
+      (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT);
+  text_focused = ui->input_box_id != 0 &&
+      ui->focused_id == ui->input_box_id;
+  enter_pressed = text_focused && ui->keyboard &&
+      ldk_os_keyboard_key_down(
+          (LDKKeyboardState *)ui->keyboard, LDK_KEYCODE_ENTER);
+  matches = ldk_editor_undo_has_active_change(undo) &&
+      editor->undo_row_key.owner == property->key.owner &&
+      editor->undo_row_key.property == property->key.property;
+
+  if (changed && !matches)
+  {
+    if (ldk_editor_undo_has_active_change(undo) &&
+        !ldk_editor_undo_end_change_resolved(undo))
+    {
+      ldk_editor_undo_clear(undo);
+    }
+    if (ldk_editor_undo_begin_change(undo, property->key,
+            property->type, initial, property->size))
+    {
+      editor->undo_row_key = property->key;
+      editor->undo_widget_id = 0;
+      editor->undo_end_requested = false;
+      matches = true;
+    }
+  }
+
+  if (!matches)
+  {
+    return;
+  }
+
+  editor->undo_row_seen = true;
+  if (changed && text_focused)
+  {
+    editor->undo_widget_id = ui->focused_id;
+  }
+  if (mouse_up || enter_pressed ||
+      (editor->undo_widget_id &&
+          editor->undo_widget_id != ui->focused_id) ||
+      (!mouse_pressed && !text_focused))
+  {
+    editor->undo_end_requested = true;
+  }
+}
+
 static bool s_editor_material_image_editor_ex(LDKEditorContext *editor,
     const char *label, const char *dialog_title, LDKAssetImage *image,
     bool readonly, bool optional, bool *expanded, bool *removed,
     const LDKMaterialIOContext *context)
 {
-  LDKUIContext *ui;
   LDKAssetManager *assets;
   LDKAssetHandle asset;
   const LDKAssetInfo *info;
   XFSPath path = {0};
-  char display_path[sizeof(path.buf)];
-  bool assign = false;
-  bool clear = false;
 
   if (!editor || !label || !dialog_title || !image || !context ||
       !context->assets)
@@ -3315,69 +3433,18 @@ static bool s_editor_material_image_editor_ex(LDKEditorContext *editor,
     return false;
   }
 
-  ui = &editor->ui;
   assets = context->assets;
   asset.h = image->h;
   info = !x_handle_is_null(image->h) ? ldk_asset_get_info_const(assets, asset)
                                      : NULL;
-  snprintf(display_path, sizeof(display_path), "%s",
-      info
-          ? (info->asset_path.length ? info->asset_path.buf : "Generated image")
-          : "");
 
-  ldk_ui_push_id_cstr(ui, label);
-  if (expanded)
-  {
-    ldk_ui_begin_horizontal(ui);
-    ldk_ui_set_next_width(ui, ldk_ui_px(editor->inspector_label_width));
-    *expanded = ldk_ui_tree_node(ui, label, *expanded, 0, 0);
-  }
-  else
-    s_editor_material_row_begin(editor, label);
-  ldk_ui_begin_disabled(ui, true);
-  ldk_ui_input_box(ui, display_path, sizeof(display_path));
-  LDKUIRect target = ldk_ui_last_bounding_rect(ui);
-  ldk_ui_end_disabled(ui);
-  s_editor_inspector_asset_reveal_on_click(editor, info, target);
+  ldk_ui_push_id_cstr(&editor->ui, label);
+  LDKEditorUIRowSlotAction action = ldk_editor_ui_row_slot_image(editor,
+      label, dialog_title, s_editor_inspector_row_group_depth, info, readonly, optional,
+      !x_handle_is_null(image->h) || removed != NULL, expanded, &path, NULL);
+  ldk_ui_pop_id(&editor->ui);
 
-  if (!readonly && ui->mouse && ui->active_id && ui->current_window &&
-      ui->hovered_window_id == ui->current_window->id &&
-      ldk_os_mouse_button_up((LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
-  {
-    LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
-    if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
-        ldk_rectf_contains(&ui->clip_rect, (float)cursor.x, (float)cursor.y))
-    {
-      u32 payload_type = 0;
-      assign =
-          ldk_ui_drag_n_drop_payload_get_and_remove(&payload_type, &path) &&
-          (payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_FILE_PATH ||
-           payload_type == LDK_EDITOR_DRAG_N_DROP_PAYLOAD_ASSET_PATH);
-    }
-  }
-
-  ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
-  ldk_ui_begin_disabled(ui, readonly);
-  if (ldk_ui_button(ui, "..."))
-  {
-    assign = ldk_os_dialog_show_open_file(editor->window, dialog_title,
-        "Images\0*.png;*.jpg;*.jpeg;*.bmp;*.tga\0\0", &path);
-  }
-  ldk_ui_end_disabled(ui);
-
-  if (optional)
-  {
-    ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
-    ldk_ui_begin_disabled(ui,
-        readonly || (!removed && x_handle_is_null(image->h)));
-    clear = ldk_ui_button(ui, "X");
-    ldk_ui_end_disabled(ui);
-  }
-
-  ldk_ui_end_horizontal(ui);
-  ldk_ui_pop_id(ui);
-
-  if (clear)
+  if (action == LDK_EDITOR_UI_ROW_SLOT_CLEAR)
   {
     if (removed)
       *removed = true;
@@ -3385,7 +3452,7 @@ static bool s_editor_material_image_editor_ex(LDKEditorContext *editor,
     return true;
   }
 
-  if (!assign)
+  if (action != LDK_EDITOR_UI_ROW_SLOT_ASSIGN)
   {
     return false;
   }
@@ -3499,11 +3566,8 @@ static bool s_editor_material_texture_settings_editor(
   {
     filter = (u32)LDK_MATERIAL_TEXTURE_FILTER_NEAREST;
   }
-  s_editor_material_row_begin(editor, "Filter");
-  ldk_ui_begin_disabled(ui, readonly);
-  u32 next_filter = ldk_ui_combo_box(ui, filter_names, 2, filter);
-  ldk_ui_end_disabled(ui);
-  ldk_ui_end_horizontal(ui);
+  u32 next_filter = ldk_editor_ui_row_enum(editor, "Filter",
+      s_editor_inspector_row_group_depth, filter_names, 2, filter, readonly, NULL);
   if (!readonly && next_filter < 2u && next_filter != filter)
   {
     settings->filter = (LDKMaterialTextureFilter)next_filter;
@@ -3516,12 +3580,9 @@ static bool s_editor_material_texture_settings_editor(
   {
     mip_filter = (u32)LDK_MATERIAL_TEXTURE_MIP_FILTER_NONE;
   }
-  s_editor_material_row_begin(editor, "Mip Filter");
-  ldk_ui_begin_disabled(ui, readonly);
-  u32 next_mip_filter =
-      ldk_ui_combo_box(ui, mip_filter_names, 3, mip_filter);
-  ldk_ui_end_disabled(ui);
-  ldk_ui_end_horizontal(ui);
+  u32 next_mip_filter = ldk_editor_ui_row_enum(editor, "Mip Filter",
+      s_editor_inspector_row_group_depth, mip_filter_names, 3, mip_filter,
+      readonly, NULL);
   if (!readonly && next_mip_filter < 3u && next_mip_filter != mip_filter)
   {
     settings->mip_filter =
@@ -3680,7 +3741,8 @@ static bool s_editor_material_textures_editor(LDKEditorContext *editor,
 
 static bool s_editor_material_desc_editor(LDKEditorContext *editor,
     LDKMaterialDesc *desc, bool readonly,
-    const LDKMaterialIOContext *context)
+    const LDKMaterialIOContext *context,
+    const LDKEditorUIUndoProperty *undo_property)
 {
   static const char *const names[] = {
       "Textured Unlit", "Textured", "Vertex Color Unlit", "Vertex Color"};
@@ -3690,6 +3752,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
   LDKUIContext *ui;
   bool changed = false;
   u32 selected = 3;
+  LDKMaterialDesc initial;
 
   if (!editor || !desc || !context || !context->assets)
   {
@@ -3697,6 +3760,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
   }
 
   ui = &editor->ui;
+  initial = *desc;
   for (u32 i = 0; i < 4; ++i)
   {
     if (desc->type == types[i])
@@ -3705,11 +3769,8 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
     }
   }
 
-  s_editor_material_row_begin(editor, "Type");
-  ldk_ui_begin_disabled(ui, readonly);
-  u32 next = ldk_ui_combo_box(ui, names, 4, selected);
-  ldk_ui_end_disabled(ui);
-  ldk_ui_end_horizontal(ui);
+  u32 next = ldk_editor_ui_row_enum(editor, "Type",
+      s_editor_inspector_row_group_depth, names, 4, selected, readonly, NULL);
   if (!readonly && next < 4 && next != selected &&
       ldk_material_desc_defaults(types[next], desc))
   {
@@ -3765,12 +3826,9 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
       selected_alpha_mode = 1u;
     }
 
-    s_editor_material_row_begin(editor, "Alpha Mode");
-    ldk_ui_begin_disabled(ui, readonly);
-    u32 next_alpha_mode = ldk_ui_combo_box(
-        ui, alpha_mode_names, alpha_mode_count, selected_alpha_mode);
-    ldk_ui_end_disabled(ui);
-    ldk_ui_end_horizontal(ui);
+    u32 next_alpha_mode = ldk_editor_ui_row_enum(editor, "Alpha Mode",
+        s_editor_inspector_row_group_depth, alpha_mode_names,
+        alpha_mode_count, selected_alpha_mode, readonly, NULL);
     if (!readonly && next_alpha_mode < alpha_mode_count &&
         next_alpha_mode != selected_alpha_mode)
     {
@@ -3841,6 +3899,7 @@ static bool s_editor_material_desc_editor(LDKEditorContext *editor,
     changed |= s_editor_material_textures_editor(editor, desc, readonly, context);
   }
 
+  s_editor_material_undo_update(editor, undo_property, &initial, changed);
   return changed;
 }
 
@@ -3920,9 +3979,11 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
     }
 
     desc = data->descriptor;
+    LDKEditorUIUndoProperty material_undo = s_editor_material_undo_property(
+        editor, &desc, *material_asset, x_handle_null(), 0, 0);
 
-    if (s_editor_material_desc_editor(
-            editor, &desc, readonly, context) &&
+    if (s_editor_material_desc_editor(editor, &desc, readonly,
+            context, material_undo.size ? &material_undo : NULL) &&
         !ldk_asset_manager_material_update(
             context->assets, *material_asset, &desc))
     {
@@ -4020,7 +4081,7 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
   ldk_ui_horizontal_line(ui);
 
   (void)s_editor_material_desc_editor(
-      editor, &draft->descriptor, readonly, context);
+      editor, &draft->descriptor, readonly, context, NULL);
 
   s_editor_material_row_begin(editor, "Draft");
   ldk_ui_begin_disabled(ui, readonly);
@@ -4080,7 +4141,8 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
 }
 
 static void s_editor_inspector_material_slot(LDKEditorContext *editor,
-    LDKMeshSource *mesh, u32 material_slot, const char *slot_label,
+    LDKEntity entity, u32 component_type, LDKMeshSource *mesh,
+    u32 material_slot, const char *slot_label,
     const LDKMaterialIOContext *context)
 {
   LDKUIContext *ui = &editor->ui;
@@ -4133,7 +4195,11 @@ static void s_editor_inspector_material_slot(LDKEditorContext *editor,
   }
 
   LDKMaterialDesc desc = s_editor_mesh_material_desc(mesh, material_slot);
-  if (s_editor_material_desc_editor(editor, &desc, false, context) &&
+  LDKEditorUIUndoProperty material_undo = s_editor_material_undo_property(
+      editor, &desc, ldk_asset_material_null(), entity,
+      component_type, material_slot);
+  if (s_editor_material_desc_editor(editor, &desc, false,
+          context, material_undo.size ? &material_undo : NULL) &&
       !ldk_mesh_source_set_material_at(mesh, material_slot, &desc))
   {
     ldki_editor_log_error(editor, "Failed to update inline material.");
@@ -4179,7 +4245,8 @@ static void s_editor_inspector_material_slot(LDKEditorContext *editor,
 }
 
 static void s_editor_inspector_material(
-    LDKEditorContext *editor, LDKMeshSource *mesh)
+    LDKEditorContext *editor, LDKEntity entity,
+    u32 component_type, LDKMeshSource *mesh)
 {
   LDKUIContext *ui;
   LDKMaterialIOContext context = {0};
@@ -4212,7 +4279,7 @@ static void s_editor_inspector_material(
   for (u32 slot = 0; slot < material_count; slot++)
   {
     s_editor_inspector_material_slot(
-        editor, mesh, slot, "Material", &context);
+        editor, entity, component_type, mesh, slot, "Material", &context);
   }
   ldk_ui_pop_id(ui);
 }
@@ -4309,23 +4376,20 @@ static void s_editor_inspector_system_grouping_draw(
   char label[64];
   snprintf(label, sizeof(label), "0x%016" PRIx64,
       ldk_ecs_grouping_id(desc.component_types, desc.component_count));
-  s_editor_inspector_row_begin(editor, "Group ID");
-  ldk_ui_label(ui, label);
-  ldk_ui_end_horizontal(ui);
+  ldk_editor_ui_row_label(editor, "Group ID",
+      s_editor_inspector_row_group_depth, label);
   if (!desc.component_count)
   {
-    s_editor_inspector_row_begin(editor, "Components");
-    ldk_ui_label(ui, "None (global system)");
-    ldk_ui_end_horizontal(ui);
+    ldk_editor_ui_row_label(editor, "Components",
+        s_editor_inspector_row_group_depth, "None (global system)");
   }
   for (u32 i = 0; i < desc.component_count; ++i)
   {
     const char *name = ldk_component_name_get(
         ldk_ecs_component_registry_get(), desc.component_types[i]);
     snprintf(label, sizeof(label), "0x%08x", desc.component_types[i]);
-    s_editor_inspector_row_begin(editor, i == 0 ? "Components" : "");
-    ldk_ui_label(ui, name ? name : label);
-    ldk_ui_end_horizontal(ui);
+    ldk_editor_ui_row_label(editor, i == 0 ? "Components" : "",
+        s_editor_inspector_row_group_depth, name ? name : label);
   }
 }
 
@@ -4493,40 +4557,24 @@ static bool s_editor_inspector_instance_vec3_draw(LDKEditorContext *editor,
     LDKEntity entity, const char *label, u32 field_offset, Vec3 *value)
 {
   LDKComponentFieldMeta field = {0};
-  LDKUIContext *ui;
-  bool changed = false;
 
   if (!editor || !label || !value)
   {
     return false;
   }
 
-  ui = &editor->ui;
   field.name = label;
   field.type = LDK_FIELD_VEC3;
   field.offset = field_offset;
   field.flags = LDK_FIELD_FLAG_NONE;
   field.widget = LDK_FIELD_WIDGET_VEC3;
 
-  s_editor_inspector_row_begin(editor, label);
-
-  ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
-  ldk_ui_label(ui, "X");
-  changed |= s_editor_inspector_float_input(ui, entity,
-      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field, 0, &value->x, false);
-
-  ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
-  ldk_ui_label(ui, "Y");
-  changed |= s_editor_inspector_float_input(ui, entity,
-      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field, 1, &value->y, false);
-
-  ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
-  ldk_ui_label(ui, "Z");
-  changed |= s_editor_inspector_float_input(ui, entity,
-      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field, 2, &value->z, false);
-
-  ldk_ui_end_horizontal(ui);
-  return changed;
+  LDKInspectorNumericRowContext context = {
+      entity, LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field};
+  float *values[] = {&value->x, &value->y, &value->z};
+  return ldk_editor_ui_row_vec3(editor, label,
+      s_editor_inspector_row_group_depth, values, false,
+      s_editor_inspector_vector_row_input, &context, NULL);
 }
 
 static bool s_editor_inspector_instance_rotation_draw(LDKEditorContext *editor,
@@ -4547,11 +4595,12 @@ static bool s_editor_inspector_instance_rotation_draw(LDKEditorContext *editor,
   field.widget = LDK_FIELD_WIDGET_EULER;
   original = *rotation;
 
-  s_editor_inspector_row_begin(editor, field.name);
-  s_editor_inspector_euler_field_draw(&editor->ui, entity,
-      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field, instance, rotation,
-      false);
-  ldk_ui_end_horizontal(&editor->ui);
+  LDKInspectorEulerRowContext context = {entity,
+      LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE, &field, instance,
+      rotation, false};
+  ldk_editor_ui_row_euler(editor, field.name,
+      s_editor_inspector_row_group_depth,
+      s_editor_inspector_euler_row_content, &context, NULL);
 
   return !s_editor_inspector_euler_quat_equal(original, *rotation);
 }
@@ -4661,6 +4710,7 @@ static void s_editor_inspector_instanced_mesh_instances_draw(
       editor->selected_entity = entity;
       editor->selected_instance_entity = entity;
       editor->selected_instance = source->instance_count - 1u;
+      ldki_editor_scene_dirty_set(editor, true);
       s_editor_inspector_input_state_clear();
       memset(&s_editor_inspector_euler_state, 0,
           sizeof(s_editor_inspector_euler_state));
@@ -4704,6 +4754,7 @@ static void s_editor_inspector_instanced_mesh_instances_draw(
       }
       else
       {
+        ldki_editor_scene_dirty_set(editor, true);
         if (selection_owned)
         {
           if (selected_index == i)
@@ -4745,7 +4796,11 @@ static void s_editor_inspector_instanced_mesh_instances_draw(
       Mat4 matrix = mat4_compose(position, rotation, scale);
       if (s_editor_inspector_instance_matrix_finite(matrix))
       {
-        source->instances[i] = matrix;
+        if (memcmp(&source->instances[i], &matrix, sizeof(matrix)) != 0)
+        {
+          source->instances[i] = matrix;
+          ldki_editor_scene_dirty_set(editor, true);
+        }
       }
       else
       {
@@ -4872,6 +4927,7 @@ static void s_editor_inspector_add_component_draw(
         }
 
         s_editor_inspector_component_expanded_set(component_type, true);
+        ldki_editor_scene_dirty_set(editor, true);
         ldk_ui_close_current_popup(ui);
         added = true;
       }
@@ -5006,10 +5062,13 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   ldk_ui_set_next_width(ui, ldk_ui_px(icon.size.w));
   ldk_ui_icon_label(ui, icon, "");
   u32 name_result = ldk_ui_input_box(ui, entity_name, sizeof(entity_name));
-  if ((name_result & LDK_UI_INPUT_BOX_CHANGED) != 0)
+  if ((name_result & LDK_UI_INPUT_BOX_CHANGED) != 0 &&
+      strcmp(name ? name : "", entity_name) != 0)
   {
     if (!ldk_ecs_entity_name_set(entity, entity_name))
       ldki_editor_log_error(editor, "Failed to rename the selected entity.");
+    else
+      ldki_editor_scene_dirty_set(editor, true);
   }
   ldk_ui_end_horizontal(ui);
   ldk_ui_pop_id(ui);
@@ -5138,11 +5197,12 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       bool enabled = ldk_ecs_component_is_enabled(entity, component_type);
       bool next = ldk_ui_widget_toggle(
           ui, (LDKUIId)0x454e4142u, enabled, enabled_rect);
-      if (next != enabled &&
-          !ldk_ecs_component_enabled_set(entity, component_type, next))
+      if (next != enabled)
       {
-        ldki_editor_log_error(
-            editor, "Failed to change component enabled state.");
+        if (!ldk_ecs_component_enabled_set(entity, component_type, next))
+          ldki_editor_log_error(editor, "Failed to change component enabled state.");
+        else
+          ldki_editor_scene_dirty_set(editor, true);
       }
     }
 
@@ -5214,7 +5274,8 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       if (fields_type == LDK_COMPONENT_TYPE_MESH_SOURCE ||
           fields_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
       {
-        s_editor_inspector_material(editor, fields_component);
+        s_editor_inspector_material(
+            editor, entity, fields_type, fields_component);
       }
       if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
       {
@@ -5238,6 +5299,10 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
         if (!ldk_ecs_component_remove(entity, component_type))
         {
           ldk_os_dialog_show_error(editor->window, "Error", "Error removing component.");
+        }
+        else
+        {
+          ldki_editor_scene_dirty_set(editor, true);
         }
       }
       

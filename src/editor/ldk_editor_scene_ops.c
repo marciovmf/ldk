@@ -1605,6 +1605,9 @@ bool ldki_editor_scene_clear(LDKEditorContext *editor)
     return false;
   }
 
+  ldk_editor_undo_clear(&editor->undo);
+  editor->scene_undo_position_seen = 0;
+  ldki_editor_scene_dirty_set(editor, false);
   ldk_scene_systems_clear(&editor->current_scene_systems);
   s_editor_scene_selection_clear(editor);
   memset(&editor->current_scene_path, 0, sizeof(editor->current_scene_path));
@@ -1675,6 +1678,13 @@ bool ldki_editor_scene_load(LDKEditorContext *editor, const XFSPath *path)
     return false;
   }
 
+  if (!editor->scene_load_internal &&
+      !ldki_editor_scene_discard_confirm(editor))
+  {
+    ldk_scene_systems_clear(&systems);
+    return false;
+  }
+
   if (!ldki_editor_scene_clear(editor))
   {
     s_editor_scene_load_error(editor, path, "clear previous scene",
@@ -1726,6 +1736,9 @@ bool ldki_editor_scene_save(LDKEditorContext *editor)
     return false;
   }
 
+  ldk_editor_undo_clear(&editor->undo);
+  editor->scene_undo_position_seen = 0;
+  ldki_editor_scene_dirty_set(editor, false);
   ldk_log_info("Scene saved: '%s'.\n", x_fs_path_cstr(&path));
   return true;
 }
@@ -1753,6 +1766,11 @@ bool ldki_editor_scene_new_at_path(
   {
     ldk_os_dialog_show_error(editor->window, "Invalid scene path",
         "Scene files must be saved inside the project runtree.");
+    return false;
+  }
+
+  if (!ldki_editor_scene_discard_confirm(editor))
+  {
     return false;
   }
 
@@ -1844,6 +1862,7 @@ bool ldki_editor_scene_add_primitive(
 
   editor->selected_entity = entity;
   editor->selected_system_id = 0;
+  ldki_editor_scene_dirty_set(editor, true);
   return true;
 }
 
