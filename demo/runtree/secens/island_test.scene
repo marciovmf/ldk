@@ -121,9 +121,11 @@ scene:
             mesh_index: 0
             casts_shadows: true
             billboard: false
-            material_type: 1
-            material_color: 0xffffffff
-            material_texture: "assets/textures/prototype/Purple/texture_09.png"
+            material_type: 4
+            material_color: 0xffe300ff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
         - type: 2637462986 # TFTFPlayerCharacterComponent
           fields:
             speed: 4.00000000
@@ -337,6 +339,7 @@ scene:
         type_0_clump_radius: 0.00000000
         type_0_min_height: 0.200000003
         type_0_max_height: 2.00000000
+        type_0_use_noise_height: false
         type_0_blade_width: 0.00999999978
         type_0_curvature: 0.500000000
         type_0_wind_strength: 0.00000000
@@ -356,6 +359,7 @@ scene:
         type_1_clump_radius: 3.00000000
         type_1_min_height: 1.00000000
         type_1_max_height: 1.00000000
+        type_1_use_noise_height: false
         type_1_blade_width: 0.200000003
         type_1_curvature: 0.00000000
         type_1_wind_strength: 0.171109781
@@ -375,6 +379,7 @@ scene:
         type_2_clump_radius: 1.56212354
         type_2_min_height: 0.300000012
         type_2_max_height: 0.349999994
+        type_2_use_noise_height: false
         type_2_blade_width: 0.0299999993
         type_2_curvature: 0.500000000
         type_2_wind_strength: 0.380340666
@@ -394,6 +399,7 @@ scene:
         type_3_clump_radius: 0.00000000
         type_3_min_height: 0.500000000
         type_3_max_height: 0.850000024
+        type_3_use_noise_height: false
         type_3_blade_width: 0.119999997
         type_3_curvature: 0.158864960
         type_3_wind_strength: 0.00849212985
@@ -413,6 +419,7 @@ scene:
         type_4_clump_radius: 0.00000000
         type_4_min_height: 0.0599999987
         type_4_max_height: 0.119999997
+        type_4_use_noise_height: false
         type_4_blade_width: 0.00800000038
         type_4_curvature: 0.0855928510
         type_4_wind_strength: 0.0199999996
@@ -432,6 +439,7 @@ scene:
         type_5_clump_radius: 0.00000000
         type_5_min_height: 0.00000000
         type_5_max_height: 0.00000000
+        type_5_use_noise_height: false
         type_5_blade_width: 0.00000000
         type_5_curvature: 0.00000000
         type_5_wind_strength: 0.00000000
@@ -451,6 +459,7 @@ scene:
         type_6_clump_radius: 0.00000000
         type_6_min_height: 0.00000000
         type_6_max_height: 0.00000000
+        type_6_use_noise_height: false
         type_6_blade_width: 0.00000000
         type_6_curvature: 0.00000000
         type_6_wind_strength: 0.00000000
@@ -470,6 +479,7 @@ scene:
         type_7_clump_radius: 0.00000000
         type_7_min_height: 0.00000000
         type_7_max_height: 0.00000000
+        type_7_use_noise_height: false
         type_7_blade_width: 0.00000000
         type_7_curvature: 0.00000000
         type_7_wind_strength: 0.00000000
@@ -489,6 +499,7 @@ scene:
         type_8_clump_radius: 0.00000000
         type_8_min_height: 0.00000000
         type_8_max_height: 0.00000000
+        type_8_use_noise_height: false
         type_8_blade_width: 0.00000000
         type_8_curvature: 0.00000000
         type_8_wind_strength: 0.00000000
@@ -508,6 +519,7 @@ scene:
         type_9_clump_radius: 0.00000000
         type_9_min_height: 0.00000000
         type_9_max_height: 0.00000000
+        type_9_use_noise_height: false
         type_9_blade_width: 0.00000000
         type_9_curvature: 0.00000000
         type_9_wind_strength: 0.00000000
@@ -527,6 +539,7 @@ scene:
         type_10_clump_radius: 0.00000000
         type_10_min_height: 0.00000000
         type_10_max_height: 0.00000000
+        type_10_use_noise_height: false
         type_10_blade_width: 0.00000000
         type_10_curvature: 0.00000000
         type_10_wind_strength: 0.00000000
@@ -546,6 +559,7 @@ scene:
         type_11_clump_radius: 0.00000000
         type_11_min_height: 0.00000000
         type_11_max_height: 0.00000000
+        type_11_use_noise_height: false
         type_11_blade_width: 0.00000000
         type_11_curvature: 0.00000000
         type_11_wind_strength: 0.00000000
@@ -565,6 +579,7 @@ scene:
         type_12_clump_radius: 0.00000000
         type_12_min_height: 0.00000000
         type_12_max_height: 0.00000000
+        type_12_use_noise_height: false
         type_12_blade_width: 0.00000000
         type_12_curvature: 0.00000000
         type_12_wind_strength: 0.00000000
@@ -584,6 +599,7 @@ scene:
         type_13_clump_radius: 0.00000000
         type_13_min_height: 0.00000000
         type_13_max_height: 0.00000000
+        type_13_use_noise_height: false
         type_13_blade_width: 0.00000000
         type_13_curvature: 0.00000000
         type_13_wind_strength: 0.00000000
@@ -603,6 +619,7 @@ scene:
         type_14_clump_radius: 0.00000000
         type_14_min_height: 0.00000000
         type_14_max_height: 0.00000000
+        type_14_use_noise_height: false
         type_14_blade_width: 0.00000000
         type_14_curvature: 0.00000000
         type_14_wind_strength: 0.00000000
@@ -622,6 +639,7 @@ scene:
         type_15_clump_radius: 0.00000000
         type_15_min_height: 0.00000000
         type_15_max_height: 0.00000000
+        type_15_use_noise_height: false
         type_15_blade_width: 0.00000000
         type_15_curvature: 0.00000000
         type_15_wind_strength: 0.00000000

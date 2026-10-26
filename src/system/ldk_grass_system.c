@@ -23,14 +23,24 @@
 #define LDK_GRASS_THORN_COUNT 6u
 #define LDK_GRASS_THORN_VERTEX_COUNT 4u
 #define LDK_GRASS_THORN_INDEX_COUNT 9u
+#define LDK_GRASS_PLUME_COUNT 3u
+#define LDK_GRASS_PLUME_SEGMENT_COUNT 16u
+#define LDK_GRASS_PLUMED_VERTEX_COUNT                                      \
+  (LDK_GRASS_RIBBON_VERTEX_COUNT +                                        \
+      LDK_GRASS_PLUME_COUNT * (LDK_GRASS_PLUME_SEGMENT_COUNT + 1u) * 2u)
+#define LDK_GRASS_PLUMED_INDEX_COUNT                                       \
+  ((LDK_GRASS_PROFILE_POINT_COUNT - 1u) * 6u +                             \
+      LDK_GRASS_PLUME_COUNT * LDK_GRASS_PLUME_SEGMENT_COUNT * 6u)
 #define LDK_GRASS_MAX_MESH_VERTEX_COUNT                                      \
   (LDK_GRASS_PROFILE_POINT_COUNT * LDK_GRASS_MAX_SIDE_COUNT +               \
       LDK_GRASS_MAX_SIDE_COUNT + 1u +                                       \
-      LDK_GRASS_THORN_COUNT * LDK_GRASS_THORN_VERTEX_COUNT)
+      LDK_GRASS_THORN_COUNT * LDK_GRASS_THORN_VERTEX_COUNT +                \
+      LDK_GRASS_PLUMED_VERTEX_COUNT)
 #define LDK_GRASS_MAX_MESH_INDEX_COUNT                                       \
   ((LDK_GRASS_PROFILE_POINT_COUNT - 1u) * LDK_GRASS_MAX_SIDE_COUNT * 6u +   \
       LDK_GRASS_MAX_SIDE_COUNT * 3u +                                       \
-      LDK_GRASS_THORN_COUNT * LDK_GRASS_THORN_INDEX_COUNT)
+      LDK_GRASS_THORN_COUNT * LDK_GRASS_THORN_INDEX_COUNT +                 \
+      LDK_GRASS_PLUMED_INDEX_COUNT)
 #define LDK_GRASS_THORN_MAX_LENGTH_SCALE 0.75f
 #define LDK_GRASS_THORNY_BEND_MAX_SCALE 1.25f
 #define LDK_GRASS_INTERACTION_RESOLUTION 128u
@@ -51,6 +61,7 @@ typedef struct LDKGrassResolvedDesc
   float clump_radius;
   float min_height;
   float max_height;
+  bool use_noise_height;
   float min_tilt;
   float max_tilt;
   float tilt_direction;
@@ -916,7 +927,7 @@ static float s_shininess_resolve(float shininess)
 static bool s_blade_preset_is_valid(LDKGrassBladePreset preset)
 {
   return preset >= LDK_GRASS_BLADE_PRESET_THIN &&
-         preset <= LDK_GRASS_BLADE_PRESET_THORNY;
+         preset <= LDK_GRASS_BLADE_PRESET_PLUMED_STEM;
 }
 
 #define LDK_GRASS_TYPE_READ_CASE(index)                                      \
@@ -928,6 +939,7 @@ static bool s_blade_preset_is_valid(LDKGrassBladePreset preset)
     out_desc->clump_radius = system->type_##index##_clump_radius;            \
     out_desc->min_height = system->type_##index##_min_height;                \
     out_desc->max_height = system->type_##index##_max_height;                \
+    out_desc->use_noise_height = system->type_##index##_use_noise_height;     \
     out_desc->blade_width = system->type_##index##_blade_width;              \
     out_desc->curvature = system->type_##index##_curvature;                  \
     out_desc->wind_strength = system->type_##index##_wind_strength;          \
@@ -987,6 +999,7 @@ static bool s_type_slot_read(const LDKGrassSystem *system,
     system->type_##index##_clump_radius = desc->clump_radius;                \
     system->type_##index##_min_height = desc->min_height;                    \
     system->type_##index##_max_height = desc->max_height;                    \
+    system->type_##index##_use_noise_height = desc->use_noise_height;        \
     system->type_##index##_blade_width = desc->blade_width;                  \
     system->type_##index##_curvature = desc->curvature;                      \
     system->type_##index##_wind_strength = desc->wind_strength;              \
@@ -1152,6 +1165,9 @@ static bool s_shape_from_type(
   case LDK_GRASS_BLADE_PRESET_THORNY:
     out_shape->topology = LDK_GRASS_BLADE_TOPOLOGY_THORNY_STEM;
     break;
+  case LDK_GRASS_BLADE_PRESET_PLUMED_STEM:
+    out_shape->topology = LDK_GRASS_BLADE_TOPOLOGY_PLUMED_STEM;
+    break;
   default:
     return false;
   }
@@ -1206,6 +1222,8 @@ static bool s_resolved_desc_build(const LDKGrassSystem *system,
   out_desc->clump_radius = type.clump_radius;
   out_desc->min_height = type.min_height;
   out_desc->max_height = type.max_height;
+  out_desc->use_noise_height =
+      type.use_noise_height && s_grass.color_noise_image != NULL;
   out_desc->min_tilt = deg_to_rad(system->min_tilt_degrees);
   out_desc->max_tilt = deg_to_rad(system->max_tilt_degrees);
   out_desc->tilt_direction = deg_to_rad(system->tilt_direction_degrees);
@@ -1366,7 +1384,8 @@ static bool s_topology_is_valid(LDKGrassBladeTopology topology)
          topology == LDK_GRASS_BLADE_TOPOLOGY_CROSSED_RIBBONS ||
          topology == LDK_GRASS_BLADE_TOPOLOGY_RADIAL ||
          topology == LDK_GRASS_BLADE_TOPOLOGY_TRIPLE_RIBBONS ||
-         topology == LDK_GRASS_BLADE_TOPOLOGY_THORNY_STEM;
+         topology == LDK_GRASS_BLADE_TOPOLOGY_THORNY_STEM ||
+         topology == LDK_GRASS_BLADE_TOPOLOGY_PLUMED_STEM;
 }
 
 static bool s_shape_is_valid(const LDKGrassBladeShape *shape)
@@ -1489,6 +1508,11 @@ static void s_patch_bounds_calculate(const LDKGrassResolvedDesc *desc,
     half_width += desc->shape.profile[0].width *
         (LDK_GRASS_THORNY_BEND_MAX_SCALE +
             LDK_GRASS_THORN_MAX_LENGTH_SCALE);
+  }
+  else if (desc->shape.topology == LDK_GRASS_BLADE_TOPOLOGY_PLUMED_STEM)
+  {
+    /* The plume tips extend sideways beyond the central stem. */
+    half_width = desc->shape.profile[0].width * 5.0f;
   }
 
   for (u32 i = 0u; i < instance_count; ++i)
@@ -1699,6 +1723,8 @@ static u32 s_batch_find_or_add(const LDKGrassResolvedDesc *desc)
   return s_grass.batch_count++;
 }
 
+static float s_noise_sample(float x, float z);
+
 static bool s_patch_instances_generate(const LDKGrassResolvedDesc *desc,
     Mat4 **out_instances, u32 *out_count)
 {
@@ -1785,14 +1811,19 @@ static bool s_patch_instances_generate(const LDKGrassResolvedDesc *desc,
         v = (dv * uu - du * uv) / det;
       }
     }
-    float height = desc->min_height +
-        (desc->max_height - desc->min_height) * s_random_unit(&random);
+    float height_sample = s_random_unit(&random);
     float angle = s_random_unit(&random) * 2.0f * LDK_GRASS_PI;
     float tilt_angle = desc->min_tilt +
         (desc->max_tilt - desc->min_tilt) * s_random_unit(&random);
     Vec3 position = vec3_add(desc->plane.origin,
         vec3_add(vec3_mul(desc->plane.axis_u, u),
             vec3_mul(desc->plane.axis_v, v)));
+    if (desc->use_noise_height)
+    {
+      height_sample = s_noise_sample(position.x, position.z);
+    }
+    float height = desc->min_height +
+        (desc->max_height - desc->min_height) * height_sample;
     Quat yaw =
         quat_axis_angle(vec3_make(0.0f, 1.0f, 0.0f), angle);
     Quat tilt = quat_axis_angle(
@@ -2450,6 +2481,117 @@ static void s_thorny_stem_mesh_write(const LDKGrassBatch *batch,
   }
 }
 
+static void s_plumed_stem_mesh_write(const LDKGrassBatch *batch,
+    LDKMeshVertex *vertices, u32 *vertex_count,
+    u32 *indices, u32 *index_count)
+{
+  static const struct
+  {
+    float base_height;
+    float tip_height;
+    float reach;
+    float width_scale;
+  } plumes[LDK_GRASS_PLUME_COUNT] = {
+      {0.73f, 1.00f, 2.25f, 0.95f},
+      {0.67f, 0.84f, 4.00f, 0.85f},
+      {0.64f, 0.74f, 3.00f, 0.70f},
+  };
+  const float width = batch->shape.profile[0].width;
+  const Vec3 normal = vec3_make(0.0f, 0.0f, 1.0f);
+  const Vec4 tangent = vec4_make(1.0f, 0.0f, 0.0f, 1.0f);
+  u32 first = *vertex_count;
+
+  /* A narrow ribbon forms the entire stem. */
+  for (u32 level = 0u; level < LDK_GRASS_PROFILE_POINT_COUNT; ++level)
+  {
+    float t = (float)level / (float)(LDK_GRASS_PROFILE_POINT_COUNT - 1u);
+    float x = width * 0.13f * t * t;
+    float y = 0.75f * t;
+    float half_width = width * (0.07f - 0.02f * t);
+    u32 color = LDK_RGBA32(s_color_lerp(
+        batch->bottom_color, batch->top_color, t * 0.20f));
+
+    for (u32 side = 0u; side < 2u; ++side)
+    {
+      LDKMeshVertex *vertex = &vertices[(*vertex_count)++];
+      vertex->position = vec3_make(
+          x + (side == 0u ? -half_width : half_width), y, 0.0f);
+      vertex->normal = normal;
+      vertex->uv = vec2_make((float)side, y);
+      vertex->color = color;
+      vertex->tangent = tangent;
+    }
+  }
+  for (u32 level = 0u; level + 1u < LDK_GRASS_PROFILE_POINT_COUNT;
+       ++level)
+  {
+    u32 lower = first + level * 2u;
+    indices[(*index_count)++] = lower;
+    indices[(*index_count)++] = lower + 1u;
+    indices[(*index_count)++] = lower + 3u;
+    indices[(*index_count)++] = lower;
+    indices[(*index_count)++] = lower + 3u;
+    indices[(*index_count)++] = lower + 2u;
+  }
+
+  /* Three tapered ribbons grow from the upper portion of the same stem. */
+  for (u32 plume = 0u; plume < LDK_GRASS_PLUME_COUNT; ++plume)
+  {
+    float stem_t = plumes[plume].base_height / 0.75f;
+    float base_x = width * 0.13f * stem_t * stem_t;
+    float reach = width * plumes[plume].reach;
+    float rise = plumes[plume].tip_height - plumes[plume].base_height;
+
+    first = *vertex_count;
+    for (u32 level = 0u; level <= LDK_GRASS_PLUME_SEGMENT_COUNT;
+         ++level)
+    {
+      float t = (float)level / (float)LDK_GRASS_PLUME_SEGMENT_COUNT;
+      float x = base_x + reach * (0.18f * t + 0.82f * t * t);
+      float y = plumes[plume].base_height + rise * t;
+      float dx = reach * (0.18f + 1.64f * t);
+      float dy = rise;
+      float inv_length = 1.0f / sqrtf(dx * dx + dy * dy);
+      float half_width = width * plumes[plume].width_scale * 0.5f *
+          fmaxf(0.0f, sinf(t * LDK_GRASS_PI)) * (1.0f - t * 0.18f);
+      float edge_x = dy * inv_length;
+      float edge_y = -dx * inv_length;
+      float left_width = half_width * (level % 3u == 1u ? 0.76f : 1.0f);
+      float right_width = half_width * (level % 4u == 2u ? 0.82f : 1.0f);
+      u32 color = LDK_RGBA32(s_color_lerp(batch->bottom_color,
+          batch->top_color, 0.80f + 0.20f * t));
+      LDKMeshVertex *left = &vertices[(*vertex_count)++];
+      LDKMeshVertex *right = &vertices[(*vertex_count)++];
+
+      left->position = vec3_make(
+          x - edge_x * left_width, y - edge_y * left_width, 0.0f);
+      left->normal = normal;
+      left->uv = vec2_make(0.0f, y);
+      left->color = color;
+      left->tangent = tangent;
+
+      right->position = vec3_make(
+          x + edge_x * right_width, y + edge_y * right_width, 0.0f);
+      right->normal = normal;
+      right->uv = vec2_make(1.0f, y);
+      right->color = color;
+      right->tangent = tangent;
+    }
+
+    for (u32 level = 0u; level < LDK_GRASS_PLUME_SEGMENT_COUNT;
+         ++level)
+    {
+      u32 lower = first + level * 2u;
+      indices[(*index_count)++] = lower;
+      indices[(*index_count)++] = lower + 1u;
+      indices[(*index_count)++] = lower + 3u;
+      indices[(*index_count)++] = lower;
+      indices[(*index_count)++] = lower + 3u;
+      indices[(*index_count)++] = lower + 2u;
+    }
+  }
+}
+
 static bool s_batch_mesh_create(LDKGrassBatch *batch)
 {
   LDKMeshVertex vertices[LDK_GRASS_MAX_MESH_VERTEX_COUNT];
@@ -2490,6 +2632,10 @@ static bool s_batch_mesh_create(LDKGrassBatch *batch)
     break;
   case LDK_GRASS_BLADE_TOPOLOGY_THORNY_STEM:
     s_thorny_stem_mesh_write(
+        batch, vertices, &vertex_count, indices, &index_count);
+    break;
+  case LDK_GRASS_BLADE_TOPOLOGY_PLUMED_STEM:
+    s_plumed_stem_mesh_write(
         batch, vertices, &vertex_count, indices, &index_count);
     break;
   default:
@@ -2619,6 +2765,7 @@ static u64 s_system_config_hash(const LDKGrassSystem *system)
     s_hash_bytes(&hash, &desc.clump_radius, sizeof(desc.clump_radius));
     s_hash_bytes(&hash, &desc.min_height, sizeof(desc.min_height));
     s_hash_bytes(&hash, &desc.max_height, sizeof(desc.max_height));
+    s_hash_bytes(&hash, &desc.use_noise_height, sizeof(desc.use_noise_height));
     s_hash_bytes(&hash, &desc.blade_width, sizeof(desc.blade_width));
     s_hash_bytes(&hash, &desc.curvature, sizeof(desc.curvature));
     s_hash_bytes(&hash, &desc.wind_strength, sizeof(desc.wind_strength));

@@ -235,73 +235,86 @@ static char const *LDK_RHI_GL33_TEXT_PASS_FRAGMENT_SHADER =
     "  out_color = texture(LDK_TEXTURE_2, v_uv) * v_color;\n"
     "}\n";
 
-#define LDK_GL33_VEGETATION_GLSL                                            \
-  "uniform sampler2D LDK_VEGETATION_TEXTURE;\n"                            \
-  "vec2 ldk_vegetation_interaction(mat4 world, vec4 interaction)\n"      \
-  "{\n"                                                                    \
-  "  if (interaction.z <= 0.0 || interaction.w <= 0.0)\n"               \
-  "    return vec2(0.0);\n"                                               \
+#define LDK_GL33_VEGETATION_GLSL \
+  "uniform sampler2D LDK_VEGETATION_TEXTURE;\n" \
+  "vec2 ldk_vegetation_interaction(mat4 world, vec4 interaction)\n" \
+  "{\n" \
+  "  if (interaction.z <= 0.0 || interaction.w <= 0.0)\n" \
+  "    return vec2(0.0);\n" \
   "  vec2 field_uv = (world[3].xz - interaction.xy) * interaction.z;\n" \
-  "  if (any(lessThan(field_uv, vec2(0.0))) ||\n"                        \
-  "      any(greaterThan(field_uv, vec2(1.0))))\n"                       \
-  "    return vec2(0.0);\n"                                               \
-  "  vec3 encoded = texture(LDK_VEGETATION_TEXTURE, field_uv).rgb;\n"   \
-  "  vec2 bend = (encoded.rg - vec2(128.0 / 255.0)) *\n"                 \
-  "      (255.0 / 127.0);\n"                                              \
-  "  float age = encoded.b * 16.0;\n"                                       \
-  "  float t = clamp(age / interaction.w, 0.0, 1.0);\n"                  \
-  "  float recovery = 1.0 - t * t * (3.0 - 2.0 * t);\n"                   \
-  "  return bend * recovery;\n"                                           \
-  "}\n"                                                                    \
-  "vec3 ldk_vegetation_position(mat4 world, vec3 local_position,\n"       \
-  "    vec2 uv, vec4 tangent, vec4 vegetation, vec4 interaction,\n"       \
-  "    float time, out vec3 bend, out float height)\n"                    \
-  "{\n"                                                                    \
-  "  vec4 world_position = world * vec4(local_position, 1.0);\n"            \
-  "  height = clamp(uv.y, 0.0, 1.0);\n"                                 \
-  "  float weight = height * height;\n"                                    \
-  "  vec2 interaction_bend = ldk_vegetation_interaction(world, interaction);\n" \
-  "  bend = vec3(0.0);\n"                                                  \
-  "  if (weight > 0.0 && (vegetation.x > 0.0 || vegetation.y > 0.0 ||\n" \
-  "      dot(interaction_bend, interaction_bend) > 0.0))\n"               \
-  "  {\n"                                                                  \
-  "    mat3 basis = mat3(world);\n"                                       \
-  "    vec3 curve_direction = basis * tangent.xyz;\n"                     \
-  "    float curve_length = length(curve_direction);\n"                      \
-  "    if (curve_length <= 1e-6)\n"                                      \
-  "      curve_direction = basis * vec3(0.0, 0.0, 1.0);\n"              \
-  "    curve_direction /= max(length(curve_direction), 1e-6);\n"             \
-  "    float blade_height = max(length(basis[1]), 1e-6);\n"               \
+  "  if (any(lessThan(field_uv, vec2(0.0))) ||\n" \
+  "      any(greaterThan(field_uv, vec2(1.0))))\n" \
+  "    return vec2(0.0);\n" \
+  "  vec3 encoded = texture(LDK_VEGETATION_TEXTURE, field_uv).rgb;\n" \
+  "  vec2 bend = (encoded.rg - vec2(128.0 / 255.0)) *\n" \
+  "      (255.0 / 127.0);\n" \
+  "  float age = encoded.b * 16.0;\n" \
+  "  float t = clamp(age / interaction.w, 0.0, 1.0);\n" \
+  "  float recovery = 1.0 - t * t * (3.0 - 2.0 * t);\n" \
+  "  return bend * recovery;\n" \
+  "}\n" \
+  "vec3 ldk_vegetation_position(mat4 world, vec3 local_position,\n" \
+  "    vec2 uv, vec4 tangent, vec4 vegetation, vec4 interaction,\n" \
+  "    float time, out vec3 bend, out float height)\n" \
+  "{\n" \
+  "  vec4 world_position = world * vec4(local_position, 1.0);\n" \
+  "  height = clamp(uv.y, 0.0, 1.0);\n" \
+  "  bend = vec3(0.0);\n" \
+  "  if (height > 0.0)\n" \
+  "  {\n" \
+  "    mat3 basis = mat3(world);\n" \
+  "    vec3 up = basis[1] / max(length(basis[1]), 1e-6);\n" \
+  "    vec3 curve_direction = basis * tangent.xyz;\n" \
+  "    if (length(curve_direction) <= 1e-6)\n" \
+  "      curve_direction = basis * vec3(0.0, 0.0, 1.0);\n" \
+  "    curve_direction /= max(length(curve_direction), 1e-6);\n" \
   "    vec2 wind_direction = vec2(cos(vegetation.w), sin(vegetation.w));\n" \
-  "    float phase = time * vegetation.z * 6.28318530718 +\n"             \
-  "        dot(world[3].xz, wind_direction) * 0.75;\n"                      \
-  "    float sway = 0.65 * sin(phase) +\n"                               \
-  "        0.35 * sin(phase * 1.73 + 1.2);\n"                              \
-  "    vec3 wind = vec3(wind_direction.x, 0.0, wind_direction.y);\n"      \
-  "    bend = curve_direction * vegetation.x +\n"                        \
-  "        wind * (vegetation.y * sway) +\n"                               \
-  "        vec3(interaction_bend.x, 0.0, interaction_bend.y);\n"           \
-  "    world_position.xyz += bend * (blade_height * weight);\n"             \
-  "  }\n"                                                                  \
-  "  return world_position.xyz;\n"                                         \
-  "}\n"                                                                    \
-  "vec3 ldk_vegetation_normal(mat4 world, vec3 local_normal,\n"            \
-  "    vec3 bend, float height, float bend_normal_weight)\n"                  \
-  "{\n"                                                                    \
-  "  mat3 basis = mat3(world);\n"                                         \
-  "  float blade_height = max(length(basis[1]), 1e-6);\n"                 \
-  "  vec3 world_normal = basis[0] * local_normal.x +\n"                    \
+  "    float phase = time * vegetation.z * 6.28318530718 +\n" \
+  "        dot(world[3].xz, wind_direction) * 0.75;\n" \
+  "    float sway = 0.65 * sin(phase) +\n" \
+  "        0.35 * sin(phase * 1.73 + 1.2);\n" \
+  "    vec3 wind = vec3(wind_direction.x, 0.0, wind_direction.y);\n" \
+  "    vec2 interaction_bend = ldk_vegetation_interaction(world, interaction);\n" \
+  "    vec3 displacement = curve_direction * vegetation.x +\n" \
+  "        wind * (vegetation.y * sway) +\n" \
+  "        vec3(interaction_bend.x, 0.0, interaction_bend.y);\n" \
+  "    vec3 horizontal = displacement - up * dot(displacement, up);\n" \
+  "    float strength = length(horizontal);\n" \
+  "    if (strength > 1e-5)\n" \
+  "    {\n" \
+  "      vec3 direction = horizontal / strength;\n" \
+  "      float angle = min(strength * 2.0, 2.4);\n" \
+  "      float arc_angle = angle * height;\n" \
+  "      float radius = length(basis[1]) / angle;\n" \
+  "      world_position.xyz += direction * (radius * (1.0 - cos(arc_angle))) +\n" \
+  "          up * (radius * sin(arc_angle) - length(basis[1]) * height);\n" \
+  "      bend = direction * angle;\n" \
+  "    }\n" \
+  "  }\n" \
+  "  return world_position.xyz;\n" \
+  "}\n" \
+  "vec3 ldk_vegetation_normal(mat4 world, vec3 local_normal,\n" \
+  "    vec3 bend, float height, float bend_normal_weight)\n" \
+  "{\n" \
+  "  mat3 basis = mat3(world);\n" \
+  "  float blade_height = max(length(basis[1]), 1e-6);\n" \
+  "  vec3 world_normal = basis[0] * local_normal.x +\n" \
   "      basis[1] * (local_normal.y / (blade_height * blade_height)) +\n" \
-  "      basis[2] * local_normal.z;\n"                                    \
-  "  if (height > 0.0 && bend_normal_weight > 0.0 &&\n"                     \
-  "      dot(bend, bend) > 0.0)\n"                                       \
-  "  {\n"                                                                  \
-  "    vec3 horizontal = local_normal.x * basis[2] -\n"                    \
-  "        local_normal.z * basis[0];\n"                                  \
-  "    world_normal += 2.0 * height * bend_normal_weight *\n"                 \
-  "        cross(bend, horizontal);\n"                                        \
-  "  }\n"                                                                  \
-  "  return world_normal;\n"                                               \
+  "      basis[2] * local_normal.z;\n" \
+  "  float angle = length(bend) * height * bend_normal_weight;\n" \
+  "  if (angle > 1e-5)\n" \
+  "  {\n" \
+  "    vec3 up = basis[1] / blade_height;\n" \
+  "    vec3 direction = bend / max(length(bend), 1e-6);\n" \
+  "    vec3 axis = cross(up, direction);\n" \
+  "    axis /= max(length(axis), 1e-6);\n" \
+  "    float cosine = cos(angle);\n" \
+  "    float sine = sin(angle);\n" \
+  "    world_normal = world_normal * cosine +\n" \
+  "        cross(axis, world_normal) * sine +\n" \
+  "        axis * dot(axis, world_normal) * (1.0 - cosine);\n" \
+  "  }\n" \
+  "  return world_normal;\n" \
   "}\n"
 
 #define LDK_GL33_COLOR_GLSL                                                 \

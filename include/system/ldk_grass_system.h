@@ -41,6 +41,7 @@ typedef enum LDKGrassBladeTopology
   LDK_GRASS_BLADE_TOPOLOGY_RADIAL,
   LDK_GRASS_BLADE_TOPOLOGY_TRIPLE_RIBBONS,
   LDK_GRASS_BLADE_TOPOLOGY_THORNY_STEM,
+  LDK_GRASS_BLADE_TOPOLOGY_PLUMED_STEM,
   /** Deprecated source-compatible name for the original thorny prototype. */
   LDK_GRASS_BLADE_TOPOLOGY_THORNY_RIBBON =
       LDK_GRASS_BLADE_TOPOLOGY_THORNY_STEM
@@ -54,7 +55,8 @@ typedef enum LDKGrassBladePreset
   LDK_GRASS_BLADE_PRESET_CROSSED,
   LDK_GRASS_BLADE_PRESET_TUFT,
   LDK_GRASS_BLADE_PRESET_FLAT_TOP,
-  LDK_GRASS_BLADE_PRESET_THORNY
+  LDK_GRASS_BLADE_PRESET_THORNY,
+  LDK_GRASS_BLADE_PRESET_PLUMED_STEM
 } LDKGrassBladePreset;
 
 /**
@@ -105,6 +107,8 @@ typedef struct LDKGrassTypeDesc
   float clump_radius;
   float min_height;
   float max_height;
+  /** Use the noise texture to interpolate between min_height and max_height. */
+  bool use_noise_height;
   float blade_width;
   float curvature;
   /** Per-type maximum wind displacement before the system wind force. */
@@ -188,8 +192,8 @@ typedef struct LDKGrassSystem
   float wind_speed;
   //@end_group
 
-  //@begin_group "Color noise"
-  /** Grayscale noise image file used for world-space color sampling. */
+  //@begin_group "Noise"
+  /** Grayscale noise image used for world-space color and height sampling. */
   LDKAssetImage color_noise_texture;
   /** Noise repetitions per world unit. Must be positive. */
   //@inspect min=0.0001
@@ -233,6 +237,7 @@ typedef struct LDKGrassSystem
   float type_0_min_height;
   //@inspect min=0
   float type_0_max_height;
+  bool type_0_use_noise_height;
   //@inspect min=0
   float type_0_blade_width;
   //@inspect slider min=0 max=0.5
@@ -270,6 +275,7 @@ typedef struct LDKGrassSystem
   float type_1_min_height;
   //@inspect min=0
   float type_1_max_height;
+  bool type_1_use_noise_height;
   //@inspect min=0
   float type_1_blade_width;
   //@inspect slider min=0 max=0.5
@@ -307,6 +313,7 @@ typedef struct LDKGrassSystem
   float type_2_min_height;
   //@inspect min=0
   float type_2_max_height;
+  bool type_2_use_noise_height;
   //@inspect min=0
   float type_2_blade_width;
   //@inspect slider min=0 max=0.5
@@ -344,6 +351,7 @@ typedef struct LDKGrassSystem
   float type_3_min_height;
   //@inspect min=0
   float type_3_max_height;
+  bool type_3_use_noise_height;
   //@inspect min=0
   float type_3_blade_width;
   //@inspect slider min=0 max=0.5
@@ -381,6 +389,7 @@ typedef struct LDKGrassSystem
   float type_4_min_height;
   //@inspect min=0
   float type_4_max_height;
+  bool type_4_use_noise_height;
   //@inspect min=0
   float type_4_blade_width;
   //@inspect slider min=0 max=0.5
@@ -418,6 +427,7 @@ typedef struct LDKGrassSystem
   float type_5_min_height;
   //@inspect min=0
   float type_5_max_height;
+  bool type_5_use_noise_height;
   //@inspect min=0
   float type_5_blade_width;
   //@inspect slider min=0 max=0.5
@@ -455,6 +465,7 @@ typedef struct LDKGrassSystem
   float type_6_min_height;
   //@inspect min=0
   float type_6_max_height;
+  bool type_6_use_noise_height;
   //@inspect min=0
   float type_6_blade_width;
   //@inspect slider min=0 max=0.5
@@ -492,6 +503,7 @@ typedef struct LDKGrassSystem
   float type_7_min_height;
   //@inspect min=0
   float type_7_max_height;
+  bool type_7_use_noise_height;
   //@inspect min=0
   float type_7_blade_width;
   //@inspect slider min=0 max=0.5
@@ -529,6 +541,7 @@ typedef struct LDKGrassSystem
   float type_8_min_height;
   //@inspect min=0
   float type_8_max_height;
+  bool type_8_use_noise_height;
   //@inspect min=0
   float type_8_blade_width;
   //@inspect slider min=0 max=0.5
@@ -566,6 +579,7 @@ typedef struct LDKGrassSystem
   float type_9_min_height;
   //@inspect min=0
   float type_9_max_height;
+  bool type_9_use_noise_height;
   //@inspect min=0
   float type_9_blade_width;
   //@inspect slider min=0 max=0.5
@@ -603,6 +617,7 @@ typedef struct LDKGrassSystem
   float type_10_min_height;
   //@inspect min=0
   float type_10_max_height;
+  bool type_10_use_noise_height;
   //@inspect min=0
   float type_10_blade_width;
   //@inspect slider min=0 max=0.5
@@ -640,6 +655,7 @@ typedef struct LDKGrassSystem
   float type_11_min_height;
   //@inspect min=0
   float type_11_max_height;
+  bool type_11_use_noise_height;
   //@inspect min=0
   float type_11_blade_width;
   //@inspect slider min=0 max=0.5
@@ -677,6 +693,7 @@ typedef struct LDKGrassSystem
   float type_12_min_height;
   //@inspect min=0
   float type_12_max_height;
+  bool type_12_use_noise_height;
   //@inspect min=0
   float type_12_blade_width;
   //@inspect slider min=0 max=0.5
@@ -714,6 +731,7 @@ typedef struct LDKGrassSystem
   float type_13_min_height;
   //@inspect min=0
   float type_13_max_height;
+  bool type_13_use_noise_height;
   //@inspect min=0
   float type_13_blade_width;
   //@inspect slider min=0 max=0.5
@@ -751,6 +769,7 @@ typedef struct LDKGrassSystem
   float type_14_min_height;
   //@inspect min=0
   float type_14_max_height;
+  bool type_14_use_noise_height;
   //@inspect min=0
   float type_14_blade_width;
   //@inspect slider min=0 max=0.5
@@ -788,6 +807,7 @@ typedef struct LDKGrassSystem
   float type_15_min_height;
   //@inspect min=0
   float type_15_max_height;
+  bool type_15_use_noise_height;
   //@inspect min=0
   float type_15_blade_width;
   //@inspect slider min=0 max=0.5
