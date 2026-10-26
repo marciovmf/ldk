@@ -934,6 +934,117 @@ static bool s_editor_gizmo_ray_plane_intersect(
   return true;
 }
 
+/* Gizmo edits use the same reflected Transform keys as the Inspector.
+ * Capture before the first update, but only create the undo entry when the
+ * drag ends; no active undo session is held across UI frames. */
+static bool s_editor_gizmo_undo_property(
+    LDKEditorContext *editor, LDKEditorUndoKey *key,
+    LDKFieldType *type, size_t *size, void **value)
+{
+  u32 offset;
+
+  if (!editor || !key || !type || !size || !value ||
+      editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      editor->gizmo.drag_is_instance)
+  {
+    return false;
+  }
+
+  switch (editor->gizmo.drag_mode)
+  {
+    case LDK_EDITOR_GIZMO_MODE_TRANSLATE:
+      offset = offsetof(LDKTransform, local_position);
+      *type = LDK_FIELD_VEC3;
+      *size = sizeof(Vec3);
+      break;
+    case LDK_EDITOR_GIZMO_MODE_ROTATE:
+      offset = offsetof(LDKTransform, local_rotation);
+      *type = LDK_FIELD_QUAT;
+      *size = sizeof(Quat);
+      break;
+    case LDK_EDITOR_GIZMO_MODE_SCALE:
+      offset = offsetof(LDKTransform, local_scale);
+      *type = LDK_FIELD_VEC3;
+      *size = sizeof(Vec3);
+      break;
+    default:
+      return false;
+  }
+
+  key->owner = ((u64)editor->gizmo.drag_entity.version << 32) |
+      editor->gizmo.drag_entity.index;
+  key->property = ((u64)LDK_COMPONENT_TYPE_TRANSFORM << 32) | offset;
+  *value = ldki_editor_undo_property_resolve(editor, *key, *type, *size);
+  return *value != NULL;
+}
+
+static void s_editor_gizmo_undo_capture(LDKEditorContext *editor)
+{
+  LDKEditorUndoKey key;
+  LDKFieldType type;
+  size_t size;
+  void *value;
+
+  editor->gizmo.drag_undo_valid = false;
+  editor->gizmo.drag_undo_changed = false;
+  if (editor->editor_state != LDK_EDITOR_STATE_STOPED ||
+      editor->gizmo.drag_is_instance)
+  {
+    return;
+  }
+
+  /* Finish any Inspector input before beginning a different interaction. */
+  if (ldk_editor_undo_has_active_change(&editor->undo))
+  {
+    if (!ldk_editor_undo_end_change_resolved(&editor->undo))
+    {
+      return;
+    }
+    editor->undo_widget_id = 0;
+    editor->undo_end_requested = false;
+  }
+
+  if (s_editor_gizmo_undo_property(editor, &key, &type, &size, &value))
+  {
+    memcpy(&editor->gizmo.drag_undo_initial, value, size);
+    editor->gizmo.drag_undo_valid = true;
+  }
+}
+
+static void s_editor_gizmo_undo_commit(LDKEditorContext *editor)
+{
+  LDKEditorUndoKey key;
+  LDKFieldType type;
+  size_t size;
+  void *value;
+  bool recorded = false;
+
+  if (!editor->gizmo.drag_undo_changed)
+  {
+    return;
+  }
+  if (editor->gizmo.drag_undo_valid &&
+      !ldk_editor_undo_has_active_change(&editor->undo) &&
+      s_editor_gizmo_undo_property(editor, &key, &type, &size, &value))
+  {
+    if (memcmp(&editor->gizmo.drag_undo_initial, value, size) == 0)
+    {
+      return; /* Drag returned to its initial pose. */
+    }
+    if (ldk_editor_undo_begin_change(&editor->undo, key, type,
+            &editor->gizmo.drag_undo_initial, size))
+    {
+      recorded = ldk_editor_undo_end_change(&editor->undo, value);
+    }
+  }
+
+  if (!recorded)
+  {
+    /* The change was applied but no restorable snapshot was recorded. */
+    ldki_editor_scene_dirty_set(editor, true);
+  }
+}
+
 static void s_editor_gizmo_drag_end(LDKEditorContext *editor)
 {
   if (editor == NULL)
@@ -941,6 +1052,9 @@ static void s_editor_gizmo_drag_end(LDKEditorContext *editor)
     return;
   }
 
+  s_editor_gizmo_undo_commit(editor);
+  editor->gizmo.drag_undo_valid = false;
+  editor->gizmo.drag_undo_changed = false;
   editor->gizmo.drag_entity = x_handle_null();
   editor->gizmo.drag_instance = 0;
   editor->gizmo.drag_is_instance = false;
@@ -1759,8 +1873,11 @@ void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
   if (editor->gizmo.hovered_axis != LDK_EDITOR_GIZMO_AXIS_NONE &&
       ldk_os_mouse_button_down(&mouse, LDK_MOUSE_BUTTON_LEFT))
   {
-    s_editor_gizmo_drag_begin(
-        editor, &target, origin, orientation, axes, &mouse);
+    if (s_editor_gizmo_drag_begin(
+            editor, &target, origin, orientation, axes, &mouse))
+    {
+      s_editor_gizmo_undo_capture(editor);
+    }
   }
 }
 
@@ -2052,7 +2169,11 @@ void ldki_editor_gizmo_update(LDKEditorContext *editor)
           memcmp(&initial_rotation, &final_rotation, sizeof(Quat)) != 0 ||
           memcmp(&initial_scale, &final_scale, sizeof(Vec3)) != 0))
   {
-    ldki_editor_scene_dirty_set(editor, true);
+    editor->gizmo.drag_undo_changed = true;
+    if (!editor->gizmo.drag_undo_valid)
+    {
+      ldki_editor_scene_dirty_set(editor, true);
+    }
   }
 
   if (released)

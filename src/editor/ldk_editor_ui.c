@@ -1816,15 +1816,13 @@ void ldk_editor_ui_row_euler(LDKEditorContext *editor, const char *label,
     property.value = initial;
   }
   ldk_editor_ui_row_begin(editor, label, group_depth);
-  draw(&editor->ui, user);
+  LDKUIId focused_input = draw(&editor->ui, user);
   ldk_ui_end_horizontal(&editor->ui);
   if (valid)
   {
-    LDKUIContext *ui = &editor->ui;
-    bool editing = ui->input_box_id && ui->focused_id == ui->input_box_id;
     bool changed = memcmp(initial, undo_property->value, sizeof(initial)) != 0;
-    s_editor_ui_undo_row_update(editor, &property, ui->focused_id,
-        editing, changed, false);
+    s_editor_ui_undo_row_update(editor, &property, focused_input,
+        focused_input != 0, changed, false);
   }
 }
 

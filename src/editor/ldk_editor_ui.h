@@ -63,8 +63,9 @@ bool ldk_editor_ui_row_vec4(LDKEditorContext *editor, const char *label,
     u32 group_depth, float **values, bool readonly,
     LDKEditorUIRowFloatFn input, void *user, const LDKEditorUIUndoProperty *undo_property);
 
-/* Composite Inspector controls retain their editing logic in the caller. */
-typedef void (*LDKEditorUIRowEulerFn)(LDKUIContext *ui, void *user);
+/* Composite Inspector controls retain their editing logic in the caller.
+ * The callback returns the focused input belonging to this row, or zero. */
+typedef LDKUIId (*LDKEditorUIRowEulerFn)(LDKUIContext *ui, void *user);
 void ldk_editor_ui_row_euler(LDKEditorContext *editor, const char *label,
     u32 group_depth, LDKEditorUIRowEulerFn draw, void *user, const LDKEditorUIUndoProperty *undo_property);
 

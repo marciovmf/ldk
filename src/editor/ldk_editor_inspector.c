@@ -1321,7 +1321,7 @@ static bool s_editor_inspector_euler_rotation_apply(LDKEntity entity,
   return true;
 }
 
-static void s_editor_inspector_euler_field_draw(LDKUIContext *ui,
+static LDKUIId s_editor_inspector_euler_field_draw(LDKUIContext *ui,
     LDKEntity entity, u32 component_type,
     const LDKComponentFieldMeta *field, void *component,
     void *field_value, bool readonly)
@@ -1330,6 +1330,7 @@ static void s_editor_inspector_euler_field_draw(LDKUIContext *ui,
   LDKEditorInspectorEulerState local_state;
   LDKEditorInspectorEulerState *state = &local_state;
   Quat source = *(const Quat *)field_value;
+  LDKUIId focused_input = 0;
 
   if (s_editor_inspector_euler_state_matches(
           &s_editor_inspector_euler_state, entity, component_type, field,
@@ -1379,7 +1380,12 @@ static void s_editor_inspector_euler_field_draw(LDKUIContext *ui,
         field, axis, buffer, (u32)sizeof(buffer), &axis_value);
     ldk_ui_end_disabled(ui);
 
-    focused = ui->focused_id == ui->last_id;
+    focused = !readonly && ui->focused_id == ui->last_id &&
+        ui->input_box_id == ui->last_id;
+    if (focused)
+    {
+      focused_input = ui->last_id;
+    }
     if (!readonly &&
         (focused || (result & LDK_UI_INPUT_BOX_CHANGED) != 0))
     {
@@ -1442,6 +1448,7 @@ static void s_editor_inspector_euler_field_draw(LDKUIContext *ui,
 
     ldk_ui_pop_id(ui);
   }
+  return focused_input;
 }
 
 typedef struct LDKInspectorEulerRowContext
@@ -1454,10 +1461,10 @@ typedef struct LDKInspectorEulerRowContext
   bool readonly;
 } LDKInspectorEulerRowContext;
 
-static void s_editor_inspector_euler_row_content(LDKUIContext *ui, void *user)
+static LDKUIId s_editor_inspector_euler_row_content(LDKUIContext *ui, void *user)
 {
   LDKInspectorEulerRowContext *context = user;
-  s_editor_inspector_euler_field_draw(ui, context->entity,
+  return s_editor_inspector_euler_field_draw(ui, context->entity,
       context->component_type, context->field, context->component,
       context->field_value, context->readonly);
 }

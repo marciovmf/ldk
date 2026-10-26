@@ -152,6 +152,10 @@ typedef struct LDKEditorGizmoState
   Vec3 drag_initial_direction;
   Vec3 drag_plane_normal;
   Vec3 drag_initial_scale;
+  /* Snapshot of the reflected Transform field for one undoable drag. */
+  Quat drag_undo_initial;
+  bool drag_undo_valid;
+  bool drag_undo_changed;
   Quat drag_initial_world_rotation;
   Quat drag_parent_world_rotation;
   LDKUIPoint drag_initial_cursor;
