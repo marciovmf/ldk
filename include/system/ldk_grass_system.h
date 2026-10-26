@@ -1,7 +1,137 @@
 /**
  * # Grass system
  *
- * Persistent procedural grass patches.
+ * Procedural, instanced grass patches with per-type appearance, distribution,
+ * wind, interaction and optional color/height noise.
+ *
+ * ## Grass types and patches
+ *
+ * A GrassSystem has up to `LDK_GRASS_TYPE_COUNT` (16) named grass types. Each
+ * type selects an LDKGrassBladePreset and controls density, blade dimensions,
+ * colors and animation. Types can be configured in the GrassSystem inspector
+ * or added at runtime with `ldk_grass_type_register()` while the system is
+ * active.
+ * `ldk_grass_add()` populates a rectangular plane using one configured type;
+ * patches can later be changed with `ldk_grass_update()` or removed with
+ * `ldk_grass_remove()`. The engine owns the individual blade instances.
+ *
+ * ## Custom blade meshes
+ *
+ * In addition to the built-in presets, a game can register generators for
+ * `LDK_GRASS_BLADE_PRESET_CUSTOM_0` through `LDK_GRASS_BLADE_PRESET_CUSTOM_7`.
+ * These are eight fixed slots, not eight additional grass types. Multiple
+ * grass types may select the same custom preset with different settings.
+ *
+ * A generator is called when a shared batch mesh needs to be created or
+ * rebuilt, not once for each blade. It receives the resolved blade profile
+ * and bottom/top colors and fills an LDKMeshData. The engine uploads the mesh,
+ * instances it, applies wind/interaction and renders its shadows.
+ *
+ * Generator requirements:
+ * - Allocate vertices and indices with malloc/calloc-compatible storage.
+ *   The engine calls `ldk_mesh_data_destroy()` after the upload (or on failure).
+ * - Use Y in [0, 1], rooted at Y = 0. Scale to the configured blade height
+ *   is applied by the system's instance transforms.
+ * - Keep X and Z within +/- half the largest shape->profile[].width. This
+ *   restriction is required by the current patch bounds and culling.
+ * - Set UV.y in [0, 1]: 0 is the fixed root, 1 receives the full deformation.
+ *   Additional height segments produce a smoother bend.
+ * - Supply normals and valid triangle indices. If has_tangents is true,
+ *   initialize each vertex tangent; tangent.w = 0 disables its bend-normal
+ *   contribution. Vertex colors use `LDK_RGBA32()` for rgba32 inputs.
+ * - Do not allocate RHI/Renderer resources inside the generator.
+ *
+ * Example: a minimal two-sided ribbon. In the game's C source, include
+ * stdlib.h for `calloc()`. * The example uses only four vertices for clarity.
+ *
+ * ```
+ * static bool game_grass_ribbon(const LDKGrassBladeShape *shape,
+ *     rgba32 bottom_color, rgba32 top_color, LDKMeshData *out_mesh)
+ * {
+ *   static const u32 triangles[12] = {
+ *       0u, 1u, 3u, 0u, 3u, 2u, 3u, 1u, 0u, 2u, 3u, 0u};
+ *   float half_width;
+ *
+ *   if (!shape || !out_mesh)
+ *   {
+ *     return false;
+ *   }
+ *
+ *   *out_mesh = (LDKMeshData){0};
+ *   half_width = shape->profile[0].width * 0.5f;
+ *   out_mesh->vertices = calloc(4u, sizeof(LDKMeshVertex));
+ *   out_mesh->indices = calloc(12u, sizeof(u32));
+ *   if (!out_mesh->vertices || !out_mesh->indices)
+ *   {
+ *     ldk_mesh_data_destroy(out_mesh);
+ *     return false;
+ *   }
+ *
+ *   for (u32 i = 0u; i < 4u; ++i)
+ *   {
+ *     float height = i >= 2u ? 1.0f : 0.0f;
+ *     float side = (i & 1u) ? 1.0f : 0.0f;
+ *     LDKMeshVertex *vertex = &out_mesh->vertices[i];
+ *     vertex->position = vec3_make(
+ *         side ? half_width : -half_width, height, 0.0f);
+ *     vertex->normal = vec3_make(0.0f, 0.0f, 1.0f);
+ *     vertex->uv = vec2_make(side, height);
+ *     vertex->color = LDK_RGBA32(height > 0.0f
+ *         ? top_color : bottom_color);
+ *     vertex->tangent = vec4_make(0.0f, 0.0f, 1.0f, 1.0f);
+ *   }
+ *   for (u32 i = 0u; i < 12u; ++i)
+ *   {
+ *     out_mesh->indices[i] = triangles[i];
+ *   }
+ *
+ *   out_mesh->vertex_count = 4u;
+ *   out_mesh->index_count = 12u;
+ *   out_mesh->has_tangents = true;
+ *   return true;
+ * }
+ * ```
+ *
+ * Register the callback before creating grass that uses `CUSTOM_0`. Then
+ * select `CUSTOM_0` in an existing GrassSystem type or register a type at
+ * runtime. This example runs after the GrassSystem has initialized:
+ *
+ * ```
+ * ldk_grass_blade_generator_register(
+ *     LDK_GRASS_BLADE_PRESET_CUSTOM_0, game_grass_ribbon);
+ *
+ * LDKGrassTypeDesc type;
+ * ldk_grass_type_desc_defaults(&type);
+ * x_smallstr_init(&type.name, "Reeds");
+ * type.blade_preset = LDK_GRASS_BLADE_PRESET_CUSTOM_0;
+ * type.blade_width = 0.2f;
+ * LDKGrassTypeId type_id = ldk_grass_type_register(&type);
+ * if (type_id != LDK_GRASS_TYPE_ID_INVALID)
+ * {
+ *   LDKGrassPatchDesc patch;
+ *   ldk_grass_patch_desc_defaults(&patch);
+ *   patch.plane.axis_u = vec3_make(5.0f, 0.0f, 0.0f);
+ *   patch.plane.axis_v = vec3_make(0.0f, 0.0f, -5.0f);
+ *   ldk_grass_add(type_id, &patch);
+ * }
+ * ```
+ *
+ * A missing generator makes the corresponding custom batch fail rather than
+ * silently choosing another preset. Registering a different callback for an
+ * occupied slot triggers regeneration on the next GrassSystem update.
+ * Registrations survive scene/system reinitialization. Before unloading a
+ * game DLL containing a callback, unregister it with:
+ *
+ * ```
+ * ldk_grass_blade_generator_register(
+ *     LDK_GRASS_BLADE_PRESET_CUSTOM_0, NULL);
+ * ```
+ *
+ * ## Interaction
+ *
+ * ldk_grass_interact(from, to, radius, strength) queues a world-space capsule
+ * of influence. Equal endpoints produce a circular interaction. The active
+ * GrassSystem consumes queued interactions during its render update.
  */
 
 #ifndef LDK_GRASS_H
