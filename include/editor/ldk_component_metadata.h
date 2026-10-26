@@ -79,6 +79,7 @@ extern "C"
     LDK_FIELD_FLAG_NONE = 0,
     LDK_FIELD_FLAG_READONLY = 1 << 0,
     LDK_FIELD_FLAG_RUNTIME = 1 << 1,
+    LDK_FIELD_FLAG_HEADLINE = 1 << 2, /* Use field value as collapsed group title. */
   } LDKFieldFlags;
 
   /** @group ldk.editor.component_metadata */
@@ -118,7 +119,7 @@ extern "C"
     void (*on_change)(void *component);
     const char *limit_field; /* Optional sibling u32 field name. */
     u32 max_count; /* Zero means no additional fixed maximum. */
-    bool stable_indices; /* Only append and remove final element. */
+    bool stable; /* Only append and remove final element; no reordering. */
   } LDKArrayFieldMeta;
 
   /** @group ldk.editor.component_metadata */

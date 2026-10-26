@@ -29,6 +29,14 @@
  * field is presented or serialized. Inspector groups can be created with
  * `//@begin_group "Name"` and `//@end_group`.
  *
+ * For array elements and property groups, `// @inspect headline` selects a
+ * reflected field whose value becomes the title when the item is collapsed.
+ * Without it, the Inspector shows the normal element or group label.
+ * STDX dynamic arrays use `// @inspect element_type=T`, optionally with
+ * `initializer=fn`, `on_change=fn`, `max_count=N` and `stable`. The `stable`
+ * option preserves index identity: elements cannot be reordered or removed
+ * from the middle of the array through the Inspector.
+ *
  * Component structs do not need to be registered manually.
  */
 

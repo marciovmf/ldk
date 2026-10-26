@@ -54,8 +54,9 @@ count=2
 1.path=scenes/base.scene
 1.name=base
 
+
 [.box]
-dummy.box=assets/tftf_island.material|assets/ldk.ico
+dummy.box = "assets/tftf_island.material|assets/ldk.ico"
 
 [.box_imports]
 @package/ldk_prototype_textures.box=1

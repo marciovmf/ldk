@@ -258,6 +258,7 @@ typedef struct LDKGrassPlane
  */
 typedef struct LDKGrassTypeDesc
 {
+  //@inspect headline
   XSmallstr name;
   LDKGrassBladePreset blade_preset;
   //@inspect min=0
@@ -415,7 +416,7 @@ typedef struct LDKGrassSystem
 
   //@begin_group "Grass Types"
   /* Array indices are persistent GrassTypeIds; existing slots must not move. */
-  //@inspect element_type=LDKGrassTypeDesc initializer=ldk_grass_type_desc_initialize max_count=16 stable_indices
+  //@inspect element_type=LDKGrassTypeDesc initializer=ldk_grass_type_desc_initialize max_count=16 stable
   XArray_LDKGrassTypeDesc *types;
   //@end_group
 

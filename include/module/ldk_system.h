@@ -77,6 +77,8 @@
  * System struct fields use the same annotations as component fields:
  *   // @inspect readonly | runtime | hidden | slider | enum
  *   // @inspect min=N max=N widget=SUFFIX source=field label=Token
+ *   // @inspect headline           (field titles collapsed groups/array items)
+ *   // @inspect element_type=T initializer=fn on_change=fn max_count=N stable
  *   // @begin_group "Group Name"     (nested groups are supported)
  *   // @end_group
  * See ldk_component.h for supported field types, widgets, flag behavior,

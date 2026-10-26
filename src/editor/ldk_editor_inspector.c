@@ -2223,6 +2223,47 @@ static size_t s_editor_inspector_undo_field_size(
   }
 }
 
+/* Use a reflected scalar as the title of a collapsed group or array item.
+ * Fall back to the ordinary title for empty, missing, or invalid values. */
+static bool s_editor_inspector_headline_format(
+    const LDKComponentFieldMeta *field, const void *data, size_t data_size,
+    char *out, size_t out_size)
+{
+  if (!field || !data || !out || !out_size ||
+      !(field->flags & LDK_FIELD_FLAG_HEADLINE))
+  {
+    return false;
+  }
+
+  size_t size = 0u;
+  switch (field->type)
+  {
+  case LDK_FIELD_BOOL: size = sizeof(bool); break;
+  case LDK_FIELD_I32: size = sizeof(i32); break;
+  case LDK_FIELD_U32: size = sizeof(u32); break;
+  case LDK_FIELD_U64: size = sizeof(u64); break;
+  case LDK_FIELD_FLOAT: size = sizeof(float); break;
+  case LDK_FIELD_VEC2: size = sizeof(Vec2); break;
+  case LDK_FIELD_VEC3: size = sizeof(Vec3); break;
+  case LDK_FIELD_VEC4: size = sizeof(Vec4); break;
+  case LDK_FIELD_QUAT: size = sizeof(Quat); break;
+  case LDK_FIELD_STRING: size = sizeof(XSmallstr); break;
+  case LDK_FIELD_ENUM:
+    size = field->enum_meta ? field->enum_meta->size : 0u;
+    break;
+  default: break;
+  }
+  if (!size || field->offset > data_size || size > data_size - field->offset)
+  {
+    return false;
+  }
+
+  out[0] = 0;
+  s_editor_inspector_field_value_format(
+      out, out_size, field, (const u8 *)data + field->offset);
+  return out[0] != 0 && strcmp(out, "<invalid string>") != 0;
+}
+
 static LDKEditorUIUndoProperty s_editor_inspector_undo_property(
     LDKEntity entity, u32 component_type, const LDKComponentMeta *meta,
     const LDKComponentFieldMeta *field, const void *value)
@@ -3440,13 +3481,29 @@ static void s_editor_inspector_fields_draw(
       if (visible)
       {
         const LDKComponentGroupMeta *group = &meta->groups[group_index];
+        const char *group_title = group->name ? group->name : "<unnamed group>";
+        char headline[128];
         bool next_expanded;
+
+        if (!expanded)
+        {
+          for (u32 k = 0; k < meta->field_count; ++k)
+          {
+            const LDKComponentFieldMeta *candidate = &meta->fields[k];
+            if (candidate->group == group &&
+                s_editor_inspector_headline_format(candidate, component,
+                    meta->size, headline, sizeof(headline)))
+            {
+              group_title = headline;
+              break;
+            }
+          }
+        }
 
         ldk_ui_push_id_cstr(ui, "property_group");
         ldk_ui_push_id_u32(ui, group_index);
         next_expanded = ldk_ui_tree_node(ui,
-            group->name ? group->name : "<unnamed group>", expanded,
-            depth, LDK_UI_TREE_NODE_NONE);
+            group_title, expanded, depth, LDK_UI_TREE_NODE_NONE);
         ldk_ui_pop_id(ui);
         ldk_ui_pop_id(ui);
 
@@ -5192,8 +5249,13 @@ static void s_editor_inspector_array_draw(LDKEditorContext *editor,
       (field->flags & LDK_FIELD_FLAG_READONLY) == 0u;
   u32 count = *array ? x_array_count(*array) : 0u;
   char title[128];
-  snprintf(title, sizeof(title), "%s (%u)",
-      s_editor_inspector_field_display_name(field), count);
+  if (array_meta->max_count)
+    snprintf(title, sizeof(title), "%s (%u/%u)",
+        s_editor_inspector_field_display_name(field), count,
+        array_meta->max_count);
+  else
+    snprintf(title, sizeof(title), "%s (%u)",
+        s_editor_inspector_field_display_name(field), count);
   ldk_ui_push_id_cstr(ui, field->name);
   bool expanded = s_editor_inspector_group_expanded(
       LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_ARRAY, owner_id, group_id);
@@ -5272,9 +5334,19 @@ static void s_editor_inspector_array_draw(LDKEditorContext *editor,
     if (!element) break;
     u32 item_group = (array_index << 16) | i;
     ldk_ui_push_id_u32(ui, i);
-    snprintf(title, sizeof(title), "Element %u", i);
     bool item_open = s_editor_inspector_group_expanded(
         LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_ARRAY, owner_id, item_group);
+    snprintf(title, sizeof(title), "Element %u", i);
+    char headline[128];
+    for (u32 k = 0; k < element_meta->field_count; ++k)
+    {
+      if (s_editor_inspector_headline_format(&element_meta->fields[k],
+              element, element_meta->size, headline, sizeof(headline)))
+      {
+        snprintf(title, sizeof(title), "%s", headline);
+        break;
+      }
+    }
     bool can_modify = editable &&
         !ldk_editor_undo_has_active_change(&editor->undo);
     ldk_ui_begin_horizontal(ui);
@@ -5284,23 +5356,29 @@ static void s_editor_inspector_array_draw(LDKEditorContext *editor,
       s_editor_inspector_group_expanded_set(
           LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_ARRAY, owner_id, item_group, next);
 
-    ldk_ui_set_next_width(ui, ldk_ui_px(24.0f));
-    ldk_ui_set_next_disabled(ui, !can_modify || i == 0u ||
-        array_meta->stable_indices);
-    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_UP_ARROW];
-    bool move_up = ldk_ui_icon_button(ui, icon, NULL);
+    bool move_up = false;
+    bool move_down = false;
+    if (!array_meta->stable)
+    {
+      ldk_ui_set_next_width(ui, ldk_ui_px(24.0f));
+      ldk_ui_set_next_disabled(ui, !can_modify || i == 0u);
+      icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_UP_ARROW];
+      move_up = ldk_ui_icon_button(ui, icon, NULL);
 
-    ldk_ui_set_next_width(ui, ldk_ui_px(24.0f));
-    ldk_ui_set_next_disabled(ui, !can_modify || i + 1u >= count ||
-        array_meta->stable_indices);
-    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DOWN_ARROW];
-    bool move_down = ldk_ui_icon_button(ui, icon, NULL);
+      ldk_ui_set_next_width(ui, ldk_ui_px(24.0f));
+      ldk_ui_set_next_disabled(ui, !can_modify || i + 1u >= count);
+      icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DOWN_ARROW];
+      move_down = ldk_ui_icon_button(ui, icon, NULL);
+    }
 
-    ldk_ui_set_next_width(ui, ldk_ui_px(24.0f));
-    ldk_ui_set_next_disabled(ui, !can_modify ||
-        (array_meta->stable_indices && i + 1u < count));
-    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_MINUS_BUTTON];
-    bool remove = ldk_ui_icon_button(ui, icon, NULL);
+    bool remove = false;
+    if (!array_meta->stable || i + 1u == count)
+    {
+      ldk_ui_set_next_width(ui, ldk_ui_px(24.0f));
+      ldk_ui_set_next_disabled(ui, !can_modify);
+      icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_MINUS_BUTTON];
+      remove = ldk_ui_icon_button(ui, icon, NULL);
+    }
     ldk_ui_end_horizontal(ui);
 
     if (next)
