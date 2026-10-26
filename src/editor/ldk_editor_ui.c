@@ -1071,6 +1071,89 @@ static bool s_editor_project_build_on_play_write(
       &editor->project.project_file_path, "build_on_play", value);
 }
 
+/* On Play options retain their existing persistence and enable rules. */
+static bool s_editor_on_play_option(LDKUIContext *ui, const char *label,
+    bool value, bool disabled)
+{
+  ldk_ui_push_id_cstr(ui, label);
+  ldk_ui_begin_disabled(ui, disabled);
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_next_weight(ui, 0.0f);
+  bool next = ldk_ui_toggle(ui, value);
+  ldk_ui_set_next_weight(ui, 1.0f);
+  ldk_ui_label(ui, label);
+  ldk_ui_end_horizontal(ui);
+  ldk_ui_end_disabled(ui);
+  ldk_ui_pop_id(ui);
+  return next;
+}
+
+static void s_editor_on_play_popup(LDKEditorContext *editor,
+    LDKUIId popup_id)
+{
+  LDKUIContext *ui = &editor->ui;
+  const float popup_width = 176.0f;
+  bool next;
+
+  if (!ldk_ui_begin_popup(ui, popup_id))
+  {
+    return;
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(popup_width));
+  next = s_editor_on_play_option(ui, "Expand", editor->exclusive_mode,
+      editor->editor_state != LDK_EDITOR_STATE_STOPED);
+  if (next != editor->exclusive_mode)
+  {
+    if (!s_editor_ini_bool_write(
+            &editor->editor_config_path, "expand_on_play", next))
+    {
+      ldki_editor_log_warning(
+          editor, "Could not save the Expand on Play preference.");
+    }
+    else
+    {
+      editor->exclusive_mode = next;
+    }
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(popup_width));
+  next = s_editor_on_play_option(ui, "Build", editor->project.build_on_play,
+      !editor->project.loaded);
+  if (next != editor->project.build_on_play)
+  {
+    if (!s_editor_project_build_on_play_write(editor, next))
+    {
+      ldki_editor_log_warning(
+          editor, "Could not save the Build on Play preference.");
+    }
+    else
+    {
+      editor->project.build_on_play = next;
+    }
+  }
+
+  ldk_ui_set_next_width(ui, ldk_ui_px(popup_width));
+  next = s_editor_on_play_option(ui, "Show stats", editor->show_statistics,
+      false);
+  if (next != editor->show_statistics)
+  {
+    if (!s_editor_ini_bool_write(
+            &editor->editor_config_path, "show_statistics", next))
+    {
+      ldki_editor_log_warning(
+          editor, "Could not save the Statistics preference.");
+    }
+    else
+    {
+      editor->show_statistics = next;
+    }
+  }
+
+  ldk_ui_end_popup(ui);
+}
+
 static bool s_editor_audio_volume_save(
     LDKEditorContext *editor, float volume)
 {
@@ -1138,6 +1221,7 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
 {
   LDKUIContext *ui = &editor->ui;
   const LDKUIId audio_popup_id = 0x41554456u;
+  const LDKUIId on_play_popup_id = 0x4F4E504Cu;
   LDKUIRect toolbar_rect = {ui->viewport.x,
       ui->viewport.y + LDK_EDITOR_MENU_BAR_HEIGHT(ui), ui->viewport.w,
       LDK_EDITOR_TOOL_BAR_HEIGHT(ui)};
@@ -1209,70 +1293,17 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
     }
   }
 
-  {
-    LDKUIIcon icon = {0};
-    icon.texture =
-        ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-    icon.size = ldk_sizef(
-        LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
-    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_FULLSCREEN];
-
-    ldk_ui_set_next_disabled(
-        ui, editor->editor_state != LDK_EDITOR_STATE_STOPED);
-    ldk_ui_set_next_weight(ui, 0.0f);
-    if (s_editor_push_button(ui, "Expand on play", icon, editor->exclusive_mode))
-    {
-      editor->exclusive_mode = !editor->exclusive_mode;
-    }
-  }
-
+  /* Keep the playback icons in the same centered position. */
   LDKUIIcon icon;
   icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
   icon.size =
     ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
   icon.texture =
     ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
-  
-  {
-    ldk_ui_set_next_disabled(ui, !editor->project.loaded);
-    ldk_ui_set_next_weight(ui, 0.0f);
 
-    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_HAMMER];
-    if (s_editor_push_button(
-            ui, "Build on play", icon, editor->project.build_on_play))
-    {
-      bool build_on_play = !editor->project.build_on_play;
-      if (!s_editor_project_build_on_play_write(editor, build_on_play))
-      {
-        ldki_editor_log_warning(
-          editor, "Could not save the Build on Play preference.");
-      }
-      else
-      {
-        editor->project.build_on_play = build_on_play;
-      }
-    }
-  }
-
-  {
-    ldk_ui_set_next_weight(ui, 0.0f);
-    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_STATS];
-    if (s_editor_push_button(
-            ui, "View stats on play", icon, editor->show_statistics))
-    {
-      bool show_statistics = !editor->show_statistics;
-      if (!s_editor_ini_bool_write(
-            &editor->editor_config_path, "show_statistics", show_statistics))
-      {
-        ldki_editor_log_warning(
-          editor, "Could not save the Statistics preference.");
-      }
-      else
-      {
-        editor->show_statistics = show_statistics;
-      }
-    }
-  }
+  ldk_ui_set_next_weight(ui, 0.0f);
+  ldk_ui_set_next_width(ui, ldk_ui_px(132.0f));
+  ldk_ui_combo_box_popup(ui, "On Play", on_play_popup_id);
 
   // play scene or game
   {
@@ -1396,6 +1427,7 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
   ldk_ui_end_horizontal(&editor->ui);
   ldk_ui_end_window(ui);
   s_editor_audio_volume_popup(editor, audio_popup_id);
+  s_editor_on_play_popup(editor, on_play_popup_id);
 }
 
 //------------------------------------------------------------
@@ -1816,13 +1848,15 @@ void ldk_editor_ui_row_euler(LDKEditorContext *editor, const char *label,
     property.value = initial;
   }
   ldk_editor_ui_row_begin(editor, label, group_depth);
-  LDKUIId focused_input = draw(&editor->ui, user);
+  draw(&editor->ui, user);
   ldk_ui_end_horizontal(&editor->ui);
   if (valid)
   {
+    LDKUIContext *ui = &editor->ui;
+    bool editing = ui->input_box_id && ui->focused_id == ui->input_box_id;
     bool changed = memcmp(initial, undo_property->value, sizeof(initial)) != 0;
-    s_editor_ui_undo_row_update(editor, &property, focused_input,
-        focused_input != 0, changed, false);
+    s_editor_ui_undo_row_update(editor, &property, ui->focused_id,
+        editing, changed, false);
   }
 }
 

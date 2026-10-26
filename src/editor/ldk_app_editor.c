@@ -2182,6 +2182,8 @@ static bool s_editor_config_load_from_ini(
   editor->editor_camera_far_clip =
       x_ini_get_f32(ini, EDITOR, "camera_far_clip", 1000.0f);
   editor->profile = x_ini_get_bool(ini, EDITOR, "profile", false);
+  editor->exclusive_mode =
+      x_ini_get_bool(ini, EDITOR, "expand_on_play", false);
   editor->show_statistics =
       x_ini_get_bool(ini, EDITOR, "show_statistics", false);
   editor->file_explorer_open_folders_single_click = x_ini_get_bool(
