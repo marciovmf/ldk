@@ -8,6 +8,7 @@
 #define LDK_GRASS_H
 
 #include <ldk_common.h>
+#include <ldk_mesh.h>
 #include <ldk_asset.h>
 #include <module/ldk_system.h>
 #include <stdx/stdx_math.h>
@@ -28,6 +29,8 @@ extern "C" {
 /** @group ldk.system.grass_system */
 #define LDK_GRASS_TYPE_COUNT 16u
 /** @group ldk.system.grass_system */
+#define LDK_GRASS_CUSTOM_BLADE_PRESET_COUNT 8u
+/** @group ldk.system.grass_system */
 #define LDK_GRASS_TYPE_ID_INVALID UINT32_MAX
 
 /** @group ldk.system.grass_system */
@@ -42,6 +45,7 @@ typedef enum LDKGrassBladeTopology
   LDK_GRASS_BLADE_TOPOLOGY_TRIPLE_RIBBONS,
   LDK_GRASS_BLADE_TOPOLOGY_THORNY_STEM,
   LDK_GRASS_BLADE_TOPOLOGY_PLUMED_STEM,
+  LDK_GRASS_BLADE_TOPOLOGY_CUSTOM,
   /** Deprecated source-compatible name for the original thorny prototype. */
   LDK_GRASS_BLADE_TOPOLOGY_THORNY_RIBBON =
       LDK_GRASS_BLADE_TOPOLOGY_THORNY_STEM
@@ -56,7 +60,15 @@ typedef enum LDKGrassBladePreset
   LDK_GRASS_BLADE_PRESET_TUFT,
   LDK_GRASS_BLADE_PRESET_FLAT_TOP,
   LDK_GRASS_BLADE_PRESET_THORNY,
-  LDK_GRASS_BLADE_PRESET_PLUMED_STEM
+  LDK_GRASS_BLADE_PRESET_PLUMED_STEM,
+  LDK_GRASS_BLADE_PRESET_CUSTOM_0,
+  LDK_GRASS_BLADE_PRESET_CUSTOM_1,
+  LDK_GRASS_BLADE_PRESET_CUSTOM_2,
+  LDK_GRASS_BLADE_PRESET_CUSTOM_3,
+  LDK_GRASS_BLADE_PRESET_CUSTOM_4,
+  LDK_GRASS_BLADE_PRESET_CUSTOM_5,
+  LDK_GRASS_BLADE_PRESET_CUSTOM_6,
+  LDK_GRASS_BLADE_PRESET_CUSTOM_7
 } LDKGrassBladePreset;
 
 /**
@@ -79,7 +91,24 @@ typedef struct LDKGrassBladeShape
   LDKGrassBladeTopology topology;
   /** Used by the radial and thorny stem topologies. */
   u32 side_count;
+  /** Used only by the CUSTOM topology; 0..7. */
+  u32 custom_slot;
 } LDKGrassBladeShape;
+
+/**
+ * Generate one reusable blade mesh for a registered CUSTOM preset.
+ * The returned LDKMeshData must own malloc-allocated vertices and indices;
+ * the engine releases both via ldk_mesh_data_destroy after GPU upload.
+ * Mesh coordinates use normalized height Y in [0,1], and X/Z must remain
+ * within half the maximum shape profile width, relative to the origin.
+ * UV.y is the normalized deformation coordinate, from 0 at the root to 1
+ * at the tip. A tangent with w != 0 enables bent-normal computation.
+ * This callback must not create renderer resources.
+ * @group ldk.system.grass_system
+ */
+typedef bool (*LDKGrassBladeMeshGenerator)(
+    const LDKGrassBladeShape *shape, rgba32 bottom_color,
+    rgba32 top_color, LDKMeshData *out_mesh);
 
 /**
  * Flat target geometry. The complete parallelogram, including its edges, is a
@@ -166,6 +195,17 @@ void ldk_grass_system_update(
  * @group ldk.system.grass_system
  */
 void ldk_grass_system_terminate(void *data);
+
+/**
+ * Register or unregister the mesh generator for CUSTOM_0 through CUSTOM_7.
+ * Pass NULL to unregister before unloading game code containing the callback.
+ * Registrations survive GrassSystem scene initialization and termination.
+ * Re-registering an occupied slot rebuilds affected grass batches on update.
+ * @return false for non-CUSTOM presets; true otherwise.
+ * @group ldk.system.grass_system
+ */
+LDK_API bool ldk_grass_blade_generator_register(
+    LDKGrassBladePreset preset, LDKGrassBladeMeshGenerator generator);
 
 /** @group ldk.system.grass_system */
 //@system name=GrassSystem initialize=ldk_grass_system_initialize update=ldk_grass_system_update terminate=ldk_grass_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_ENGINE_NATIVE|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED bucket=LDK_SYSTEM_BUCKET_RENDER

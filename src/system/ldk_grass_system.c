@@ -191,6 +191,28 @@ typedef struct LDKGrassRuntime
 
 static LDKGrassRuntime s_grass;
 
+static LDKGrassBladeMeshGenerator
+    s_custom_generators[LDK_GRASS_CUSTOM_BLADE_PRESET_COUNT];
+static u32 s_custom_generations[LDK_GRASS_CUSTOM_BLADE_PRESET_COUNT];
+static bool s_custom_error_reported[LDK_GRASS_CUSTOM_BLADE_PRESET_COUNT];
+
+bool ldk_grass_blade_generator_register(
+    LDKGrassBladePreset preset, LDKGrassBladeMeshGenerator generator)
+{
+  if (preset < LDK_GRASS_BLADE_PRESET_CUSTOM_0 ||
+      preset > LDK_GRASS_BLADE_PRESET_CUSTOM_7)
+  {
+    return false;
+  }
+
+  u32 index = (u32)(preset - LDK_GRASS_BLADE_PRESET_CUSTOM_0);
+  s_custom_generators[index] = generator;
+  s_custom_error_reported[index] = false;
+  ++s_custom_generations[index];
+  return true;
+}
+
+
 static bool s_allocation_size_is_valid(u32 count, size_t element_size)
 {
   return element_size != 0u &&
@@ -927,7 +949,7 @@ static float s_shininess_resolve(float shininess)
 static bool s_blade_preset_is_valid(LDKGrassBladePreset preset)
 {
   return preset >= LDK_GRASS_BLADE_PRESET_THIN &&
-         preset <= LDK_GRASS_BLADE_PRESET_PLUMED_STEM;
+         preset <= LDK_GRASS_BLADE_PRESET_CUSTOM_7;
 }
 
 #define LDK_GRASS_TYPE_READ_CASE(index)                                      \
@@ -1150,6 +1172,18 @@ static bool s_shape_from_type(
 
   switch (type->blade_preset)
   {
+  case LDK_GRASS_BLADE_PRESET_CUSTOM_0:
+  case LDK_GRASS_BLADE_PRESET_CUSTOM_1:
+  case LDK_GRASS_BLADE_PRESET_CUSTOM_2:
+  case LDK_GRASS_BLADE_PRESET_CUSTOM_3:
+  case LDK_GRASS_BLADE_PRESET_CUSTOM_4:
+  case LDK_GRASS_BLADE_PRESET_CUSTOM_5:
+  case LDK_GRASS_BLADE_PRESET_CUSTOM_6:
+  case LDK_GRASS_BLADE_PRESET_CUSTOM_7:
+    out_shape->topology = LDK_GRASS_BLADE_TOPOLOGY_CUSTOM;
+    out_shape->custom_slot =
+        (u32)(type->blade_preset - LDK_GRASS_BLADE_PRESET_CUSTOM_0);
+    break;
   case LDK_GRASS_BLADE_PRESET_THIN:
     out_shape->topology = LDK_GRASS_BLADE_TOPOLOGY_RIBBON;
     break;
@@ -1385,12 +1419,15 @@ static bool s_topology_is_valid(LDKGrassBladeTopology topology)
          topology == LDK_GRASS_BLADE_TOPOLOGY_RADIAL ||
          topology == LDK_GRASS_BLADE_TOPOLOGY_TRIPLE_RIBBONS ||
          topology == LDK_GRASS_BLADE_TOPOLOGY_THORNY_STEM ||
-         topology == LDK_GRASS_BLADE_TOPOLOGY_PLUMED_STEM;
+         topology == LDK_GRASS_BLADE_TOPOLOGY_PLUMED_STEM ||
+         topology == LDK_GRASS_BLADE_TOPOLOGY_CUSTOM;
 }
 
 static bool s_shape_is_valid(const LDKGrassBladeShape *shape)
 {
   if (!shape || !s_topology_is_valid(shape->topology) ||
+      (shape->topology == LDK_GRASS_BLADE_TOPOLOGY_CUSTOM &&
+          shape->custom_slot >= LDK_GRASS_CUSTOM_BLADE_PRESET_COUNT) ||
       ((shape->topology == LDK_GRASS_BLADE_TOPOLOGY_RADIAL ||
            shape->topology == LDK_GRASS_BLADE_TOPOLOGY_THORNY_STEM) &&
           (shape->side_count < LDK_GRASS_MIN_SIDE_COUNT ||
@@ -1555,6 +1592,8 @@ static bool s_shape_equal(
     const LDKGrassBladeShape *a, const LDKGrassBladeShape *b)
 {
   if (!a || !b || a->topology != b->topology ||
+      (a->topology == LDK_GRASS_BLADE_TOPOLOGY_CUSTOM &&
+          a->custom_slot != b->custom_slot) ||
       (a->topology == LDK_GRASS_BLADE_TOPOLOGY_RADIAL &&
           a->side_count != b->side_count))
   {
@@ -2605,6 +2644,101 @@ static bool s_batch_mesh_create(LDKGrassBatch *batch)
     return false;
   }
 
+  if (batch->shape.topology == LDK_GRASS_BLADE_TOPOLOGY_CUSTOM)
+  {
+    const u32 slot = batch->shape.custom_slot;
+    LDKGrassBladeMeshGenerator generator = s_custom_generators[slot];
+    LDKMeshData custom_mesh = {0};
+    float max_extent = 0.0f;
+    bool valid = generator != NULL;
+
+    if (!generator)
+    {
+      if (!s_custom_error_reported[slot])
+      {
+        ldk_log_error("No grass blade generator registered for CUSTOM_%u.\n",
+            slot);
+        s_custom_error_reported[slot] = true;
+      }
+      return false;
+    }
+
+    if (!generator(&batch->shape, batch->bottom_color, batch->top_color,
+            &custom_mesh))
+    {
+      ldk_mesh_data_destroy(&custom_mesh);
+      if (!s_custom_error_reported[slot])
+      {
+        ldk_log_error("Grass blade generator CUSTOM_%u failed.\n", slot);
+        s_custom_error_reported[slot] = true;
+      }
+      return false;
+    }
+
+    for (u32 i = 0u; i < LDK_GRASS_PROFILE_POINT_COUNT; ++i)
+    {
+      max_extent = float_max(max_extent,
+          batch->shape.profile[i].width * 0.5f);
+    }
+
+    valid = custom_mesh.vertices && custom_mesh.indices &&
+        custom_mesh.vertex_count > 0u &&
+        custom_mesh.index_count > 0u &&
+        custom_mesh.index_count % 3u == 0u;
+    for (u32 i = 0u; valid && i < custom_mesh.vertex_count; ++i)
+    {
+      const LDKMeshVertex *vertex = &custom_mesh.vertices[i];
+      valid = s_vec3_is_finite(vertex->position) &&
+          s_vec3_is_finite(vertex->normal) &&
+          isfinite(vertex->uv.x) && isfinite(vertex->uv.y) &&
+          vertex->position.x >= -max_extent &&
+          vertex->position.x <= max_extent &&
+          vertex->position.z >= -max_extent &&
+          vertex->position.z <= max_extent &&
+          vertex->position.y >= 0.0f && vertex->position.y <= 1.0f &&
+          vertex->uv.y >= 0.0f && vertex->uv.y <= 1.0f;
+      if (custom_mesh.has_tangents)
+      {
+        valid = valid && isfinite(vertex->tangent.x) &&
+            isfinite(vertex->tangent.y) &&
+            isfinite(vertex->tangent.z) &&
+            isfinite(vertex->tangent.w);
+      }
+    }
+    for (u32 i = 0u; valid && i < custom_mesh.index_count; ++i)
+    {
+      valid = custom_mesh.indices[i] < custom_mesh.vertex_count;
+    }
+
+    if (!valid)
+    {
+      if (!s_custom_error_reported[slot])
+      {
+        ldk_log_error("Grass blade generator CUSTOM_%u returned invalid "
+            "geometry.\n", slot);
+        s_custom_error_reported[slot] = true;
+      }
+      ldk_mesh_data_destroy(&custom_mesh);
+      return false;
+    }
+
+    desc.vertices = custom_mesh.vertices;
+    desc.vertex_count = custom_mesh.vertex_count;
+    desc.indices = custom_mesh.indices;
+    desc.index_count = custom_mesh.index_count;
+    desc.has_tangents = custom_mesh.has_tangents;
+    batch->mesh = ldk_renderer_mesh_create(s_grass.renderer, &desc);
+    batch->index_count = desc.index_count;
+    ldk_mesh_data_destroy(&custom_mesh);
+
+    if (!ldk_renderer_mesh_is_valid(s_grass.renderer, batch->mesh))
+    {
+      batch->mesh = ldk_renderer_mesh_null();
+      return false;
+    }
+    return true;
+  }
+
   memset(vertices, 0, sizeof(vertices));
   switch (batch->shape.topology)
   {
@@ -2741,6 +2875,8 @@ static u64 s_system_config_hash(const LDKGrassSystem *system)
   }
 
 #undef LDK_GRASS_HASH_FIELD
+
+  s_hash_bytes(&hash, s_custom_generations, sizeof(s_custom_generations));
 
   for (LDKGrassTypeId i = 0u; i < LDK_GRASS_TYPE_COUNT; ++i)
   {

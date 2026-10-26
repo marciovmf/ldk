@@ -541,7 +541,7 @@ endfunction()
 list(APPEND LDK_SOURCE
   # GL specific
   src/ldk_gl.h src/ldk_gl.c
-  src/ldk_rhi_gl33.h src/ldk_rhi_gl33.c
+  src/ldk_rhi_gl33.h src/ldk_rhi_gl33.c src/ldk_rhi_gl33_shaders.h
 
   # Core
   ${INCLUDE_DIR}/ldk.h              src/ldk.c
