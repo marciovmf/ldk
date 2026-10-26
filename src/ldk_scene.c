@@ -1709,6 +1709,8 @@ static bool s_apply_array_field(const TMLDocument *doc,
   if (!node || !item_meta || !item_meta->size || !item_meta->field_count ||
       field->offset > component_meta->size ||
       sizeof(XArray *) > component_meta->size - field->offset) return false;
+  if (array_meta->max_count && node->child_count > array_meta->max_count)
+    return false;
   if (array_meta->limit_field)
   {
     for (u32 i = 0; i < component_meta->field_count; ++i)
@@ -2391,6 +2393,11 @@ static bool s_system_meta_validate(const LDKSystemMeta *meta, u32 size)
     }
     switch (field->type)
     {
+    case LDK_FIELD_ARRAY:
+      field_size = sizeof(XArray *);
+      alignment = _Alignof(XArray *);
+      if (!field->array_meta || !field->array_meta->element_meta) return false;
+      break;
     case LDK_FIELD_BOOL:
       field_size = sizeof(bool);
       alignment = _Alignof(bool);
@@ -2526,12 +2533,11 @@ static bool s_apply_system_fields(const TMLDocument *doc,
     {
       continue;
     }
-    if (data->child_count)
-    {
-      s_result_error(result,
-          "system data must contain reflected field entries");
-      return false;
-    }
+    LDKComponentMeta field_meta = {0};
+    field_meta.name = meta->name;
+    field_meta.size = meta->size;
+    field_meta.fields = meta->fields;
+    field_meta.field_count = meta->field_count;
     for (u32 j = 0; j < data->entry_count; ++j)
     {
       const TMLEntry *entry = tml_node_entry_at(doc, data, j);
@@ -2570,6 +2576,36 @@ static bool s_apply_system_fields(const TMLDocument *doc,
       {
         s_result_error_format(result, "invalid value for system field: %s.%s",
             meta->name, field->name);
+        return false;
+      }
+    }
+    /* Process arrays after scalars so a sibling limit_field is initialized.
+     * Unknown nested data used to be rejected; only declared arrays are valid. */
+    for (u32 j = 0; j < data->child_count; ++j)
+    {
+      const TMLNode *array = tml_node_child_at(doc, data, j);
+      const LDKComponentFieldMeta *field = NULL;
+      if (!array)
+      {
+        s_result_error(result, "invalid system data node");
+        return false;
+      }
+      for (u32 k = 0; k < meta->field_count; ++k)
+      {
+        if (strlen(meta->fields[k].name) == array->name.size &&
+            memcmp(meta->fields[k].name, array->name.data,
+                array->name.size) == 0)
+        {
+          field = &meta->fields[k];
+          break;
+        }
+      }
+      if (!field || field->type != LDK_FIELD_ARRAY ||
+          !s_system_field_is_serializable(field) ||
+          !s_apply_array_field(doc, data, &field_meta, field,
+              systems->data[i], map))
+      {
+        s_result_error(result, "invalid system array field");
         return false;
       }
     }
@@ -3569,7 +3605,8 @@ static bool s_write_materials(LDKSceneSaveContext *context,
 
 /* Standard scene representation for an XArray of reflected structs. */
 static bool s_write_array_field(LDKSceneSaveContext *context,
-    const LDKComponentFieldMeta *field, const void *component, bool symbolic)
+    const LDKComponentFieldMeta *field, const void *component, bool symbolic,
+    u32 indent)
 {
   const LDKArrayFieldMeta *array_meta = field->array_meta;
   const LDKComponentMeta *item_meta = array_meta && array_meta->element_meta
@@ -3577,7 +3614,7 @@ static bool s_write_array_field(LDKSceneSaveContext *context,
   if (!item_meta || !item_meta->field_count) return false;
   XArray *const *array = (XArray *const *)((const u8 *)component + field->offset);
   u32 count = *array ? x_array_count(*array) : 0u;
-  s_append_indent(context->out, 6u);
+  s_append_indent(context->out, indent);
   x_strbuilder_append_format(context->out, "%s:\n", field->name);
   for (u32 i = 0u; i < count; ++i)
   {
@@ -3589,7 +3626,7 @@ static bool s_write_array_field(LDKSceneSaveContext *context,
       const LDKComponentFieldMeta *subfield = &item_meta->fields[j];
       if (!ldk_scene_component_field_is_serializable(item_meta, subfield))
         continue;
-      s_append_indent(context->out, first ? 7u : 8u);
+      s_append_indent(context->out, first ? indent + 1u : indent + 2u);
       x_strbuilder_append_format(context->out, "%s%s: ",
           first ? "- " : "", subfield->name);
       if (!s_write_field_value(context->out, &context->map,
@@ -3667,7 +3704,7 @@ static bool s_write_component(LDKSceneSaveContext *context,
     {
       if (!field->array_meta ||
           !s_write_array_field(context, field, component,
-              !s_component_uses_engine_metadata(meta)))
+              !s_component_uses_engine_metadata(meta), 6u))
       {
         s_result_error_format(context->result,
             "failed to serialize component array: %s.%s", meta->name,
@@ -3902,6 +3939,15 @@ static bool s_write_systems(LDKSceneSaveContext *context,
       const LDKComponentFieldMeta *field = &meta->fields[j];
       if (!s_system_field_is_serializable(field))
       {
+        continue;
+      }
+      if (field->type == LDK_FIELD_ARRAY)
+      {
+        if (!s_write_array_field(context, field, systems->data[i], true, 4u))
+        {
+          s_result_error(context->result, "failed to serialize system array");
+          return false;
+        }
         continue;
       }
       x_strbuilder_append_format(context->out, "        %s: ", field->name);

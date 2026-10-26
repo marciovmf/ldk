@@ -952,124 +952,39 @@ static bool s_blade_preset_is_valid(LDKGrassBladePreset preset)
          preset <= LDK_GRASS_BLADE_PRESET_CUSTOM_7;
 }
 
-#define LDK_GRASS_TYPE_READ_CASE(index)                                      \
-  case index:                                                                \
-    out_desc->name = system->type_##index##_name;                            \
-    out_desc->blade_preset = system->type_##index##_blade_preset;            \
-    out_desc->density = system->type_##index##_density;                      \
-    out_desc->clumping = system->type_##index##_clumping;                    \
-    out_desc->clump_radius = system->type_##index##_clump_radius;            \
-    out_desc->min_height = system->type_##index##_min_height;                \
-    out_desc->max_height = system->type_##index##_max_height;                \
-    out_desc->use_noise_height = system->type_##index##_use_noise_height;     \
-    out_desc->blade_width = system->type_##index##_blade_width;              \
-    out_desc->curvature = system->type_##index##_curvature;                  \
-    out_desc->wind_strength = system->type_##index##_wind_strength;          \
-    out_desc->interaction_recovery_time =                                   \
-        system->type_##index##_interaction_recovery_time;                    \
-    out_desc->bottom_color = system->type_##index##_bottom_color;            \
-    out_desc->top_color = system->type_##index##_top_color;                  \
-    out_desc->use_noise_color = system->type_##index##_use_noise_color;       \
-    out_desc->use_custom_noise_palette = system->type_##index##_use_custom_noise_palette; \
-    out_desc->noise_color_stop_0_color = system->type_##index##_noise_color_stop_0_color; \
-    out_desc->noise_color_stop_1_color = system->type_##index##_noise_color_stop_1_color; \
-    out_desc->noise_color_stop_2_color = system->type_##index##_noise_color_stop_2_color; \
-    out_desc->noise_color_stop_3_color = system->type_##index##_noise_color_stop_3_color; \
-    return true
-
 static bool s_type_slot_read(const LDKGrassSystem *system,
     LDKGrassTypeId type_id, LDKGrassTypeDesc *out_desc)
 {
-  if (!system || !out_desc || type_id >= LDK_GRASS_TYPE_COUNT)
+  if (!system || !out_desc || !system->types ||
+      type_id >= x_array_count(system->types))
   {
     return false;
   }
-
-  memset(out_desc, 0, sizeof(*out_desc));
-  switch (type_id)
+  const LDKGrassTypeDesc *type = x_array_get(system->types, type_id);
+  if (!type)
   {
-    LDK_GRASS_TYPE_READ_CASE(0);
-    LDK_GRASS_TYPE_READ_CASE(1);
-    LDK_GRASS_TYPE_READ_CASE(2);
-    LDK_GRASS_TYPE_READ_CASE(3);
-    LDK_GRASS_TYPE_READ_CASE(4);
-    LDK_GRASS_TYPE_READ_CASE(5);
-    LDK_GRASS_TYPE_READ_CASE(6);
-    LDK_GRASS_TYPE_READ_CASE(7);
-    LDK_GRASS_TYPE_READ_CASE(8);
-    LDK_GRASS_TYPE_READ_CASE(9);
-    LDK_GRASS_TYPE_READ_CASE(10);
-    LDK_GRASS_TYPE_READ_CASE(11);
-    LDK_GRASS_TYPE_READ_CASE(12);
-    LDK_GRASS_TYPE_READ_CASE(13);
-    LDK_GRASS_TYPE_READ_CASE(14);
-    LDK_GRASS_TYPE_READ_CASE(15);
-  default:
-    break;
+    return false;
   }
-  return false;
+  *out_desc = *type;
+  return true;
 }
-
-#undef LDK_GRASS_TYPE_READ_CASE
-
-#define LDK_GRASS_TYPE_WRITE_CASE(index)                                     \
-  case index:                                                                \
-    system->type_##index##_name = desc->name;                                \
-    system->type_##index##_blade_preset = desc->blade_preset;                \
-    system->type_##index##_density = desc->density;                          \
-    system->type_##index##_clumping = desc->clumping;                        \
-    system->type_##index##_clump_radius = desc->clump_radius;                \
-    system->type_##index##_min_height = desc->min_height;                    \
-    system->type_##index##_max_height = desc->max_height;                    \
-    system->type_##index##_use_noise_height = desc->use_noise_height;        \
-    system->type_##index##_blade_width = desc->blade_width;                  \
-    system->type_##index##_curvature = desc->curvature;                      \
-    system->type_##index##_wind_strength = desc->wind_strength;              \
-    system->type_##index##_interaction_recovery_time =                       \
-        desc->interaction_recovery_time;                                     \
-    system->type_##index##_bottom_color = desc->bottom_color;                \
-    system->type_##index##_top_color = desc->top_color;                      \
-    system->type_##index##_use_noise_color = desc->use_noise_color;          \
-    system->type_##index##_use_custom_noise_palette = desc->use_custom_noise_palette; \
-    system->type_##index##_noise_color_stop_0_color = desc->noise_color_stop_0_color; \
-    system->type_##index##_noise_color_stop_1_color = desc->noise_color_stop_1_color; \
-    system->type_##index##_noise_color_stop_2_color = desc->noise_color_stop_2_color; \
-    system->type_##index##_noise_color_stop_3_color = desc->noise_color_stop_3_color; \
-    return true
 
 static bool s_type_slot_write(LDKGrassSystem *system,
     LDKGrassTypeId type_id, const LDKGrassTypeDesc *desc)
 {
-  if (!system || !desc || type_id >= LDK_GRASS_TYPE_COUNT)
+  if (!system || !desc || !system->types ||
+      type_id >= x_array_count(system->types))
   {
     return false;
   }
-
-  switch (type_id)
+  LDKGrassTypeDesc *type = x_array_get(system->types, type_id);
+  if (!type)
   {
-    LDK_GRASS_TYPE_WRITE_CASE(0);
-    LDK_GRASS_TYPE_WRITE_CASE(1);
-    LDK_GRASS_TYPE_WRITE_CASE(2);
-    LDK_GRASS_TYPE_WRITE_CASE(3);
-    LDK_GRASS_TYPE_WRITE_CASE(4);
-    LDK_GRASS_TYPE_WRITE_CASE(5);
-    LDK_GRASS_TYPE_WRITE_CASE(6);
-    LDK_GRASS_TYPE_WRITE_CASE(7);
-    LDK_GRASS_TYPE_WRITE_CASE(8);
-    LDK_GRASS_TYPE_WRITE_CASE(9);
-    LDK_GRASS_TYPE_WRITE_CASE(10);
-    LDK_GRASS_TYPE_WRITE_CASE(11);
-    LDK_GRASS_TYPE_WRITE_CASE(12);
-    LDK_GRASS_TYPE_WRITE_CASE(13);
-    LDK_GRASS_TYPE_WRITE_CASE(14);
-    LDK_GRASS_TYPE_WRITE_CASE(15);
-  default:
-    break;
+    return false;
   }
-  return false;
+  *type = *desc;
+  return true;
 }
-
-#undef LDK_GRASS_TYPE_WRITE_CASE
 
 static bool s_type_desc_is_valid(const LDKGrassTypeDesc *desc)
 {
@@ -1124,7 +1039,12 @@ static bool s_system_config_is_valid(const LDKGrassSystem *system)
     return false;
   }
 
-  for (LDKGrassTypeId i = 0u; i < LDK_GRASS_TYPE_COUNT; ++i)
+  u32 type_count = system->types ? x_array_count(system->types) : 0u;
+  if (type_count > LDK_GRASS_TYPE_COUNT)
+  {
+    return false;
+  }
+  for (LDKGrassTypeId i = 0u; i < type_count; ++i)
   {
     if (!s_type_slot_read(system, i, &desc))
     {
@@ -1139,7 +1059,7 @@ static bool s_system_config_is_valid(const LDKGrassSystem *system)
       return false;
     }
 
-    for (LDKGrassTypeId j = i + 1u; j < LDK_GRASS_TYPE_COUNT; ++j)
+    for (LDKGrassTypeId j = i + 1u; j < type_count; ++j)
     {
       if (!s_type_slot_read(system, j, &other))
       {
@@ -2877,8 +2797,10 @@ static u64 s_system_config_hash(const LDKGrassSystem *system)
 #undef LDK_GRASS_HASH_FIELD
 
   s_hash_bytes(&hash, s_custom_generations, sizeof(s_custom_generations));
+  u32 type_count = system->types ? x_array_count(system->types) : 0u;
+  s_hash_bytes(&hash, &type_count, sizeof(type_count));
 
-  for (LDKGrassTypeId i = 0u; i < LDK_GRASS_TYPE_COUNT; ++i)
+  for (LDKGrassTypeId i = 0u; i < (system->types ? x_array_count(system->types) : 0u); ++i)
   {
     size_t name_length;
 
@@ -2994,7 +2916,7 @@ static void s_color_noise_defaults(LDKGrassSystem *system)
     system->color_stop_2_color = 0x70ab56ffu;
     system->color_stop_3_color = 0x427d48ffu;
   }
-  for (LDKGrassTypeId i = 0u; i < LDK_GRASS_TYPE_COUNT; ++i)
+  for (LDKGrassTypeId i = 0u; i < (system->types ? x_array_count(system->types) : 0u); ++i)
   {
     LDKGrassTypeDesc type;
     if (!s_type_slot_read(system, i, &type) ||
@@ -3178,6 +3100,11 @@ void ldk_grass_type_desc_defaults(LDKGrassTypeDesc *out_desc)
 
 }
 
+void ldk_grass_type_desc_initialize(void *element)
+{
+  ldk_grass_type_desc_defaults((LDKGrassTypeDesc *)element);
+}
+
 LDKGrassTypeId ldk_grass_get_id_by_name(const char *name)
 {
   LDKGrassTypeDesc desc;
@@ -3187,7 +3114,7 @@ LDKGrassTypeId ldk_grass_get_id_by_name(const char *name)
     return LDK_GRASS_TYPE_ID_INVALID;
   }
 
-  for (LDKGrassTypeId i = 0u; i < LDK_GRASS_TYPE_COUNT; ++i)
+  for (LDKGrassTypeId i = 0u; i < (s_grass.owner->types ? x_array_count(s_grass.owner->types) : 0u); ++i)
   {
     if (!s_type_slot_read(s_grass.owner, i, &desc) ||
         x_smallstr_length(&desc.name) == 0u)
@@ -3236,23 +3163,32 @@ LDKGrassTypeId ldk_grass_type_register(const LDKGrassTypeDesc *desc)
     return LDK_GRASS_TYPE_ID_INVALID;
   }
 
-  for (LDKGrassTypeId i = 0u; i < LDK_GRASS_TYPE_COUNT; ++i)
+  u32 count = s_grass.owner->types
+      ? x_array_count(s_grass.owner->types) : 0u;
+  for (LDKGrassTypeId i = 0u; i < count; ++i)
   {
-    if (!s_type_slot_read(s_grass.owner, i, &current))
+    if (s_type_slot_read(s_grass.owner, i, &current) &&
+        x_smallstr_length(&current.name) == 0u &&
+        s_type_slot_write(s_grass.owner, i, desc))
     {
-      return LDK_GRASS_TYPE_ID_INVALID;
-    }
-    if (x_smallstr_length(&current.name) == 0u)
-    {
-      if (!s_type_slot_write(s_grass.owner, i, desc))
-      {
-        return LDK_GRASS_TYPE_ID_INVALID;
-      }
       return i;
     }
   }
 
-  return LDK_GRASS_TYPE_ID_INVALID;
+  if (count >= LDK_GRASS_TYPE_COUNT)
+  {
+    return LDK_GRASS_TYPE_ID_INVALID;
+  }
+  if (!s_grass.owner->types)
+  {
+    s_grass.owner->types = x_array_create(sizeof(*desc), 0u);
+    if (!s_grass.owner->types)
+    {
+      return LDK_GRASS_TYPE_ID_INVALID;
+    }
+  }
+  return x_array_add(s_grass.owner->types, (void *)desc) == XARRAY_OK
+      ? count : LDK_GRASS_TYPE_ID_INVALID;
 }
 
 bool ldk_grass_interact(

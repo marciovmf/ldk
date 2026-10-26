@@ -143,6 +143,7 @@
 #include <module/ldk_system.h>
 #include <stdx/stdx_math.h>
 #include <stdx/stdx_string.h>
+#include <stdx/stdx_array.h>
 
 #include <stdbool.h>
 
@@ -259,30 +260,48 @@ typedef struct LDKGrassTypeDesc
 {
   XSmallstr name;
   LDKGrassBladePreset blade_preset;
+  //@inspect min=0
   float density;
   /** Tendency to grow near other blades: 0 = uniform, 1 = clustered. */
+  //@inspect slider min=0 max=1
   float clumping;
   /** Maximum distance from a clump root, in world units. */
+  //@inspect slider min=0 max=3
   float clump_radius;
+  //@inspect min=0
   float min_height;
+  //@inspect min=0
   float max_height;
   /** Use the noise texture to interpolate between min_height and max_height. */
   bool use_noise_height;
+  //@inspect min=0
   float blade_width;
+  //@inspect slider min=0 max=0.5
   float curvature;
   /** Per-type maximum wind displacement before the system wind force. */
+  //@inspect slider min=0 max=0.5
   float wind_strength;
   /** Seconds until interaction deformation fully returns to rest. Zero uses the default. */
+  //@inspect slider min=0 max=16
   float interaction_recovery_time;
-  rgba32 bottom_color;
-  rgba32 top_color;
+  //@inspect widget=COLOR
+  u32 bottom_color;
+  //@inspect widget=COLOR
+  u32 top_color;
   bool use_noise_color;
   bool use_custom_noise_palette;
+  //@inspect widget=COLOR
   u32 noise_color_stop_0_color;
+  //@inspect widget=COLOR
   u32 noise_color_stop_1_color;
+  //@inspect widget=COLOR
   u32 noise_color_stop_2_color;
+  //@inspect widget=COLOR
   u32 noise_color_stop_3_color;
 } LDKGrassTypeDesc;
+
+X_ARRAY_TYPE(LDKGrassTypeDesc)
+
 
 /** Per-region state. Visual configuration comes from LDKGrassSystem.
  * @group ldk.system.grass_system
@@ -394,612 +413,10 @@ typedef struct LDKGrassSystem
   bool unlit;
   //@end_group
 
-  //@begin_group "Grass Type 0"
-  XSmallstr type_0_name;
-  LDKGrassBladePreset type_0_blade_preset;
-  //@inspect min=0
-  float type_0_density;
-  //@inspect slider min=0 max=1
-  float type_0_clumping;
-  //@inspect slider min=0 max=3
-  float type_0_clump_radius;
-  //@inspect min=0
-  float type_0_min_height;
-  //@inspect min=0
-  float type_0_max_height;
-  bool type_0_use_noise_height;
-  //@inspect min=0
-  float type_0_blade_width;
-  //@inspect slider min=0 max=0.5
-  float type_0_curvature;
-  //@inspect slider min=0 max=0.5
-  float type_0_wind_strength;
-  //@inspect slider min=0 max=16
-  float type_0_interaction_recovery_time;
-  //@inspect widget=COLOR
-  u32 type_0_bottom_color;
-  //@inspect widget=COLOR
-  u32 type_0_top_color;
-  bool type_0_use_noise_color;
-  bool type_0_use_custom_noise_palette;
-  //@inspect widget=COLOR
-  u32 type_0_noise_color_stop_0_color;
-  //@inspect widget=COLOR
-  u32 type_0_noise_color_stop_1_color;
-  //@inspect widget=COLOR
-  u32 type_0_noise_color_stop_2_color;
-  //@inspect widget=COLOR
-  u32 type_0_noise_color_stop_3_color;
-  //@end_group
-
-  //@begin_group "Grass Type 1"
-  XSmallstr type_1_name;
-  LDKGrassBladePreset type_1_blade_preset;
-  //@inspect min=0
-  float type_1_density;
-  //@inspect slider min=0 max=1
-  float type_1_clumping;
-  //@inspect slider min=0 max=3
-  float type_1_clump_radius;
-  //@inspect min=0
-  float type_1_min_height;
-  //@inspect min=0
-  float type_1_max_height;
-  bool type_1_use_noise_height;
-  //@inspect min=0
-  float type_1_blade_width;
-  //@inspect slider min=0 max=0.5
-  float type_1_curvature;
-  //@inspect slider min=0 max=0.5
-  float type_1_wind_strength;
-  //@inspect slider min=0 max=16
-  float type_1_interaction_recovery_time;
-  //@inspect widget=COLOR
-  u32 type_1_bottom_color;
-  //@inspect widget=COLOR
-  u32 type_1_top_color;
-  bool type_1_use_noise_color;
-  bool type_1_use_custom_noise_palette;
-  //@inspect widget=COLOR
-  u32 type_1_noise_color_stop_0_color;
-  //@inspect widget=COLOR
-  u32 type_1_noise_color_stop_1_color;
-  //@inspect widget=COLOR
-  u32 type_1_noise_color_stop_2_color;
-  //@inspect widget=COLOR
-  u32 type_1_noise_color_stop_3_color;
-  //@end_group
-
-  //@begin_group "Grass Type 2"
-  XSmallstr type_2_name;
-  LDKGrassBladePreset type_2_blade_preset;
-  //@inspect min=0
-  float type_2_density;
-  //@inspect slider min=0 max=1
-  float type_2_clumping;
-  //@inspect slider min=0 max=3
-  float type_2_clump_radius;
-  //@inspect min=0
-  float type_2_min_height;
-  //@inspect min=0
-  float type_2_max_height;
-  bool type_2_use_noise_height;
-  //@inspect min=0
-  float type_2_blade_width;
-  //@inspect slider min=0 max=0.5
-  float type_2_curvature;
-  //@inspect slider min=0 max=0.5
-  float type_2_wind_strength;
-  //@inspect slider min=0 max=16
-  float type_2_interaction_recovery_time;
-  //@inspect widget=COLOR
-  u32 type_2_bottom_color;
-  //@inspect widget=COLOR
-  u32 type_2_top_color;
-  bool type_2_use_noise_color;
-  bool type_2_use_custom_noise_palette;
-  //@inspect widget=COLOR
-  u32 type_2_noise_color_stop_0_color;
-  //@inspect widget=COLOR
-  u32 type_2_noise_color_stop_1_color;
-  //@inspect widget=COLOR
-  u32 type_2_noise_color_stop_2_color;
-  //@inspect widget=COLOR
-  u32 type_2_noise_color_stop_3_color;
-  //@end_group
-
-  //@begin_group "Grass Type 3"
-  XSmallstr type_3_name;
-  LDKGrassBladePreset type_3_blade_preset;
-  //@inspect min=0
-  float type_3_density;
-  //@inspect slider min=0 max=1
-  float type_3_clumping;
-  //@inspect slider min=0 max=3
-  float type_3_clump_radius;
-  //@inspect min=0
-  float type_3_min_height;
-  //@inspect min=0
-  float type_3_max_height;
-  bool type_3_use_noise_height;
-  //@inspect min=0
-  float type_3_blade_width;
-  //@inspect slider min=0 max=0.5
-  float type_3_curvature;
-  //@inspect slider min=0 max=0.5
-  float type_3_wind_strength;
-  //@inspect slider min=0 max=16
-  float type_3_interaction_recovery_time;
-  //@inspect widget=COLOR
-  u32 type_3_bottom_color;
-  //@inspect widget=COLOR
-  u32 type_3_top_color;
-  bool type_3_use_noise_color;
-  bool type_3_use_custom_noise_palette;
-  //@inspect widget=COLOR
-  u32 type_3_noise_color_stop_0_color;
-  //@inspect widget=COLOR
-  u32 type_3_noise_color_stop_1_color;
-  //@inspect widget=COLOR
-  u32 type_3_noise_color_stop_2_color;
-  //@inspect widget=COLOR
-  u32 type_3_noise_color_stop_3_color;
-  //@end_group
-
-  //@begin_group "Grass Type 4"
-  XSmallstr type_4_name;
-  LDKGrassBladePreset type_4_blade_preset;
-  //@inspect min=0
-  float type_4_density;
-  //@inspect slider min=0 max=1
-  float type_4_clumping;
-  //@inspect slider min=0 max=3
-  float type_4_clump_radius;
-  //@inspect min=0
-  float type_4_min_height;
-  //@inspect min=0
-  float type_4_max_height;
-  bool type_4_use_noise_height;
-  //@inspect min=0
-  float type_4_blade_width;
-  //@inspect slider min=0 max=0.5
-  float type_4_curvature;
-  //@inspect slider min=0 max=0.5
-  float type_4_wind_strength;
-  //@inspect slider min=0 max=16
-  float type_4_interaction_recovery_time;
-  //@inspect widget=COLOR
-  u32 type_4_bottom_color;
-  //@inspect widget=COLOR
-  u32 type_4_top_color;
-  bool type_4_use_noise_color;
-  bool type_4_use_custom_noise_palette;
-  //@inspect widget=COLOR
-  u32 type_4_noise_color_stop_0_color;
-  //@inspect widget=COLOR
-  u32 type_4_noise_color_stop_1_color;
-  //@inspect widget=COLOR
-  u32 type_4_noise_color_stop_2_color;
-  //@inspect widget=COLOR
-  u32 type_4_noise_color_stop_3_color;
-  //@end_group
-
-  //@begin_group "Grass Type 5"
-  XSmallstr type_5_name;
-  LDKGrassBladePreset type_5_blade_preset;
-  //@inspect min=0
-  float type_5_density;
-  //@inspect slider min=0 max=1
-  float type_5_clumping;
-  //@inspect slider min=0 max=3
-  float type_5_clump_radius;
-  //@inspect min=0
-  float type_5_min_height;
-  //@inspect min=0
-  float type_5_max_height;
-  bool type_5_use_noise_height;
-  //@inspect min=0
-  float type_5_blade_width;
-  //@inspect slider min=0 max=0.5
-  float type_5_curvature;
-  //@inspect slider min=0 max=0.5
-  float type_5_wind_strength;
-  //@inspect slider min=0 max=16
-  float type_5_interaction_recovery_time;
-  //@inspect widget=COLOR
-  u32 type_5_bottom_color;
-  //@inspect widget=COLOR
-  u32 type_5_top_color;
-  bool type_5_use_noise_color;
-  bool type_5_use_custom_noise_palette;
-  //@inspect widget=COLOR
-  u32 type_5_noise_color_stop_0_color;
-  //@inspect widget=COLOR
-  u32 type_5_noise_color_stop_1_color;
-  //@inspect widget=COLOR
-  u32 type_5_noise_color_stop_2_color;
-  //@inspect widget=COLOR
-  u32 type_5_noise_color_stop_3_color;
-  //@end_group
-
-  //@begin_group "Grass Type 6"
-  XSmallstr type_6_name;
-  LDKGrassBladePreset type_6_blade_preset;
-  //@inspect min=0
-  float type_6_density;
-  //@inspect slider min=0 max=1
-  float type_6_clumping;
-  //@inspect slider min=0 max=3
-  float type_6_clump_radius;
-  //@inspect min=0
-  float type_6_min_height;
-  //@inspect min=0
-  float type_6_max_height;
-  bool type_6_use_noise_height;
-  //@inspect min=0
-  float type_6_blade_width;
-  //@inspect slider min=0 max=0.5
-  float type_6_curvature;
-  //@inspect slider min=0 max=0.5
-  float type_6_wind_strength;
-  //@inspect slider min=0 max=16
-  float type_6_interaction_recovery_time;
-  //@inspect widget=COLOR
-  u32 type_6_bottom_color;
-  //@inspect widget=COLOR
-  u32 type_6_top_color;
-  bool type_6_use_noise_color;
-  bool type_6_use_custom_noise_palette;
-  //@inspect widget=COLOR
-  u32 type_6_noise_color_stop_0_color;
-  //@inspect widget=COLOR
-  u32 type_6_noise_color_stop_1_color;
-  //@inspect widget=COLOR
-  u32 type_6_noise_color_stop_2_color;
-  //@inspect widget=COLOR
-  u32 type_6_noise_color_stop_3_color;
-  //@end_group
-
-  //@begin_group "Grass Type 7"
-  XSmallstr type_7_name;
-  LDKGrassBladePreset type_7_blade_preset;
-  //@inspect min=0
-  float type_7_density;
-  //@inspect slider min=0 max=1
-  float type_7_clumping;
-  //@inspect slider min=0 max=3
-  float type_7_clump_radius;
-  //@inspect min=0
-  float type_7_min_height;
-  //@inspect min=0
-  float type_7_max_height;
-  bool type_7_use_noise_height;
-  //@inspect min=0
-  float type_7_blade_width;
-  //@inspect slider min=0 max=0.5
-  float type_7_curvature;
-  //@inspect slider min=0 max=0.5
-  float type_7_wind_strength;
-  //@inspect slider min=0 max=16
-  float type_7_interaction_recovery_time;
-  //@inspect widget=COLOR
-  u32 type_7_bottom_color;
-  //@inspect widget=COLOR
-  u32 type_7_top_color;
-  bool type_7_use_noise_color;
-  bool type_7_use_custom_noise_palette;
-  //@inspect widget=COLOR
-  u32 type_7_noise_color_stop_0_color;
-  //@inspect widget=COLOR
-  u32 type_7_noise_color_stop_1_color;
-  //@inspect widget=COLOR
-  u32 type_7_noise_color_stop_2_color;
-  //@inspect widget=COLOR
-  u32 type_7_noise_color_stop_3_color;
-  //@end_group
-
-  //@begin_group "Grass Type 8"
-  XSmallstr type_8_name;
-  LDKGrassBladePreset type_8_blade_preset;
-  //@inspect min=0
-  float type_8_density;
-  //@inspect slider min=0 max=1
-  float type_8_clumping;
-  //@inspect slider min=0 max=3
-  float type_8_clump_radius;
-  //@inspect min=0
-  float type_8_min_height;
-  //@inspect min=0
-  float type_8_max_height;
-  bool type_8_use_noise_height;
-  //@inspect min=0
-  float type_8_blade_width;
-  //@inspect slider min=0 max=0.5
-  float type_8_curvature;
-  //@inspect slider min=0 max=0.5
-  float type_8_wind_strength;
-  //@inspect slider min=0 max=16
-  float type_8_interaction_recovery_time;
-  //@inspect widget=COLOR
-  u32 type_8_bottom_color;
-  //@inspect widget=COLOR
-  u32 type_8_top_color;
-  bool type_8_use_noise_color;
-  bool type_8_use_custom_noise_palette;
-  //@inspect widget=COLOR
-  u32 type_8_noise_color_stop_0_color;
-  //@inspect widget=COLOR
-  u32 type_8_noise_color_stop_1_color;
-  //@inspect widget=COLOR
-  u32 type_8_noise_color_stop_2_color;
-  //@inspect widget=COLOR
-  u32 type_8_noise_color_stop_3_color;
-  //@end_group
-
-  //@begin_group "Grass Type 9"
-  XSmallstr type_9_name;
-  LDKGrassBladePreset type_9_blade_preset;
-  //@inspect min=0
-  float type_9_density;
-  //@inspect slider min=0 max=1
-  float type_9_clumping;
-  //@inspect slider min=0 max=3
-  float type_9_clump_radius;
-  //@inspect min=0
-  float type_9_min_height;
-  //@inspect min=0
-  float type_9_max_height;
-  bool type_9_use_noise_height;
-  //@inspect min=0
-  float type_9_blade_width;
-  //@inspect slider min=0 max=0.5
-  float type_9_curvature;
-  //@inspect slider min=0 max=0.5
-  float type_9_wind_strength;
-  //@inspect slider min=0 max=16
-  float type_9_interaction_recovery_time;
-  //@inspect widget=COLOR
-  u32 type_9_bottom_color;
-  //@inspect widget=COLOR
-  u32 type_9_top_color;
-  bool type_9_use_noise_color;
-  bool type_9_use_custom_noise_palette;
-  //@inspect widget=COLOR
-  u32 type_9_noise_color_stop_0_color;
-  //@inspect widget=COLOR
-  u32 type_9_noise_color_stop_1_color;
-  //@inspect widget=COLOR
-  u32 type_9_noise_color_stop_2_color;
-  //@inspect widget=COLOR
-  u32 type_9_noise_color_stop_3_color;
-  //@end_group
-
-  //@begin_group "Grass Type 10"
-  XSmallstr type_10_name;
-  LDKGrassBladePreset type_10_blade_preset;
-  //@inspect min=0
-  float type_10_density;
-  //@inspect slider min=0 max=1
-  float type_10_clumping;
-  //@inspect slider min=0 max=3
-  float type_10_clump_radius;
-  //@inspect min=0
-  float type_10_min_height;
-  //@inspect min=0
-  float type_10_max_height;
-  bool type_10_use_noise_height;
-  //@inspect min=0
-  float type_10_blade_width;
-  //@inspect slider min=0 max=0.5
-  float type_10_curvature;
-  //@inspect slider min=0 max=0.5
-  float type_10_wind_strength;
-  //@inspect slider min=0 max=16
-  float type_10_interaction_recovery_time;
-  //@inspect widget=COLOR
-  u32 type_10_bottom_color;
-  //@inspect widget=COLOR
-  u32 type_10_top_color;
-  bool type_10_use_noise_color;
-  bool type_10_use_custom_noise_palette;
-  //@inspect widget=COLOR
-  u32 type_10_noise_color_stop_0_color;
-  //@inspect widget=COLOR
-  u32 type_10_noise_color_stop_1_color;
-  //@inspect widget=COLOR
-  u32 type_10_noise_color_stop_2_color;
-  //@inspect widget=COLOR
-  u32 type_10_noise_color_stop_3_color;
-  //@end_group
-
-  //@begin_group "Grass Type 11"
-  XSmallstr type_11_name;
-  LDKGrassBladePreset type_11_blade_preset;
-  //@inspect min=0
-  float type_11_density;
-  //@inspect slider min=0 max=1
-  float type_11_clumping;
-  //@inspect slider min=0 max=3
-  float type_11_clump_radius;
-  //@inspect min=0
-  float type_11_min_height;
-  //@inspect min=0
-  float type_11_max_height;
-  bool type_11_use_noise_height;
-  //@inspect min=0
-  float type_11_blade_width;
-  //@inspect slider min=0 max=0.5
-  float type_11_curvature;
-  //@inspect slider min=0 max=0.5
-  float type_11_wind_strength;
-  //@inspect slider min=0 max=16
-  float type_11_interaction_recovery_time;
-  //@inspect widget=COLOR
-  u32 type_11_bottom_color;
-  //@inspect widget=COLOR
-  u32 type_11_top_color;
-  bool type_11_use_noise_color;
-  bool type_11_use_custom_noise_palette;
-  //@inspect widget=COLOR
-  u32 type_11_noise_color_stop_0_color;
-  //@inspect widget=COLOR
-  u32 type_11_noise_color_stop_1_color;
-  //@inspect widget=COLOR
-  u32 type_11_noise_color_stop_2_color;
-  //@inspect widget=COLOR
-  u32 type_11_noise_color_stop_3_color;
-  //@end_group
-
-  //@begin_group "Grass Type 12"
-  XSmallstr type_12_name;
-  LDKGrassBladePreset type_12_blade_preset;
-  //@inspect min=0
-  float type_12_density;
-  //@inspect slider min=0 max=1
-  float type_12_clumping;
-  //@inspect slider min=0 max=3
-  float type_12_clump_radius;
-  //@inspect min=0
-  float type_12_min_height;
-  //@inspect min=0
-  float type_12_max_height;
-  bool type_12_use_noise_height;
-  //@inspect min=0
-  float type_12_blade_width;
-  //@inspect slider min=0 max=0.5
-  float type_12_curvature;
-  //@inspect slider min=0 max=0.5
-  float type_12_wind_strength;
-  //@inspect slider min=0 max=16
-  float type_12_interaction_recovery_time;
-  //@inspect widget=COLOR
-  u32 type_12_bottom_color;
-  //@inspect widget=COLOR
-  u32 type_12_top_color;
-  bool type_12_use_noise_color;
-  bool type_12_use_custom_noise_palette;
-  //@inspect widget=COLOR
-  u32 type_12_noise_color_stop_0_color;
-  //@inspect widget=COLOR
-  u32 type_12_noise_color_stop_1_color;
-  //@inspect widget=COLOR
-  u32 type_12_noise_color_stop_2_color;
-  //@inspect widget=COLOR
-  u32 type_12_noise_color_stop_3_color;
-  //@end_group
-
-  //@begin_group "Grass Type 13"
-  XSmallstr type_13_name;
-  LDKGrassBladePreset type_13_blade_preset;
-  //@inspect min=0
-  float type_13_density;
-  //@inspect slider min=0 max=1
-  float type_13_clumping;
-  //@inspect slider min=0 max=3
-  float type_13_clump_radius;
-  //@inspect min=0
-  float type_13_min_height;
-  //@inspect min=0
-  float type_13_max_height;
-  bool type_13_use_noise_height;
-  //@inspect min=0
-  float type_13_blade_width;
-  //@inspect slider min=0 max=0.5
-  float type_13_curvature;
-  //@inspect slider min=0 max=0.5
-  float type_13_wind_strength;
-  //@inspect slider min=0 max=16
-  float type_13_interaction_recovery_time;
-  //@inspect widget=COLOR
-  u32 type_13_bottom_color;
-  //@inspect widget=COLOR
-  u32 type_13_top_color;
-  bool type_13_use_noise_color;
-  bool type_13_use_custom_noise_palette;
-  //@inspect widget=COLOR
-  u32 type_13_noise_color_stop_0_color;
-  //@inspect widget=COLOR
-  u32 type_13_noise_color_stop_1_color;
-  //@inspect widget=COLOR
-  u32 type_13_noise_color_stop_2_color;
-  //@inspect widget=COLOR
-  u32 type_13_noise_color_stop_3_color;
-  //@end_group
-
-  //@begin_group "Grass Type 14"
-  XSmallstr type_14_name;
-  LDKGrassBladePreset type_14_blade_preset;
-  //@inspect min=0
-  float type_14_density;
-  //@inspect slider min=0 max=1
-  float type_14_clumping;
-  //@inspect slider min=0 max=3
-  float type_14_clump_radius;
-  //@inspect min=0
-  float type_14_min_height;
-  //@inspect min=0
-  float type_14_max_height;
-  bool type_14_use_noise_height;
-  //@inspect min=0
-  float type_14_blade_width;
-  //@inspect slider min=0 max=0.5
-  float type_14_curvature;
-  //@inspect slider min=0 max=0.5
-  float type_14_wind_strength;
-  //@inspect slider min=0 max=16
-  float type_14_interaction_recovery_time;
-  //@inspect widget=COLOR
-  u32 type_14_bottom_color;
-  //@inspect widget=COLOR
-  u32 type_14_top_color;
-  bool type_14_use_noise_color;
-  bool type_14_use_custom_noise_palette;
-  //@inspect widget=COLOR
-  u32 type_14_noise_color_stop_0_color;
-  //@inspect widget=COLOR
-  u32 type_14_noise_color_stop_1_color;
-  //@inspect widget=COLOR
-  u32 type_14_noise_color_stop_2_color;
-  //@inspect widget=COLOR
-  u32 type_14_noise_color_stop_3_color;
-  //@end_group
-
-  //@begin_group "Grass Type 15"
-  XSmallstr type_15_name;
-  LDKGrassBladePreset type_15_blade_preset;
-  //@inspect min=0
-  float type_15_density;
-  //@inspect slider min=0 max=1
-  float type_15_clumping;
-  //@inspect slider min=0 max=3
-  float type_15_clump_radius;
-  //@inspect min=0
-  float type_15_min_height;
-  //@inspect min=0
-  float type_15_max_height;
-  bool type_15_use_noise_height;
-  //@inspect min=0
-  float type_15_blade_width;
-  //@inspect slider min=0 max=0.5
-  float type_15_curvature;
-  //@inspect slider min=0 max=0.5
-  float type_15_wind_strength;
-  //@inspect slider min=0 max=16
-  float type_15_interaction_recovery_time;
-  //@inspect widget=COLOR
-  u32 type_15_bottom_color;
-  //@inspect widget=COLOR
-  u32 type_15_top_color;
-  bool type_15_use_noise_color;
-  bool type_15_use_custom_noise_palette;
-  //@inspect widget=COLOR
-  u32 type_15_noise_color_stop_0_color;
-  //@inspect widget=COLOR
-  u32 type_15_noise_color_stop_1_color;
-  //@inspect widget=COLOR
-  u32 type_15_noise_color_stop_2_color;
-  //@inspect widget=COLOR
-  u32 type_15_noise_color_stop_3_color;
+  //@begin_group "Grass Types"
+  /* Array indices are persistent GrassTypeIds; existing slots must not move. */
+  //@inspect element_type=LDKGrassTypeDesc initializer=ldk_grass_type_desc_initialize max_count=16 stable_indices
+  XArray_LDKGrassTypeDesc *types;
   //@end_group
 
 } LDKGrassSystem;
@@ -1009,6 +426,9 @@ typedef struct LDKGrassSystem
  * @group ldk.system.grass_system
  */
 LDK_API void ldk_grass_type_desc_defaults(LDKGrassTypeDesc *out_desc);
+
+/** Default initializer for Comet-created grass array elements. */
+LDK_API void ldk_grass_type_desc_initialize(void *element);
 
 /** Return the active configuration index for name, or INVALID when absent.
  * @param name Name identifying the object or setting.

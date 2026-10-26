@@ -264,6 +264,22 @@ static bool s_scene_systems_reserve(
   return true;
 }
 
+static void s_scene_system_data_arrays_release(u64 id, void *data, u32 size)
+{
+  const LDKSystemMeta *meta = s_scene_system_meta_find(id);
+  if (!data || !meta || meta->size != size) return;
+  for (u32 i = 0; i < meta->field_count; ++i)
+  {
+    const LDKComponentFieldMeta *field = &meta->fields[i];
+    if (field->type != LDK_FIELD_ARRAY ||
+        field->offset > size || sizeof(XArray *) > size - field->offset)
+      continue;
+    XArray **array = (XArray **)((u8 *)data + field->offset);
+    if (*array) x_array_destroy(*array);
+    *array = NULL;
+  }
+}
+
 static bool s_scene_system_data_release(LDKSceneSystems *systems, u32 index)
 {
   void *data = systems->data ? systems->data[index] : NULL;
@@ -281,6 +297,8 @@ static bool s_scene_system_data_release(LDKSceneSystems *systems, u32 index)
       return false;
     }
   }
+  s_scene_system_data_arrays_release(systems->ids[index], data,
+      systems->data_sizes[index]);
   free(data);
   if (systems->data)
   {

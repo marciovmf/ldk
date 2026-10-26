@@ -1077,7 +1077,7 @@ static bool s_editor_inspector_vector_row_input(LDKUIContext *ui, void *user,
 static bool s_editor_inspector_property_write(LDKEntity entity,
     u32 component_type, const LDKComponentFieldMeta *field, const void *raw)
 {
-  if (!component_type || !field || !raw)
+  if (!field || !raw)
   {
     return false;
   }
@@ -1096,6 +1096,10 @@ static bool s_editor_inspector_property_write(LDKEntity entity,
     if (memcmp(destination, raw, size) != 0)
       memcpy(destination, raw, size);
     return true;
+  }
+  if (!component_type)
+  {
+    return false;
   }
   /* An array limit is an ordinary reflected u32 field. Validate it against
    * all collections that use it, rather than special-casing a component. */
@@ -2484,14 +2488,21 @@ typedef struct LDKEditorArrayUndoOp
   u32 action;
 } LDKEditorArrayUndoOp;
 
+static LDKSceneSystems *s_editor_inspector_scene_systems(
+    LDKEditorContext *editor);
+static bool s_editor_inspector_system_index(
+    const LDKSceneSystems *systems, u64 id, u32 *out_index);
+static const LDKSystemMeta *s_editor_inspector_system_meta(
+    LDKGame *game, u64 id);
+
 static bool s_editor_array_undo_key(LDKEditorUndoKey key)
 {
   u32 offset = (u32)key.property;
   return (offset & 0x80000000u) != 0u;
 }
 
-static void *s_editor_array_undo_resolve(LDKEditorUndoKey key,
-    LDKFieldType type, size_t size, void **out_component,
+static void *s_editor_array_undo_resolve(LDKEditorContext *editor,
+    LDKEditorUndoKey key, LDKFieldType type, size_t size, void **out_component,
     const LDKArrayFieldMeta **out_array)
 {
   LDKECS *ecs = ldk_module_get(LDK_MODULE_ECS);
@@ -2504,14 +2515,33 @@ static void *s_editor_array_undo_resolve(LDKEditorUndoKey key,
   u32 element_index = (offset >> 8) & 0xffffu;
   u32 field_index = offset & 0xffu;
   const LDKComponentMeta *meta = ldk_property_component_meta(component_type);
-  if (!ecs || !ldk_entity_is_alive(&ecs->entity, entity) || !meta ||
-      array_index >= meta->field_count) return NULL;
+  LDKComponentMeta system_fields = {0};
+  void *component = NULL;
+  if (component_type == 0u)
+  {
+    const LDKSystemMeta *system_meta = editor &&
+        editor->editor_state == LDK_EDITOR_STATE_STOPED
+        ? s_editor_inspector_system_meta(ldk_game_get(), key.owner) : NULL;
+    LDKSceneSystems *systems = s_editor_inspector_scene_systems(editor);
+    if (!system_meta || !systems ||
+        !s_editor_inspector_system_index(systems, key.owner, NULL))
+      return NULL;
+    component = ldk_scene_systems_data_get(systems, key.owner);
+    system_fields.size = system_meta->size;
+    system_fields.fields = system_meta->fields;
+    system_fields.field_count = system_meta->field_count;
+    meta = &system_fields;
+  }
+  else
+  {
+    if (!ecs || !ldk_entity_is_alive(&ecs->entity, entity)) return NULL;
+    component = ldk_ecs_component_get(entity, component_type);
+  }
+  if (!meta || !component || array_index >= meta->field_count) return NULL;
   const LDKComponentFieldMeta *array_field = &meta->fields[array_index];
   if (array_field->type != LDK_FIELD_ARRAY || !array_field->array_meta ||
       array_field->offset > meta->size ||
       sizeof(XArray *) > meta->size - array_field->offset) return NULL;
-  void *component = ldk_ecs_component_get(entity, component_type);
-  if (!component) return NULL;
   XArray **array = (XArray **)((u8 *)component + array_field->offset);
   const LDKArrayFieldMeta *array_meta = array_field->array_meta;
   if (out_component) *out_component = component;
@@ -2632,7 +2662,7 @@ void *ldki_editor_undo_property_resolve(
   if (s_editor_array_undo_key(key))
   {
     void *array_value = s_editor_array_undo_resolve(
-        key, type, size, NULL, NULL);
+        (LDKEditorContext *)user, key, type, size, NULL, NULL);
     if (array_value) return array_value;
   }
   if ((key.property >> 32) == 0)
@@ -2672,7 +2702,7 @@ bool ldki_editor_undo_property_apply(void *user, LDKEditorUndoKey key,
     void *component = NULL;
     const LDKArrayFieldMeta *array_meta = NULL;
     void *destination = s_editor_array_undo_resolve(
-        key, type, size, &component, &array_meta);
+        (LDKEditorContext *)user, key, type, size, &component, &array_meta);
     if (destination && component && array_meta)
     {
       if (type == LDK_FIELD_ARRAY)
@@ -5173,7 +5203,7 @@ static void s_editor_inspector_array_draw(LDKEditorContext *editor,
   if (next != expanded)
     s_editor_inspector_group_expanded_set(
         LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_ARRAY, owner_id, group_id, next);
-  u32 limit = UINT32_MAX;
+  u32 limit = array_meta->max_count ? array_meta->max_count : UINT32_MAX;
   if (array_meta->limit_field)
   {
     for (u32 k = 0; k < component_meta->field_count; ++k)
@@ -5183,7 +5213,8 @@ static void s_editor_inspector_array_draw(LDKEditorContext *editor,
           strcmp(candidate->name, array_meta->limit_field) == 0 &&
           candidate->offset <= component_meta->size - sizeof(u32))
       {
-        limit = *(u32 *)((u8 *)component + candidate->offset);
+        u32 sibling_limit = *(u32 *)((u8 *)component + candidate->offset);
+        if (sibling_limit < limit) limit = sibling_limit;
         break;
       }
     }
@@ -5254,17 +5285,20 @@ static void s_editor_inspector_array_draw(LDKEditorContext *editor,
           LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_ARRAY, owner_id, item_group, next);
 
     ldk_ui_set_next_width(ui, ldk_ui_px(24.0f));
-    ldk_ui_set_next_disabled(ui, !can_modify || i == 0u);
+    ldk_ui_set_next_disabled(ui, !can_modify || i == 0u ||
+        array_meta->stable_indices);
     icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_UP_ARROW];
     bool move_up = ldk_ui_icon_button(ui, icon, NULL);
 
     ldk_ui_set_next_width(ui, ldk_ui_px(24.0f));
-    ldk_ui_set_next_disabled(ui, !can_modify || i + 1u >= count);
+    ldk_ui_set_next_disabled(ui, !can_modify || i + 1u >= count ||
+        array_meta->stable_indices);
     icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_DOWN_ARROW];
     bool move_down = ldk_ui_icon_button(ui, icon, NULL);
 
     ldk_ui_set_next_width(ui, ldk_ui_px(24.0f));
-    ldk_ui_set_next_disabled(ui, !can_modify);
+    ldk_ui_set_next_disabled(ui, !can_modify ||
+        (array_meta->stable_indices && i + 1u < count));
     icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_MINUS_BUTTON];
     bool remove = ldk_ui_icon_button(ui, icon, NULL);
     ldk_ui_end_horizontal(ui);

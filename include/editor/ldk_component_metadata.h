@@ -117,6 +117,8 @@ extern "C"
     void (*element_initialize)(void *element);
     void (*on_change)(void *component);
     const char *limit_field; /* Optional sibling u32 field name. */
+    u32 max_count; /* Zero means no additional fixed maximum. */
+    bool stable_indices; /* Only append and remove final element. */
   } LDKArrayFieldMeta;
 
   /** @group ldk.editor.component_metadata */

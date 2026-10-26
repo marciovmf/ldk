@@ -80,6 +80,75 @@ static bool s_editor_scene_entity_equal(LDKEntity left, LDKEntity right)
   return left.index == right.index && left.version == right.version;
 }
 
+static const LDKSystemMeta *s_editor_play_scene_system_meta(
+    LDKGame *game, u64 system_id);
+
+static XArray *s_editor_play_scene_array_clone(XArray *array,
+    const LDKArrayFieldMeta *array_meta)
+{
+  const LDKComponentMeta *element = array_meta && array_meta->element_meta
+      ? array_meta->element_meta() : NULL;
+  if (!element || !element->size) return NULL;
+  if (!array) return x_array_create(element->size, 0u);
+  u32 count = x_array_count(array);
+  if (array_meta->max_count && count > array_meta->max_count) return NULL;
+  XArray *copy = x_array_create(element->size, count);
+  if (!copy) return NULL;
+  if (count && x_array_add_range(copy, x_array_data(array), count) != XARRAY_OK)
+  {
+    x_array_destroy(copy);
+    return NULL;
+  }
+  return copy;
+}
+
+static void s_editor_play_scene_system_arrays_release(
+    const LDKSystemMeta *meta, void *data)
+{
+  if (!meta || !data) return;
+  for (u32 i = 0; i < meta->field_count; ++i)
+  {
+    const LDKComponentFieldMeta *field = &meta->fields[i];
+    if (field->type != LDK_FIELD_ARRAY ||
+        field->offset > meta->size ||
+        sizeof(XArray *) > meta->size - field->offset) continue;
+    XArray **array = (XArray **)((u8 *)data + field->offset);
+    if (*array) x_array_destroy(*array);
+    *array = NULL;
+  }
+}
+
+/* Destination already contains a raw struct copy. Replace every borrowed
+ * array pointer with its own storage, never leaving borrowed ownership. */
+static bool s_editor_play_scene_system_arrays_clone(
+    const LDKSystemMeta *meta, const void *source, void *target)
+{
+  if (!meta || !source || !target) return false;
+  for (u32 i = 0; i < meta->field_count; ++i)
+  {
+    const LDKComponentFieldMeta *field = &meta->fields[i];
+    if (field->type != LDK_FIELD_ARRAY) continue;
+    if (field->offset > meta->size ||
+        sizeof(XArray *) > meta->size - field->offset) return false;
+    *(XArray **)((u8 *)target + field->offset) = NULL;
+  }
+  for (u32 i = 0; i < meta->field_count; ++i)
+  {
+    const LDKComponentFieldMeta *field = &meta->fields[i];
+    if (field->type != LDK_FIELD_ARRAY) continue;
+    XArray *original = *(XArray *const *)((const u8 *)source + field->offset);
+    if (!original) continue;
+    XArray *copy = s_editor_play_scene_array_clone(original, field->array_meta);
+    if (!copy)
+    {
+      s_editor_play_scene_system_arrays_release(meta, target);
+      return false;
+    }
+    *(XArray **)((u8 *)target + field->offset) = copy;
+  }
+  return true;
+}
+
 static void s_editor_play_scene_override_payload_clear(
     LDKEditorSceneApplyOverride *override)
 {
@@ -88,6 +157,13 @@ static void s_editor_play_scene_override_payload_clear(
     return;
   }
 
+  if (override->kind == LDK_EDITOR_SCENE_APPLY_SYSTEM && override->data)
+  {
+    const LDKSystemMeta *meta = s_editor_play_scene_system_meta(
+        ldk_game_get(), override->system_id);
+    if (meta && meta->size == override->data_size)
+      s_editor_play_scene_system_arrays_release(meta, override->data);
+  }
   free(override->data);
   free(override->materials);
   free(override->instances);
@@ -652,6 +728,23 @@ static bool s_editor_play_scene_fields_apply(const LDKComponentMeta *meta,
       continue;
     }
 
+    if (field->type == LDK_FIELD_ARRAY && system_fields)
+    {
+      if (field->offset > meta->size ||
+          sizeof(XArray *) > meta->size - field->offset) return false;
+      XArray *original = *(XArray *const *)(source_bytes + field->offset);
+      XArray *clone = original
+          ? s_editor_play_scene_array_clone(original, field->array_meta)
+          : NULL;
+      if (original && !clone) return false;
+      XArray **destination = (XArray **)(target_bytes + field->offset);
+      if (*destination) x_array_destroy(*destination);
+      *destination = clone;
+      if (field->array_meta && field->array_meta->on_change)
+        field->array_meta->on_change(target);
+      continue;
+    }
+
     if (!s_editor_play_scene_field_size(field, &field_size) ||
         field->offset > meta->size || field_size > meta->size - field->offset)
     {
@@ -822,6 +915,8 @@ static bool s_editor_play_scene_authoring_systems_capture(
       goto failed;
     }
     memcpy(snapshot->data, data, meta->size);
+    if (!s_editor_play_scene_system_arrays_clone(
+            meta, data, snapshot->data)) goto failed;
   }
 
   s_editor_play_scene.authoring_systems = snapshots;
@@ -1307,6 +1402,11 @@ bool ldki_editor_scene_play_apply_system(
       return false;
     }
     memcpy(override->data, data, meta->size);
+    if (!s_editor_play_scene_system_arrays_clone(meta, data, override->data))
+    {
+      s_editor_play_scene_override_remove(override);
+      return false;
+    }
   }
 
   ldki_editor_log_info(editor, "System changes applied to scene.");

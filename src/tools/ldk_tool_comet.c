@@ -27,6 +27,8 @@ typedef struct LDKMetaField
   char array_changed[128];
   char array_initializer[128];
   char array_limit[128];
+  u32 array_max_count;
+  bool array_stable_indices;
   u32 flags;
   float min_value;
   float max_value;
@@ -594,6 +596,14 @@ static void ldk_meta_apply_inspect_annotation(LDKMetaField* field, const char* a
     else if (strncmp(token, "initializer=", 12) == 0)
     {
       snprintf(field->array_initializer, sizeof(field->array_initializer), "%s", token + 12);
+    }
+    else if (strcmp(token, "stable_indices") == 0)
+    {
+      field->array_stable_indices = true;
+    }
+    else if (strncmp(token, "max_count=", 10) == 0)
+    {
+      field->array_max_count = (u32)strtoul(token + 10, NULL, 10);
     }
     else if (strncmp(token, "limit_field=", 12) == 0)
     {
@@ -2533,6 +2543,8 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
           field->array_changed[0] ? field->array_changed : "NULL");
       if (field->array_limit[0]) ldk_meta_write_c_string(out, field->array_limit);
       else fprintf(out, "NULL");
+      fprintf(out, ", %uu, %s", field->array_max_count,
+          field->array_stable_indices ? "true" : "false");
       fprintf(out, "};\n");
     }
     fprintf(out, "  static const LDKComponentFieldMeta fields[] =\n");
@@ -2640,6 +2652,20 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
     }
     if (system->stateful && system->field_count)
     {
+      for (u32 f = 0; f < system->field_count; ++f)
+      {
+        const LDKMetaField *field = &state->fields[system->first_field + f];
+        if (!field->element_type[0]) continue;
+        fprintf(out, "  static const LDKArrayFieldMeta array_%u = {ldk_array_element_%s, ",
+            f, field->element_type);
+        fprintf(out, "%s, %s, ", field->array_initializer[0]
+            ? field->array_initializer : "NULL", field->array_changed[0]
+            ? field->array_changed : "NULL");
+        if (field->array_limit[0]) ldk_meta_write_c_string(out, field->array_limit);
+        else fprintf(out, "NULL");
+        fprintf(out, ", %uu, %s};\n", field->array_max_count,
+            field->array_stable_indices ? "true" : "false");
+      }
       fprintf(out, "  static const LDKComponentFieldMeta fields[] =\n");
       fprintf(out, "  {\n");
       for (u32 field_index = 0; field_index < system->field_count; ++field_index)
@@ -2676,6 +2702,8 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
         {
           fprintf(out, "NULL");
         }
+        if (field->element_type[0]) fprintf(out, ", &array_%u", field_index);
+        else fprintf(out, ", NULL");
         fprintf(out, " },\n");
       }
       fprintf(out, "  };\n\n");
