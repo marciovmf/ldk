@@ -200,6 +200,7 @@ typedef struct LDKEditorInspectorAreaState
 {
   LDKEntity entity;
   u32 collapsed_component_types[LDK_ENTITY_MAX_COMPONENTS];
+  bool component_expanded[LDK_ENTITY_MAX_COMPONENTS];
   u32 collapsed_component_count;
   bool valid;
 } LDKEditorInspectorAreaState;
@@ -219,6 +220,7 @@ typedef struct LDKEditorInspectorCollapsedGroup
   u64 owner_id;
   u32 group_index;
   u32 domain;
+  bool expanded;
 } LDKEditorInspectorCollapsedGroup;
 
 enum
@@ -226,7 +228,22 @@ enum
   LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_COMPONENT = 1u,
   LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_SYSTEM = 2u,
   LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_ARRAY = 3u,
+  LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_SYSTEM_HEADER = 4u,
 };
+
+typedef enum LDKEditorInspectorSelectionKind
+{
+  LDK_EDITOR_INSPECTOR_SELECTION_NONE,
+  LDK_EDITOR_INSPECTOR_SELECTION_ENTITY,
+  LDK_EDITOR_INSPECTOR_SELECTION_SYSTEM,
+  LDK_EDITOR_INSPECTOR_SELECTION_SCENE,
+} LDKEditorInspectorSelectionKind;
+
+typedef struct LDKEditorInspectorSelection
+{
+  u64 owner;
+  LDKEditorInspectorSelectionKind kind;
+} LDKEditorInspectorSelection;
 
 static LDKEditorInspectorInputState s_editor_inspector_input_state = {0};
 static LDKEditorInspectorAreaState s_editor_inspector_area_state = {0};
@@ -235,6 +252,16 @@ static LDKEditorInspectorEulerState s_editor_inspector_euler_state = {0};
 static LDKEditorInspectorCollapsedGroup *s_editor_inspector_collapsed_groups = NULL;
 static u32 s_editor_inspector_collapsed_group_count = 0u;
 static u32 s_editor_inspector_collapsed_group_capacity = 0u;
+/* Global defaults; a selected entity or system may override them. */
+static bool s_editor_inspector_expand_systems = true;
+static bool s_editor_inspector_expand_components = true;
+static bool s_editor_inspector_expand_groups = true;
+static bool s_editor_inspector_expand_arrays = false;
+static LDKEditorInspectorSelection s_editor_inspector_selection = {0};
+static bool s_editor_inspector_selection_override_valid = false;
+static bool s_editor_inspector_selection_override_expanded = false;
+static bool s_editor_inspector_material_textures_expanded[
+    LDK_MATERIAL_TEXTURE_SLOT_COUNT] = {0};
 static u32 s_editor_inspector_row_group_depth = 0u;
 static char
     s_editor_inspector_input_buffer[LDK_EDITOR_INSPECTOR_INPUT_CAPACITY] = {0};
@@ -332,39 +359,55 @@ static i32 s_editor_inspector_collapsed_component_index(u32 component_type)
   return -1;
 }
 
+static bool s_editor_inspector_default_for_domain(u32 domain)
+{
+  if (domain == LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_ARRAY)
+  {
+    return s_editor_inspector_expand_arrays;
+  }
+  if (domain == LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_SYSTEM_HEADER)
+  {
+    return s_editor_inspector_expand_systems;
+  }
+  return s_editor_inspector_expand_groups;
+}
+
+static bool s_editor_inspector_default_or_selection(bool global_default)
+{
+  return s_editor_inspector_selection_override_valid
+      ? s_editor_inspector_selection_override_expanded
+      : global_default;
+}
+
 static bool s_editor_inspector_component_expanded(u32 component_type)
 {
-  return s_editor_inspector_collapsed_component_index(component_type) < 0;
+  i32 index = s_editor_inspector_collapsed_component_index(component_type);
+  return index >= 0
+      ? s_editor_inspector_area_state.component_expanded[index]
+      : s_editor_inspector_default_or_selection(
+            s_editor_inspector_expand_components);
 }
 
 static void s_editor_inspector_component_expanded_set(
     u32 component_type, bool expanded)
 {
-  i32 collapsed_index =
-      s_editor_inspector_collapsed_component_index(component_type);
-
-  if (!expanded)
+  i32 index = s_editor_inspector_collapsed_component_index(component_type);
+  if (index >= 0)
   {
-    if (collapsed_index < 0 &&
-        s_editor_inspector_area_state.collapsed_component_count <
-            LDK_ENTITY_MAX_COMPONENTS)
-    {
-      u32 index = s_editor_inspector_area_state.collapsed_component_count++;
-      s_editor_inspector_area_state.collapsed_component_types[index] =
-          component_type;
-    }
+    s_editor_inspector_area_state.component_expanded[index] = expanded;
     return;
   }
-
-  if (collapsed_index < 0)
+  if (expanded == s_editor_inspector_default_or_selection(
+          s_editor_inspector_expand_components) ||
+      s_editor_inspector_area_state.collapsed_component_count >=
+          LDK_ENTITY_MAX_COMPONENTS)
   {
     return;
   }
-
-  u32 index = (u32)collapsed_index;
-  u32 last_index = --s_editor_inspector_area_state.collapsed_component_count;
-  s_editor_inspector_area_state.collapsed_component_types[index] =
-      s_editor_inspector_area_state.collapsed_component_types[last_index];
+  u32 entry = s_editor_inspector_area_state.collapsed_component_count++;
+  s_editor_inspector_area_state.collapsed_component_types[entry] =
+      component_type;
+  s_editor_inspector_area_state.component_expanded[entry] = expanded;
 }
 
 
@@ -387,59 +430,162 @@ static i32 s_editor_inspector_collapsed_group_index(
 static bool s_editor_inspector_group_expanded(
     u32 domain, u64 owner_id, u32 group_index)
 {
-  return s_editor_inspector_collapsed_group_index(
-             domain, owner_id, group_index) < 0;
+  i32 index = s_editor_inspector_collapsed_group_index(
+      domain, owner_id, group_index);
+  return index >= 0
+      ? s_editor_inspector_collapsed_groups[index].expanded
+      : s_editor_inspector_default_or_selection(
+            s_editor_inspector_default_for_domain(domain));
 }
 
 static void s_editor_inspector_group_expanded_set(
     u32 domain, u64 owner_id, u32 group_index, bool expanded)
 {
-  i32 collapsed_index = s_editor_inspector_collapsed_group_index(
+  i32 index = s_editor_inspector_collapsed_group_index(
       domain, owner_id, group_index);
-
-  if (!expanded)
+  if (index >= 0)
   {
-    if (collapsed_index >= 0)
+    s_editor_inspector_collapsed_groups[index].expanded = expanded;
+    return;
+  }
+  if (expanded == s_editor_inspector_default_or_selection(
+          s_editor_inspector_default_for_domain(domain)))
+  {
+    return;
+  }
+  if (s_editor_inspector_collapsed_group_count ==
+      s_editor_inspector_collapsed_group_capacity)
+  {
+    u32 capacity = s_editor_inspector_collapsed_group_capacity == 0u
+        ? 32u : s_editor_inspector_collapsed_group_capacity * 2u;
+    LDKEditorInspectorCollapsedGroup *groups =
+        (LDKEditorInspectorCollapsedGroup *)realloc(
+            s_editor_inspector_collapsed_groups, sizeof(*groups) * capacity);
+    if (!groups)
     {
       return;
     }
-
-    if (s_editor_inspector_collapsed_group_count ==
-        s_editor_inspector_collapsed_group_capacity)
-    {
-      u32 new_capacity = s_editor_inspector_collapsed_group_capacity == 0u
-          ? 32u
-          : s_editor_inspector_collapsed_group_capacity * 2u;
-      LDKEditorInspectorCollapsedGroup *new_groups =
-          (LDKEditorInspectorCollapsedGroup *)realloc(
-              s_editor_inspector_collapsed_groups,
-              sizeof(*new_groups) * new_capacity);
-      if (!new_groups)
-      {
-        return;
-      }
-      s_editor_inspector_collapsed_groups = new_groups;
-      s_editor_inspector_collapsed_group_capacity = new_capacity;
-    }
-
-    LDKEditorInspectorCollapsedGroup *group =
-        &s_editor_inspector_collapsed_groups[
-            s_editor_inspector_collapsed_group_count++];
-    group->domain = domain;
-    group->owner_id = owner_id;
-    group->group_index = group_index;
-    return;
+    s_editor_inspector_collapsed_groups = groups;
+    s_editor_inspector_collapsed_group_capacity = capacity;
   }
+  LDKEditorInspectorCollapsedGroup *group =
+      &s_editor_inspector_collapsed_groups[
+          s_editor_inspector_collapsed_group_count++];
+  group->domain = domain;
+  group->owner_id = owner_id;
+  group->group_index = group_index;
+  group->expanded = expanded;
+}
 
-  if (collapsed_index < 0)
+static void s_editor_inspector_selection_sync(const LDKEditorContext *editor)
+{
+  LDKEditorInspectorSelection selection = {0};
+  if (editor->scene_properties_selected)
+  {
+    selection.kind = LDK_EDITOR_INSPECTOR_SELECTION_SCENE;
+  }
+  else if (editor->selected_system_id != 0u)
+  {
+    selection.kind = LDK_EDITOR_INSPECTOR_SELECTION_SYSTEM;
+    selection.owner = editor->selected_system_id;
+  }
+  else if (!x_handle_is_null(editor->selected_entity))
+  {
+    selection.kind = LDK_EDITOR_INSPECTOR_SELECTION_ENTITY;
+    selection.owner = ((u64)editor->selected_entity.version << 32) |
+        editor->selected_entity.index;
+  }
+  if (selection.kind == s_editor_inspector_selection.kind &&
+      selection.owner == s_editor_inspector_selection.owner)
   {
     return;
   }
+  s_editor_inspector_selection = selection;
+  s_editor_inspector_selection_override_valid = false;
+  s_editor_inspector_area_state.collapsed_component_count = 0u;
+  s_editor_inspector_collapsed_group_count = 0u;
+  for (u32 i = 0u; i < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++i)
+  {
+    s_editor_inspector_material_textures_expanded[i] =
+        s_editor_inspector_expand_groups;
+  }
+}
 
-  u32 index = (u32)collapsed_index;
-  u32 last = --s_editor_inspector_collapsed_group_count;
-  s_editor_inspector_collapsed_groups[index] =
-      s_editor_inspector_collapsed_groups[last];
+/* Expand/Contract are scoped to the current Inspector selection and never
+ * modify the global defaults shown in the dropdown. */
+static void s_editor_inspector_folds_set(bool expanded)
+{
+  if (s_editor_inspector_selection.kind == LDK_EDITOR_INSPECTOR_SELECTION_NONE)
+  {
+    return;
+  }
+  s_editor_inspector_selection_override_valid = true;
+  s_editor_inspector_selection_override_expanded = expanded;
+  s_editor_inspector_area_state.collapsed_component_count = 0u;
+  s_editor_inspector_collapsed_group_count = 0u;
+  for (u32 i = 0u; i < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++i)
+  {
+    s_editor_inspector_material_textures_expanded[i] = expanded;
+  }
+}
+
+static void s_editor_inspector_default_option(LDKUIContext *ui,
+    const char *label, bool *expanded)
+{
+  ldk_ui_push_id_cstr(ui, label);
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_set_next_weight(ui, 0.0f);
+  *expanded = ldk_ui_toggle(ui, *expanded);
+  ldk_ui_set_next_weight(ui, 1.0f);
+  ldk_ui_label(ui, label);
+  ldk_ui_end_horizontal(ui);
+  ldk_ui_pop_id(ui);
+}
+
+static void s_editor_inspector_folds_toolbar_draw(LDKEditorContext *editor)
+{
+  const LDKUIId popup_id = 0x49464F50u;
+  LDKUIContext *ui = &editor->ui;
+  ldk_ui_push_id_cstr(ui, "inspector_folds_toolbar");
+  ldk_ui_set_next_height(ui, ldk_ui_px(
+      LDK_UI_DEFAULT_CONTROL_HEIGHT + 2.0f * LDK_UI_DEFAULT_PADDING));
+  ldk_ui_begin_horizontal(ui);
+  ldk_ui_begin_disabled(ui,
+      s_editor_inspector_selection.kind == LDK_EDITOR_INSPECTOR_SELECTION_NONE);
+  ldk_ui_set_next_weight(ui, 0.0f);
+  bool expand = ldk_ui_button_flat(ui, "Expand all");
+  ldk_ui_set_next_weight(ui, 0.0f);
+  bool contract = ldk_ui_button_flat(ui, "Contract all");
+  ldk_ui_end_disabled(ui);
+  ldk_ui_set_next_weight(ui, 1.0f);
+  ldk_ui_combo_box_popup(ui, "On Show", popup_id);
+  LDKUIRect combo_rect = ldk_ui_last_bounding_rect(ui);
+  ldk_ui_end_horizontal(ui);
+
+  if (expand || contract)
+  {
+    s_editor_inspector_folds_set(expand);
+  }
+
+  if (ldk_ui_begin_popup(ui, popup_id))
+  {
+    float popup_width = combo_rect.w > 190.0f ? combo_rect.w : 190.0f;
+    ldk_ui_set_next_width(ui, ldk_ui_px(popup_width));
+    s_editor_inspector_default_option(
+        ui, "Expand Systems", &s_editor_inspector_expand_systems);
+    ldk_ui_set_next_width(ui, ldk_ui_px(popup_width));
+    s_editor_inspector_default_option(
+        ui, "Expand Components", &s_editor_inspector_expand_components);
+    ldk_ui_set_next_width(ui, ldk_ui_px(popup_width));
+    s_editor_inspector_default_option(
+        ui, "Expand Groups", &s_editor_inspector_expand_groups);
+    ldk_ui_set_next_width(ui, ldk_ui_px(popup_width));
+    s_editor_inspector_default_option(
+        ui, "Expand Arrays", &s_editor_inspector_expand_arrays);
+    ldk_ui_end_popup(ui);
+  }
+  ldk_ui_pop_id(ui);
 }
 
 static void s_editor_inspector_input_state_clear(void)
@@ -4010,7 +4156,7 @@ static bool s_editor_material_textures_editor(LDKEditorContext *editor,
   static const char *const labels[LDK_MATERIAL_TEXTURE_SLOT_COUNT] = {
       "Albedo", "Normal", "Specular", "Texture 3", "Texture 4",
       "Texture 5", "Texture 6", "Texture 7"};
-  static bool expanded[LDK_MATERIAL_TEXTURE_SLOT_COUNT] = {0};
+  bool *expanded = s_editor_inspector_material_textures_expanded;
   LDKUIContext *ui = &editor->ui;
   bool changed = false;
   bool textured = desc->type == LDK_MATERIAL_TYPE_TEXTURED ||
@@ -4810,7 +4956,15 @@ static bool s_editor_inspector_system_draw(
   ldk_ui_begin_horizontal(ui);
   ldk_ui_set_next_width(ui, ldk_ui_px(icon.size.w));
   ldk_ui_icon_label(ui, icon, "");
-  ldk_ui_label(ui, name);
+  bool expanded = s_editor_inspector_group_expanded(
+      LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_SYSTEM_HEADER, system_id, 0u);
+  bool next = ldk_ui_tree_node(
+      ui, name, expanded, 0u, LDK_UI_TREE_NODE_NONE);
+  if (next != expanded)
+  {
+    s_editor_inspector_group_expanded_set(
+        LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_SYSTEM_HEADER, system_id, 0u, next);
+  }
   ldk_ui_end_horizontal(ui);
 
   if (editor->editor_state != LDK_EDITOR_STATE_STOPED)
@@ -4858,6 +5012,14 @@ static bool s_editor_inspector_system_draw(
         ldki_editor_log_error(editor, "Failed to change system pause state.");
       }
     }
+  }
+
+  if (!next)
+  {
+    ldk_ui_pop_id(ui);
+    ldk_ui_pop_id(ui);
+    ldk_ui_pop_id(ui);
+    return true;
   }
 
   s_editor_inspector_system_grouping_draw(editor, systems, system_id);
@@ -5599,7 +5761,9 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
   {
     s_editor_inspector_instance_selection_clear(editor);
   }
+  s_editor_inspector_selection_sync(editor);
   s_editor_inspector_column_update(editor);
+  s_editor_inspector_folds_toolbar_draw(editor);
   ecs = ldk_module_get(LDK_MODULE_ECS);
   game = ldk_game_get();
 
