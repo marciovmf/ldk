@@ -1,4 +1,5 @@
 #include <ldk_scene.h>
+#include <stdx/stdx_array.h>
 #include "ldk_scene_internal.h"
 #include <ldk_scene_systems.h>
 #include <inttypes.h>
@@ -14,6 +15,8 @@
 #include <component/ldk_mesh_source.h>
 #include <component/ldk_particle_emitter.h>
 #include <component/ldk_instanced_mesh_source.h>
+#include <component/ldk_line.h>
+#include <component/ldk_trail.h>
 #include <component/ldk_transform.h>
 #include <component/ldk_grass_interact.h>
 #include <component/ldk_keyframe_animation_source.h>
@@ -212,6 +215,16 @@ u32 ldk_scene_component_meta_runtime_type(const LDKComponentMeta *meta)
     if (strcmp(meta->name, "LDKMeshSource") == 0)
     {
       return LDK_COMPONENT_TYPE_MESH_SOURCE;
+    }
+
+    if (strcmp(meta->name, "LDKLineComponent") == 0)
+    {
+      return LDK_COMPONENT_TYPE_LINE;
+    }
+
+    if (strcmp(meta->name, "LDKTrailComponent") == 0)
+    {
+      return LDK_COMPONENT_TYPE_TRAIL;
     }
 
     if (strcmp(meta->name, "LDKMaterialInstance") == 0)
@@ -1682,6 +1695,64 @@ static bool s_mesh_material_field_name(const char *name)
   return false;
 }
 
+/* Restore an XArray through its Comet element metadata. Build a new list
+ * completely before replacing the old one so invalid TML cannot corrupt it. */
+static bool s_apply_array_field(const TMLDocument *doc,
+    const TMLNode *fields, const LDKComponentMeta *component_meta,
+    const LDKComponentFieldMeta *field, void *component,
+    const LDKSceneEntityMap *entity_map)
+{
+  const TMLNode *node = s_node_find_child(doc, fields, field->name);
+  const LDKArrayFieldMeta *array_meta = field->array_meta;
+  const LDKComponentMeta *item_meta = array_meta && array_meta->element_meta
+      ? array_meta->element_meta() : NULL;
+  if (!node || !item_meta || !item_meta->size || !item_meta->field_count ||
+      field->offset > component_meta->size ||
+      sizeof(XArray *) > component_meta->size - field->offset) return false;
+  if (array_meta->limit_field)
+  {
+    for (u32 i = 0; i < component_meta->field_count; ++i)
+    {
+      const LDKComponentFieldMeta *limit = &component_meta->fields[i];
+      if (strcmp(limit->name, array_meta->limit_field) == 0 &&
+          limit->type == LDK_FIELD_U32 &&
+          limit->offset <= component_meta->size - sizeof(u32) &&
+          node->child_count > *(u32 *)((u8 *)component + limit->offset))
+        return false;
+    }
+  }
+  XArray *parsed = x_array_create(item_meta->size, node->child_count);
+  if (!parsed) return false;
+  for (u32 i = 0; i < node->child_count; ++i)
+  {
+    const TMLNode *item_node = tml_node_child_at(doc, node, i);
+    void *item = calloc(1, item_meta->size);
+    if (!item || !item_node)
+    {
+      free(item); x_array_destroy(parsed); return false;
+    }
+    if (array_meta->element_initialize) array_meta->element_initialize(item);
+    bool ok = true;
+    for (u32 j = 0; j < item_meta->field_count; ++j)
+    {
+      const LDKComponentFieldMeta *subfield = &item_meta->fields[j];
+      if (!ldk_scene_component_field_is_serializable(item_meta, subfield))
+        continue;
+      const TMLEntry *entry = s_node_find_entry(doc, item_node, subfield->name);
+      if (!entry || !s_apply_field_value(doc, entry,
+              entity_map, subfield, item)) { ok = false; break; }
+    }
+    if (ok) ok = x_array_add(parsed, item) == XARRAY_OK;
+    free(item);
+    if (!ok) { x_array_destroy(parsed); return false; }
+  }
+  XArray **destination = (XArray **)((u8 *)component + field->offset);
+  if (*destination) x_array_destroy(*destination);
+  *destination = parsed;
+  if (array_meta->on_change) array_meta->on_change(component);
+  return true;
+}
+
 static bool s_apply_component_fields(const TMLDocument *doc,
     const TMLNode *fields_node, const LDKSceneEntityMap *map,
     const LDKComponentMeta *meta, void *component, LDKSceneResult *result)
@@ -1747,6 +1818,18 @@ static bool s_apply_component_fields(const TMLDocument *doc,
     }
   }
 
+  for (u32 i = 0; i < meta->field_count; ++i)
+  {
+    const LDKComponentFieldMeta *field = &meta->fields[i];
+    if (field->type != LDK_FIELD_ARRAY ||
+        !ldk_scene_component_field_is_serializable(meta, field)) continue;
+    if (!s_node_find_child(doc, fields_node, field->name)) continue;
+    if (!s_apply_array_field(doc, fields_node, meta, field,
+            component, map))
+      s_recoverable_error_format(
+          "invalid component array; keeping defaults: %s.%s",
+          meta->name, field->name);
+  }
   return true;
 }
 
@@ -3484,6 +3567,41 @@ static bool s_write_materials(LDKSceneSaveContext *context,
   return true;
 }
 
+/* Standard scene representation for an XArray of reflected structs. */
+static bool s_write_array_field(LDKSceneSaveContext *context,
+    const LDKComponentFieldMeta *field, const void *component, bool symbolic)
+{
+  const LDKArrayFieldMeta *array_meta = field->array_meta;
+  const LDKComponentMeta *item_meta = array_meta && array_meta->element_meta
+      ? array_meta->element_meta() : NULL;
+  if (!item_meta || !item_meta->field_count) return false;
+  XArray *const *array = (XArray *const *)((const u8 *)component + field->offset);
+  u32 count = *array ? x_array_count(*array) : 0u;
+  s_append_indent(context->out, 6u);
+  x_strbuilder_append_format(context->out, "%s:\n", field->name);
+  for (u32 i = 0u; i < count; ++i)
+  {
+    const void *item = x_array_get(*array, i);
+    if (!item) return false;
+    bool first = true;
+    for (u32 j = 0u; j < item_meta->field_count; ++j)
+    {
+      const LDKComponentFieldMeta *subfield = &item_meta->fields[j];
+      if (!ldk_scene_component_field_is_serializable(item_meta, subfield))
+        continue;
+      s_append_indent(context->out, first ? 7u : 8u);
+      x_strbuilder_append_format(context->out, "%s%s: ",
+          first ? "- " : "", subfield->name);
+      if (!s_write_field_value(context->out, &context->map,
+              subfield, item, symbolic)) return false;
+      x_strbuilder_append_char(context->out, '\n');
+      first = false;
+    }
+    if (first) return false;
+  }
+  return true;
+}
+
 static bool s_write_component(LDKSceneSaveContext *context,
     LDKEntity entity, u32 component_type, bool *out_wrote_any)
 {
@@ -3545,6 +3663,21 @@ static bool s_write_component(LDKSceneSaveContext *context,
       continue;
     }
 
+    if (field->type == LDK_FIELD_ARRAY)
+    {
+      if (!field->array_meta ||
+          !s_write_array_field(context, field, component,
+              !s_component_uses_engine_metadata(meta)))
+      {
+        s_result_error_format(context->result,
+            "failed to serialize component array: %s.%s", meta->name,
+            field->name);
+        return false;
+      }
+      wrote_any_field = true;
+      continue;
+    }
+
     s_append_indent(context->out, 6u);
     x_strbuilder_append_format(context->out, "%s: ", field->name);
 
@@ -3596,6 +3729,7 @@ static bool s_write_component(LDKSceneSaveContext *context,
     }
     wrote_any_field = true;
   }
+
 
   if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
   {

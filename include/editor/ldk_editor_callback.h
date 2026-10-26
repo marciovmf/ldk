@@ -57,4 +57,12 @@ typedef void (*LDKEditorSystemCallbackFn)(u64 system_id, void *data, float dt);
 typedef u32 (*LDKGameEditorCallbackCountFn)(void);
 typedef const LDKEditorCallbackMeta *(*LDKGameEditorCallbackGetFn)(u32 index);
 
+/* Engine-owned actions are generated from the same annotations as game actions. */
+#ifdef LDK_EDITOR
+LDK_API u32 ldk_engine_editor_callback_metadata_count(void);
+LDK_API const LDKEditorCallbackMeta *ldk_engine_editor_callback_metadata_get(u32 index);
+LDK_API LDKEditorComponentCallbackFn ldk_engine_editor_component_callback_get(u32 index);
+LDK_API LDKEditorSystemCallbackFn ldk_engine_editor_system_callback_get(u32 index);
+#endif
+
 #endif // LDK_EDITOR_CALLBACK_H

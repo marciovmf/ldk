@@ -39,6 +39,7 @@ extern "C"
     LDK_FIELD_ASSET_KEYFRAME_ANIMATION,
     LDK_FIELD_ASSET_TEXTURE_ATLAS,
     LDK_FIELD_U64,
+    LDK_FIELD_ARRAY,
   } LDKFieldType;
 
   /** @group ldk.editor.component_metadata */
@@ -107,6 +108,17 @@ extern "C"
     const struct LDKComponentGroupMeta *parent;
   } LDKComponentGroupMeta;
 
+  struct LDKComponentMeta;
+
+  /* Optional type reflection and hooks for STDX XArray fields. */
+  typedef struct LDKArrayFieldMeta
+  {
+    const struct LDKComponentMeta *(*element_meta)(void);
+    void (*element_initialize)(void *element);
+    void (*on_change)(void *component);
+    const char *limit_field; /* Optional sibling u32 field name. */
+  } LDKArrayFieldMeta;
+
   /** @group ldk.editor.component_metadata */
   typedef struct LDKComponentFieldMeta
   {
@@ -121,6 +133,7 @@ extern "C"
     const LDKComponentGroupMeta *group;
     const char *display_name;
     const char *widget_source; /* Name of a sibling field providing widget data. */
+    const LDKArrayFieldMeta *array_meta;
   } LDKComponentFieldMeta;
 
   /** @group ldk.editor.component_metadata */

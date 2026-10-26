@@ -23,6 +23,10 @@ typedef struct LDKMetaField
   char widget[64];
   char display_name[128];
   char widget_source[128];
+  char element_type[128];
+  char array_changed[128];
+  char array_initializer[128];
+  char array_limit[128];
   u32 flags;
   float min_value;
   float max_value;
@@ -46,6 +50,7 @@ typedef struct LDKMetaComponent
   u32 field_count;
   u32 first_group;
   u32 group_count;
+  bool scalar;
 } LDKMetaComponent;
 
 typedef struct LDKMetaSystem
@@ -88,6 +93,10 @@ typedef struct LDKMetaEnum
 
 typedef struct LDKMetaState
 {
+  LDKMetaComponent* structures;
+  u32 structure_count;
+  u32 structure_capacity;
+
   LDKMetaComponent* components;
   u32 component_count;
   u32 component_capacity;
@@ -574,6 +583,22 @@ static void ldk_meta_apply_inspect_annotation(LDKMetaField* field, const char* a
     {
       snprintf(field->display_name, sizeof(field->display_name), "%s", token + 6);
     }
+    else if (strncmp(token, "element_type=", 13) == 0)
+    {
+      snprintf(field->element_type, sizeof(field->element_type), "%s", token + 13);
+    }
+    else if (strncmp(token, "on_change=", 10) == 0)
+    {
+      snprintf(field->array_changed, sizeof(field->array_changed), "%s", token + 10);
+    }
+    else if (strncmp(token, "initializer=", 12) == 0)
+    {
+      snprintf(field->array_initializer, sizeof(field->array_initializer), "%s", token + 12);
+    }
+    else if (strncmp(token, "limit_field=", 12) == 0)
+    {
+      snprintf(field->array_limit, sizeof(field->array_limit), "%s", token + 12);
+    }
 
     token = strtok(NULL, " \t\r\n");
   }
@@ -932,7 +957,7 @@ static bool ldk_meta_parse_field_line(
 
   *semi = 0;
 
-  if (strchr(text, '*') || strchr(text, '[') || strchr(text, '('))
+  if (strchr(text, '[') || strchr(text, '('))
   {
     return true;
   }
@@ -943,9 +968,14 @@ static bool ldk_meta_parse_field_line(
     return true;
   }
 
+  bool pointer_field = strchr(last_space + 1, '*') != NULL ||
+      strchr(text, '*') != NULL;
   *last_space = 0;
   type = ldk_meta_trim(text);
   name = ldk_meta_trim(last_space + 1);
+  /* Strip the pointer from the declared name, but recognize only STDX
+   * arrays when an explicit element_type is supplied. */
+  while (*name == '*') name++;
 
   if (*type == 0 || *name == 0)
   {
@@ -958,7 +988,37 @@ static bool ldk_meta_parse_field_line(
   ldk_meta_display_name_from_field_name(
       field.display_name, sizeof(field.display_name), name);
 
-  if (!ldk_meta_kind_from_type(type, field.field_kind, sizeof(field.field_kind), field.widget, sizeof(field.widget)))
+  if (pending_annotation)
+  {
+    ldk_meta_apply_inspect_annotation(&field, pending_annotation);
+  }
+
+  if (field.element_type[0])
+  {
+    if (!(strcmp(type, "XArray") == 0 || strncmp(type, "XArray_", 7) == 0) ||
+        !pointer_field)
+    {
+      snprintf(state->error, sizeof(state->error),
+          "%s.%s: element_type requires an XArray pointer", component_name, name);
+      return false;
+    }
+    snprintf(field.field_kind, sizeof(field.field_kind), "LDK_FIELD_ARRAY");
+    snprintf(field.widget, sizeof(field.widget), "LDK_FIELD_WIDGET_DEFAULT");
+  }
+  else if (pointer_field)
+  {
+    if ((strcmp(type, "XArray") == 0 || strncmp(type, "XArray_", 7) == 0) &&
+        pending_annotation && *pending_annotation &&
+        !(field.flags & LDK_META_FLAG_HIDDEN))
+    {
+      snprintf(state->error, sizeof(state->error),
+          "%s.%s: inspected XArray requires element_type=<known type>",
+          component_name, name);
+      return false;
+    }
+    return true;
+  }
+  else if (!ldk_meta_kind_from_type(type, field.field_kind, sizeof(field.field_kind), field.widget, sizeof(field.widget)))
   {
     if (ldk_meta_enum_find(state, type) ||
         (pending_annotation && strstr(pending_annotation, "enum")))
@@ -2133,6 +2193,117 @@ static bool ldk_meta_parse_file(LDKMetaState* state, const char* path)
   return true;
 }
 
+/* Resolve element types from ordinary typedef structs found in the input
+ * headers. No second annotation on the element struct is required. */
+static bool ldk_meta_parse_element_struct(LDKMetaState *state,
+    const char **files, u32 file_count, const char *type)
+{
+  LDKMetaComponent meta = {0};
+  snprintf(meta.type_name, sizeof(meta.type_name), "%s", type);
+  meta.first_field = state->field_count;
+  meta.first_group = state->group_count;
+
+  /* Fundamental reflected types are stored directly; the generic Inspector
+   * treats each scalar item as a one-field value. */
+  LDKMetaField scalar = {0};
+  if (ldk_meta_kind_from_type(type, scalar.field_kind,
+          sizeof(scalar.field_kind), scalar.widget, sizeof(scalar.widget)) ||
+      ldk_meta_enum_find(state, type))
+  {
+    if (!scalar.field_kind[0])
+    {
+      snprintf(scalar.field_kind, sizeof(scalar.field_kind), "LDK_FIELD_ENUM");
+      snprintf(scalar.widget, sizeof(scalar.widget), "LDK_FIELD_WIDGET_ENUM");
+    }
+    snprintf(scalar.type_name, sizeof(scalar.type_name), "%s", type);
+    snprintf(scalar.field_name, sizeof(scalar.field_name), "value");
+    snprintf(scalar.display_name, sizeof(scalar.display_name), "Value");
+    if (!ldk_meta_push_field(state, &scalar)) return false;
+    meta.field_count = 1u;
+    meta.scalar = true;
+  }
+  else
+  {
+    bool found = false;
+    for (u32 j = 0; j < file_count && !found; ++j)
+    {
+      char *source = NULL;
+      size_t size = 0;
+      if (!ldk_meta_read_file(files[j], &source, &size)) return false;
+      const char *cursor = source;
+      while ((cursor = strstr(cursor, "typedef struct")) != NULL)
+      {
+        const char *brace = strchr(cursor, '{');
+        if (!brace) break;
+        const char *semicolon = strchr(cursor, ';');
+        if (semicolon && semicolon < brace) { ++cursor; continue; }
+        const char *end = ldk_meta_find_matching_brace(brace);
+        if (!end) break;
+        const char *tail = end + 1;
+        while (isspace((unsigned char)*tail)) ++tail;
+        if (strncmp(tail, type, strlen(type)) == 0 &&
+            !ldk_meta_is_ident_char(tail[strlen(type)]))
+        {
+          found = ldk_meta_parse_struct_body(state, type, brace + 1, end,
+              meta.first_group);
+          if (found)
+          {
+            meta.field_count = state->field_count - meta.first_field;
+            meta.group_count = state->group_count - meta.first_group;
+          }
+          break;
+        }
+        cursor = end + 1;
+      }
+      free(source);
+    }
+    if (!found)
+    {
+      snprintf(state->error, sizeof(state->error),
+          "unknown array element type '%s' (expected reflected type)", type);
+      return false;
+    }
+  }
+  LDKMetaComponent *tmp = realloc(state->structures,
+      (state->structure_count + 1u) * sizeof(*tmp));
+  if (!tmp) return false;
+  state->structures = tmp;
+  state->structures[state->structure_count++] = meta;
+  return true;
+}
+
+static bool ldk_meta_resolve_array_structs(LDKMetaState *state,
+    const char **files, u32 file_count)
+{
+  /* Fields can be appended while parsing element structs. */
+  for (u32 i = 0; i < state->field_count; ++i)
+  {
+    LDKMetaField *field = &state->fields[i];
+    if (!field->element_type[0]) continue;
+    bool found = false;
+    for (u32 j = 0; j < state->structure_count; ++j)
+      if (strcmp(state->structures[j].type_name, field->element_type) == 0)
+        found = true;
+    if (!found && !ldk_meta_parse_element_struct(state, files, file_count,
+        field->element_type)) return false;
+  }
+  for (u32 n = 0; n < state->structure_count; ++n)
+  {
+    const LDKMetaComponent *element = &state->structures[n];
+    for (u32 f = 0; f < element->field_count; ++f)
+    {
+      if (state->fields[element->first_field + f].element_type[0])
+      {
+        snprintf(state->error, sizeof(state->error),
+            "nested reflected XArray fields are not yet supported (%s)",
+            element->type_name);
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 static u32 ldk_meta_emit_flags(u32 flags)
 {
   u32 result = 0u;
@@ -2313,6 +2484,37 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   fprintf(out, "\n#ifdef LDK_COMPONENT_METADATA_IMPLEMENTATION\n\n");
   ldk_meta_write_enums(out, state);
 
+  for (u32 n = 0; n < state->structure_count; ++n)
+    fprintf(out, "static const LDKComponentMeta *ldk_array_element_%s(void);\n",
+        state->structures[n].type_name);
+  fprintf(out, "\n");
+  for (u32 n = 0; n < state->structure_count; ++n)
+  {
+    const LDKMetaComponent *element = &state->structures[n];
+    fprintf(out, "static const LDKComponentMeta *ldk_array_element_%s(void)\n{\n",
+        element->type_name);
+    fprintf(out, "  static const LDKComponentFieldMeta fields[] = {\n");
+    for (u32 f = 0; f < element->field_count; ++f)
+    {
+      const LDKMetaField *field = &state->fields[element->first_field + f];
+      fprintf(out, "    { \"%s\", %s, ", field->field_name, field->field_kind);
+      if (element->scalar) fprintf(out, "0u");
+      else fprintf(out, "offsetof(%s, %s)", element->type_name,
+          field->field_name);
+      fprintf(out, ", %uu, %s, %.9ff, %.9ff, ",
+          ldk_meta_emit_flags(field->flags), field->widget,
+          field->has_min ? field->min_value : 0.0f,
+          field->has_max ? field->max_value : 0.0f);
+      ldk_meta_write_enum_reference(out, state, field);
+      fprintf(out, ", NULL, ");
+      ldk_meta_write_c_string(out, field->display_name);
+      fprintf(out, ", NULL, NULL },\n");
+    }
+    fprintf(out, "  };\n  static const LDKComponentMeta meta = {\"%s\", 0u, sizeof(%s), fields, %uu, NULL, 0u};\n",
+        element->type_name, element->type_name, element->field_count);
+    fprintf(out, "  return &meta;\n}\n\n");
+  }
+
   for (i = 0; i < state->component_count; i++)
   {
     LDKMetaComponent* component = &state->components[i];
@@ -2321,6 +2523,18 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
     fprintf(out, "static inline const LDKComponentMeta* %s(void)\n", component->meta_fn_name);
     fprintf(out, "{\n");
     ldk_meta_write_groups(out, state, component->first_group, component->group_count);
+    for (u32 f = 0; f < component->field_count; ++f)
+    {
+      const LDKMetaField *field = &state->fields[component->first_field + f];
+      if (!field->element_type[0]) continue;
+      fprintf(out, "  static const LDKArrayFieldMeta array_%u = {ldk_array_element_%s, ",
+          f, field->element_type);
+      fprintf(out, "%s, %s, ", field->array_initializer[0] ? field->array_initializer : "NULL",
+          field->array_changed[0] ? field->array_changed : "NULL");
+      if (field->array_limit[0]) ldk_meta_write_c_string(out, field->array_limit);
+      else fprintf(out, "NULL");
+      fprintf(out, "};\n");
+    }
     fprintf(out, "  static const LDKComponentFieldMeta fields[] =\n");
     fprintf(out, "  {\n");
 
@@ -2363,6 +2577,8 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
       {
         fprintf(out, "NULL");
       }
+      fprintf(out, ", %s", field->element_type[0] ? "" : "NULL");
+      if (field->element_type[0]) fprintf(out, "&array_%u", field_index);
       fprintf(out, " },\n");
     }
 
@@ -2607,6 +2823,30 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
   }
   fprintf(out, "}\n\n");
 
+  /* Engine metadata can dispatch engine-owned editor callbacks directly.
+   * Game callbacks retain their existing DLL symbol lookup. */
+  fprintf(out, "#ifdef LDK_EDITOR\n");
+  fprintf(out, "LDKEditorComponentCallbackFn game_editor_component_callback_function_get(u32 index)\n{\n  switch (index)\n  {\n");
+  for (i = 0; i < state->editor_callback_count; ++i)
+  {
+    if (state->editor_callbacks[i].component[0])
+    {
+      fprintf(out, "    case %uu: return %s;\n", i,
+          state->editor_callbacks[i].symbol);
+    }
+  }
+  fprintf(out, "    default: return NULL;\n  }\n}\n\n");
+  fprintf(out, "LDKEditorSystemCallbackFn game_editor_system_callback_function_get(u32 index)\n{\n  switch (index)\n  {\n");
+  for (i = 0; i < state->editor_callback_count; ++i)
+  {
+    if (state->editor_callbacks[i].system[0])
+    {
+      fprintf(out, "    case %uu: return %s;\n", i,
+          state->editor_callbacks[i].symbol);
+    }
+  }
+  fprintf(out, "    default: return NULL;\n  }\n}\n#endif\n\n");
+
   fprintf(out, "#endif // LDK_COMPONENT_METADATA_IMPLEMENTATION \n");
   fprintf(out, "#endif // LDK_COMPONENTS_GENERATED_H\n");
 
@@ -2714,6 +2954,12 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
     }
   }
 
+  if (ok && !ldk_meta_resolve_array_structs(&state, input_files, input_file_count))
+  {
+    fprintf(stderr, "ldk_meta_gen: %s\n", state.error);
+    ok = false;
+  }
+
   if (ok && !ldk_meta_check_collisions(&state))
   {
     fprintf(stderr, "ldk_meta_gen: %s\n", state.error);
@@ -2724,6 +2970,36 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
   {
     fprintf(stderr, "ldk_meta_gen: %s\n", state.error);
     ok = false;
+  }
+
+  if (ok)
+  {
+    for (u32 j = 0; j < state.field_count; ++j)
+    {
+      const LDKMetaField *field = &state.fields[j];
+      if (!field->element_type[0] || !field->array_limit[0]) continue;
+      bool found = false;
+      for (u32 k = 0; k < state.field_count; ++k)
+      {
+        const LDKMetaField *candidate = &state.fields[k];
+        if (strcmp(candidate->component_name, field->component_name) == 0 &&
+            strcmp(candidate->field_name, field->array_limit) == 0 &&
+            strcmp(candidate->field_kind, "LDK_FIELD_U32") == 0)
+        {
+          found = true;
+          break;
+        }
+      }
+      if (!found)
+      {
+        snprintf(state.error, sizeof(state.error),
+            "%s.%s: limit_field must reference a reflected u32 field (%s)",
+            field->component_name, field->field_name, field->array_limit);
+        ok = false;
+        break;
+      }
+    }
+    if (!ok) fprintf(stderr, "ldk_meta_gen: %s\n", state.error);
   }
 
   if (ok && !ldk_meta_validate_atlas_region_fields(&state))
@@ -2755,6 +3031,7 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
     ok = false;
   }
 
+  free(state.structures);
   free(state.components);
   free(state.fields);
   free(state.groups);

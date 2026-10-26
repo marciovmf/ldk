@@ -258,6 +258,61 @@ static int test_undo_property_aware_restoration(void)
   return 0;
 }
 
+static void *s_test_component_resolve(
+    void *user, LDKEditorUndoKey key, LDKFieldType type, size_t size)
+{
+  TestUndoState *state = user;
+  u32 field = (u32)key.property;
+  if (key.owner != 5 || field >= 2u || !state->valid[field] ||
+      type != LDK_FIELD_FLOAT || size != sizeof(float))
+  {
+    return NULL;
+  }
+  return &state->values[field];
+}
+
+static int test_undo_discard_component(void)
+{
+  TestUndoState state = {{1.0f, 10.0f}, {true, true}};
+  LDKEditorUndo undo;
+  LDKEditorUndoKey line_key = {5, ((uint64_t)123u << 32) | 0u};
+  LDKEditorUndoKey other_key = {5, ((uint64_t)124u << 32) | 1u};
+  ldk_editor_undo_initialize(&undo, s_test_component_resolve, &state);
+
+  ASSERT_TRUE(ldk_editor_undo_begin_change(
+      &undo, line_key, LDK_FIELD_FLOAT, &state.values[0], sizeof(float)));
+  state.values[0] = 2.0f;
+  ASSERT_TRUE(ldk_editor_undo_end_change_resolved(&undo));
+  ASSERT_TRUE(ldk_editor_undo_begin_change(
+      &undo, other_key, LDK_FIELD_FLOAT, &state.values[1], sizeof(float)));
+  state.values[1] = 20.0f;
+  ASSERT_TRUE(ldk_editor_undo_end_change_resolved(&undo));
+  ASSERT_TRUE(ldk_editor_undo_begin_change(
+      &undo, line_key, LDK_FIELD_FLOAT, &state.values[0], sizeof(float)));
+  state.values[0] = 3.0f;
+  ASSERT_TRUE(ldk_editor_undo_end_change_resolved(&undo));
+
+  ASSERT_EQ(undo.count, 3);
+  ASSERT_TRUE(ldk_editor_undo_undo(&undo));
+  ASSERT_EQ(state.values[0], 2.0f);
+  ldk_editor_undo_discard_component(&undo, 5, 123u);
+  ASSERT_EQ(undo.count, 1);
+  ASSERT_EQ(undo.position, 1);
+  ASSERT_TRUE(ldk_editor_undo_undo(&undo));
+  ASSERT_EQ(state.values[1], 10.0f);
+  ASSERT_TRUE(ldk_editor_undo_redo(&undo));
+  ASSERT_EQ(state.values[1], 20.0f);
+
+  ASSERT_TRUE(ldk_editor_undo_begin_change(
+      &undo, line_key, LDK_FIELD_FLOAT, &state.values[0], sizeof(float)));
+  ASSERT_TRUE(ldk_editor_undo_has_active_change(&undo));
+  ldk_editor_undo_discard_component(&undo, 5, 123u);
+  ASSERT_FALSE(ldk_editor_undo_has_active_change(&undo));
+  ASSERT_EQ(undo.count, 1);
+  ldk_editor_undo_terminate(&undo);
+  return 0;
+}
+
 /* Materials are undoed by complete descriptor snapshots, not by pointers to
  * the temporary copies drawn by the Inspector. Both owner types share the
  * same value representation but have independent identities. */
@@ -394,6 +449,7 @@ int main(void)
     X_TEST(test_undo_end_after_caller_write),
     X_TEST(test_undo_property_aware_restoration),
     X_TEST(test_undo_material_snapshots),
+    X_TEST(test_undo_discard_component),
   };
   return x_tests_run(tests, sizeof(tests) / sizeof(tests[0]), NULL);
 }

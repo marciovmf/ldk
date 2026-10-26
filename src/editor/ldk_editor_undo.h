@@ -41,6 +41,10 @@ void ldk_editor_undo_initialize_with_apply(LDKEditorUndo *undo,
     LDKEditorUndoResolveFn resolve, LDKEditorUndoApplyFn apply, void *user);
 void ldk_editor_undo_terminate(LDKEditorUndo *undo);
 void ldk_editor_undo_clear(LDKEditorUndo *undo);
+/* Drop transactions targeting a component whose dynamic properties were
+ * structurally changed. Preserve unrelated Undo/Redo history. */
+void ldk_editor_undo_discard_component(
+    LDKEditorUndo *undo, uint64_t owner, uint32_t component_type);
 
 /* size describes the stored representation, including enums and asset handles.
  * Only trivially copyable values with a stable byte representation are supported.
