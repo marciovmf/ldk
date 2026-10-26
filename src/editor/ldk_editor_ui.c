@@ -1226,7 +1226,26 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
       ui->viewport.y + LDK_EDITOR_MENU_BAR_HEIGHT(ui), ui->viewport.w,
       LDK_EDITOR_TOOL_BAR_HEIGHT(ui)};
   ldk_ui_begin_window_fixed(ui, "EDITOR COMMANDS", toolbar_rect, 0);
-  ldk_ui_begin_horizontal(&editor->ui);
+
+  /* The menu bar leaves an extra spacing below its separator. Shift the
+   * controls up to balance the visible gaps without changing the toolbar
+   * bounds, control height, or horizontal alignment. */
+  bool compact_vertical_padding =
+      ui->theme.panel_padding >= LDK_UI_DEFAULT_SPACING;
+  if (compact_vertical_padding)
+  {
+    ldk_ui_set_padding(
+        ui, ui->theme.panel_padding - LDK_UI_DEFAULT_SPACING);
+  }
+  ldk_ui_set_next_height(ui, ldk_ui_px(ldki_editor_bar_control_height(ui)));
+  ldk_ui_begin_horizontal(ui);
+  if (compact_vertical_padding)
+  {
+    /* Compensate horizontally for the smaller window padding. */
+    ldk_ui_set_next_width(ui, ldk_ui_px(0.0f));
+    ldk_ui_set_next_weight(ui, 0.0f);
+    ldk_ui_spacer(ui);
+  }
 
   {
     LDKUIIcon icon = {0};
@@ -1424,7 +1443,13 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
 
   s_editor_layout_combo_box(editor);
 
-  ldk_ui_end_horizontal(&editor->ui);
+  if (compact_vertical_padding)
+  {
+    ldk_ui_set_next_width(ui, ldk_ui_px(0.0f));
+    ldk_ui_set_next_weight(ui, 0.0f);
+    ldk_ui_spacer(ui);
+  }
+  ldk_ui_end_horizontal(ui);
   ldk_ui_end_window(ui);
   s_editor_audio_volume_popup(editor, audio_popup_id);
   s_editor_on_play_popup(editor, on_play_popup_id);
