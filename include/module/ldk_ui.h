@@ -1429,6 +1429,16 @@ extern "C"
   LDK_API u32 ldk_ui_combo_box(LDKUIContext *ctx, const char *const *items,
       u32 item_count, u32 selected_index);
   /**
+   * @brief Draw a combo box that toggles a caller-managed popup.
+   * Use ldk_ui_begin_popup / ldk_ui_end_popup to draw the popup contents.
+   * @param ctx UI context used by this operation.
+   * @param label Text displayed in the combo box.
+   * @param popup_id ID of the popup to toggle.
+   * @group ldk.module.ui
+   */
+  LDK_API void ldk_ui_combo_box_popup(
+      LDKUIContext *ctx, const char *label, LDKUIId popup_id);
+  /**
    * @brief Draw and interact with a slider control.
    * @param ctx UI context used by this operation.
    * @param value Input value or current widget value.

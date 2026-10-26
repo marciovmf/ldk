@@ -2273,29 +2273,18 @@ bool ldk_ui_icon_button(LDKUIContext *ctx, LDKUIIcon icon, char const *text)
   return ldk_ui_widget_icon_button(ctx, id, icon, text, rect);
 }
 
-u32 ldk_ui_widget_combo_box(LDKUIContext *ctx, LDKUIId id,
-    const char *const *items, u32 item_count, u32 selected_index,
-    LDKUIRect rect)
+/* A custom combo popup shares the exact frame, arrow and interaction
+ * rendering used by the regular single-selection combo box. */
+static bool s_ui_widget_combo_box_header(LDKUIContext *ctx, LDKUIId id,
+    const char *selected_text, LDKUIRect rect, LDKUIId popup_id)
 {
-  const LDKUIId POPUP_TAG = 0x434F4D42u; // "COMB"
-  if (!ctx || !id || !items || !item_count)
-  {
-    return selected_index;
-  }
-  if (selected_index >= item_count)
-  {
-    selected_index = 0;
-  }
-  const char *selected_text = items[selected_index] ?
-      items[selected_index] : "";
   LDKUIIcon icon =
       s_ui_theme_icon(ctx, LDK_UI_THEME_ICON_TREE_NODE_EXPANDED);
-  LDKUIId popup_id = s_ui_id_hash_u32(id, POPUP_TAG);
   LDKUIWidgetBox box = {0};
 
   if (!s_ui_widget_box_from_explicit_rect(ctx, &box, id, rect, true))
   {
-    return selected_index;
+    return false;
   }
 
   LDKUIFrameState frame =
@@ -2355,6 +2344,55 @@ u32 ldk_ui_widget_combo_box(LDKUIContext *ctx, LDKUIId id,
     }
   }
 
+  return true;
+}
+
+static bool s_ui_combo_box_layout_rect(LDKUIContext *ctx,
+    const char *label, LDKUIRect *rect, LDKUIId *id)
+{
+  ctx->profile_text_measure_count += 1;
+  LDKTextSize text_size = ldk_ttf_measure_text_cstr(ctx->font, label);
+  LDKUIIcon icon =
+      s_ui_theme_icon(ctx, LDK_UI_THEME_ICON_TREE_NODE_EXPANDED);
+  float icon_width = s_ui_icon_valid(icon) ? icon.size.w : 0.0f;
+
+  LDKUISize min_size = {
+      text_size.w + icon_width + LDK_UI_DEFAULT_SPACING * 5.0f,
+      LDK_UI_DEFAULT_CONTROL_HEIGHT,
+  };
+
+  if (s_ui_icon_valid(icon))
+  {
+    min_size.h = s_ui_maxf(min_size.h, icon.size.h);
+  }
+
+  LDKUILayoutRequest request =
+      s_ui_layout_request_make(LDK_UI_ITEM_COMBO_BOX, min_size, 1.0f, true);
+
+  return s_ui_layout_rect_from_request(ctx, request, rect, id);
+}
+
+u32 ldk_ui_widget_combo_box(LDKUIContext *ctx, LDKUIId id,
+    const char *const *items, u32 item_count, u32 selected_index,
+    LDKUIRect rect)
+{
+  const LDKUIId POPUP_TAG = 0x434F4D42u; // "COMB"
+  if (!ctx || !id || !items || !item_count)
+  {
+    return selected_index;
+  }
+  if (selected_index >= item_count)
+  {
+    selected_index = 0;
+  }
+  const char *selected_text = items[selected_index] ?
+      items[selected_index] : "";
+  LDKUIId popup_id = s_ui_id_hash_u32(id, POPUP_TAG);
+  if (!s_ui_widget_combo_box_header(ctx, id, selected_text, rect, popup_id))
+  {
+    return selected_index;
+  }
+
   if (ldk_ui_begin_popup(ctx, popup_id))
   {
     for (u32 i = 0; i < item_count; ++i)
@@ -2395,7 +2433,6 @@ u32 ldk_ui_combo_box(LDKUIContext *ctx, const char *const *items,
   {
     return selected_index;
   }
-
   if (selected_index >= item_count)
   {
     selected_index = 0;
@@ -2403,36 +2440,27 @@ u32 ldk_ui_combo_box(LDKUIContext *ctx, const char *const *items,
 
   const char *selected_text =
       items[selected_index] != NULL ? items[selected_index] : "";
-
-  ctx->profile_text_measure_count += 1;
-  LDKTextSize text_size = ldk_ttf_measure_text_cstr(ctx->font, selected_text);
-  LDKUIIcon icon =
-      s_ui_theme_icon(ctx, LDK_UI_THEME_ICON_TREE_NODE_EXPANDED);
-  float icon_width = s_ui_icon_valid(icon) ? icon.size.w : 0.0f;
-
-  LDKUISize min_size = {
-      text_size.w + icon_width + LDK_UI_DEFAULT_SPACING * 5.0f,
-      LDK_UI_DEFAULT_CONTROL_HEIGHT,
-  };
-
-  if (s_ui_icon_valid(icon))
-  {
-    min_size.h = s_ui_maxf(min_size.h, icon.size.h);
-  }
-
-  LDKUILayoutRequest request =
-      s_ui_layout_request_make(LDK_UI_ITEM_COMBO_BOX, min_size, 1.0f, true);
-
   LDKUIRect rect;
   LDKUIId id;
-
-  if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
+  if (!s_ui_combo_box_layout_rect(ctx, selected_text, &rect, &id))
   {
     return selected_index;
   }
+  return ldk_ui_widget_combo_box(
+      ctx, id, items, item_count, selected_index, rect);
+}
 
-  return ldk_ui_widget_combo_box(ctx, id, items, item_count,
-      selected_index, rect);
+void ldk_ui_combo_box_popup(
+    LDKUIContext *ctx, const char *label, LDKUIId popup_id)
+{
+  LDKUIRect rect;
+  LDKUIId id;
+  if (ctx == NULL || label == NULL || popup_id == 0 ||
+      !s_ui_combo_box_layout_rect(ctx, label, &rect, &id))
+  {
+    return;
+  }
+  (void)s_ui_widget_combo_box_header(ctx, id, label, rect, popup_id);
 }
 
 LDK_API void ldk_ui_clipboard_window_set(LDKUIContext *ctx, LDKWindow window)
