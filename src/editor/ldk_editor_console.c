@@ -424,16 +424,17 @@ static LDKUIIcon s_editor_console_entry_icon(
   if (type == LDK_EDITOR_CONSOLE_ENTRY_INFO)
   {
     icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_INFO];
+    icon.color = editor->ui.theme.colors[LDK_UI_COLOR_ICON_INFO];
   }
   else if (type == LDK_EDITOR_CONSOLE_ENTRY_WARNING)
   {
     icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_WARNING];
-    icon.color = LDK_EDITOR_COLOR_ICON_WARNING;
+    icon.color = editor->ui.theme.colors[LDK_UI_COLOR_ICON_WARNING];
   }
   else if (type == LDK_EDITOR_CONSOLE_ENTRY_ERROR)
   {
     icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_ERROR];
-    icon.color = LDK_EDITOR_COLOR_ICON_ERROR;
+    icon.color = editor->ui.theme.colors[LDK_UI_COLOR_ICON_ERROR];
   }
 
   return icon;

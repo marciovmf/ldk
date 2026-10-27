@@ -698,7 +698,7 @@ static LDKUIIcon s_ui_theme_icon(LDKUIContext *ctx, LDKUIThemeIconSlot slot)
   }
 
   icon = ctx->theme.icons[slot];
-  icon.color = ctx->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+  icon.color_role = LDK_UI_ICON_COLOR_DEFAULT;
   return icon;
 }
 
@@ -1135,6 +1135,46 @@ static u32 s_ui_render_control_text_color(
   }
 
   return ctx->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+}
+
+/* Icon purpose is independent of interaction state. A disabled button
+ * always uses the disabled palette entry; ORIGINAL retains native colors
+ * except when the containing control is disabled. */
+static u32 s_ui_render_icon_color(LDKUIContext *ctx, LDKUIIcon icon,
+    LDKUIControlVisualState state)
+{
+  if (state == LDK_UI_CONTROL_VISUAL_STATE_DISABLED)
+  {
+    return ctx->theme.colors[LDK_UI_COLOR_ICON_DISABLED];
+  }
+  if (icon.color_role == LDK_UI_ICON_COLOR_ORIGINAL)
+  {
+    return icon.color;
+  }
+  if (state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE ||
+      state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED)
+  {
+    return ctx->theme.colors[LDK_UI_COLOR_ICON_ACTIVE];
+  }
+  if (state == LDK_UI_CONTROL_VISUAL_STATE_HOVERED)
+  {
+    return ctx->theme.colors[LDK_UI_COLOR_ICON_HOVERED];
+  }
+  switch (icon.color_role)
+  {
+  case LDK_UI_ICON_COLOR_HIGHLIGHT:
+    return ctx->theme.colors[LDK_UI_COLOR_ICON_HIGHLIGHT];
+  case LDK_UI_ICON_COLOR_INFO:
+    return ctx->theme.colors[LDK_UI_COLOR_ICON_INFO];
+  case LDK_UI_ICON_COLOR_WARNING:
+    return ctx->theme.colors[LDK_UI_COLOR_ICON_WARNING];
+  case LDK_UI_ICON_COLOR_ERROR:
+    return ctx->theme.colors[LDK_UI_COLOR_ICON_ERROR];
+  case LDK_UI_ICON_COLOR_SUCCESS:
+    return ctx->theme.colors[LDK_UI_COLOR_ICON_SUCCESS];
+  default:
+    return ctx->theme.colors[LDK_UI_COLOR_ICON_DEFAULT];
+  }
 }
 
 /**
@@ -2492,6 +2532,21 @@ bool ldk_ui_theme_get(LDKUIThemeType type, LDKUITheme *theme)
   theme->colors[LDK_UI_COLOR_CONTROL_TEXT_ACTIVE] = control_text;
   theme->colors[LDK_UI_COLOR_CONTROL_TEXT_ACTIVE_HOVERED] = control_text;
   theme->colors[LDK_UI_COLOR_CONTROL_TEXT_DISABLED] = text_disabled;
+  theme->colors[LDK_UI_COLOR_ICON_DEFAULT] = control_text;
+  theme->colors[LDK_UI_COLOR_ICON_HOVERED] = control_text;
+  theme->colors[LDK_UI_COLOR_ICON_ACTIVE] = control_text;
+  theme->colors[LDK_UI_COLOR_ICON_HIGHLIGHT] =
+      type == LDK_UI_THEME_DEFAULT_DARK ? 0x85BCEAFFu : 0x205A92FFu;
+  theme->colors[LDK_UI_COLOR_ICON_DISABLED] =
+      type == LDK_UI_THEME_DEFAULT_DARK ? 0x777777FFu : 0x969696FFu;
+  theme->colors[LDK_UI_COLOR_ICON_INFO] =
+      type == LDK_UI_THEME_DEFAULT_DARK ? 0x8CC5EDFFu : 0x29669AFFu;
+  theme->colors[LDK_UI_COLOR_ICON_WARNING] =
+      type == LDK_UI_THEME_DEFAULT_DARK ? 0xEDBC67FFu : 0x9D6207FFu;
+  theme->colors[LDK_UI_COLOR_ICON_ERROR] =
+      type == LDK_UI_THEME_DEFAULT_DARK ? 0xEF8383FFu : 0xAE2C2CFFu;
+  theme->colors[LDK_UI_COLOR_ICON_SUCCESS] =
+      type == LDK_UI_THEME_DEFAULT_DARK ? 0x88D49EFFu : 0x247A3CFFu;
 
   theme->colors[LDK_UI_COLOR_CONTROL_BORDER] = control_border;
   theme->colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED] = control_border_hovered;

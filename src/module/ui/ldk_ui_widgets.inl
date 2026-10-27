@@ -190,11 +190,14 @@ void ldk_ui_widget_icon_label(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
   text_color = box.disabled ? ctx->theme.colors[LDK_UI_COLOR_TEXT_DISABLED]
                             : ctx->theme.colors[LDK_UI_COLOR_TEXT];
 
+  icon.color = s_ui_render_icon_color(ctx, icon,
+      box.disabled ? LDK_UI_CONTROL_VISUAL_STATE_DISABLED
+                   : LDK_UI_CONTROL_VISUAL_STATE_IDLE);
   s_ui_render_icon_label(ctx, icon, text, box.rect, text_color, box.clip);
 }
 
-bool ldk_ui_widget_button(
-    LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect)
+static bool s_ui_widget_button(LDKUIContext *ctx, LDKUIId id,
+    char const *text, LDKUIRect rect, bool selected)
 {
   LDKUIWidgetBox box = {0};
   LDKUIFrameState frame;
@@ -223,6 +226,15 @@ bool ldk_ui_widget_button(
   frame = s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, true, box.disabled);
   text_size = s_ui_widget_text_size(ctx, text);
 
+  if (selected && frame.visual_state != LDK_UI_CONTROL_VISUAL_STATE_DISABLED)
+  {
+    frame.visual_state =
+        frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_HOVERED ||
+        frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED
+            ? LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED
+            : LDK_UI_CONTROL_VISUAL_STATE_ACTIVE;
+  }
+
   bg = s_ui_render_control_bg_color(ctx, frame.visual_state);
   border = s_ui_render_control_border_color(ctx, frame.visual_state);
   text_color = s_ui_render_control_text_color(ctx, frame.visual_state);
@@ -237,6 +249,18 @@ bool ldk_ui_widget_button(
   s_ui_render_text(ctx, text, text_x, text_y, text_color, box.clip);
 
   return frame.clicked;
+}
+
+bool ldk_ui_widget_button(LDKUIContext *ctx, LDKUIId id,
+    char const *text, LDKUIRect rect)
+{
+  return s_ui_widget_button(ctx, id, text, rect, false);
+}
+
+bool ldk_ui_widget_toggle_button(LDKUIContext *ctx, LDKUIId id,
+    char const *text, bool value, LDKUIRect rect)
+{
+  return s_ui_widget_button(ctx, id, text, rect, value) ? !value : value;
 }
 
 bool ldk_ui_widget_color_view(
@@ -313,8 +337,8 @@ bool ldk_ui_widget_button_flat(
   return frame.clicked;
 }
 
-bool s_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
-                             char const *text, LDKUIRect rect, bool flat)
+static bool s_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id,
+    LDKUIIcon icon, char const *text, LDKUIRect rect, bool flat, bool selected)
 {
   LDKUIWidgetBox box = {0};
 
@@ -336,14 +360,27 @@ bool s_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
   LDKUIFrameState frame =
       s_ui_frame_state(ctx, box.id, box.rect, box.clip, true, true, box.disabled);
 
+  if (selected && frame.visual_state != LDK_UI_CONTROL_VISUAL_STATE_DISABLED)
+  {
+    frame.visual_state =
+        frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_HOVERED ||
+        frame.visual_state == LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED
+            ? LDK_UI_CONTROL_VISUAL_STATE_ACTIVE_HOVERED
+            : LDK_UI_CONTROL_VISUAL_STATE_ACTIVE;
+  }
+
   u32 bg = s_ui_render_control_bg_color(ctx, frame.visual_state);
   u32 border = s_ui_render_control_border_color(ctx, frame.visual_state);
   u32 text_color = s_ui_render_control_text_color(ctx, frame.visual_state);
 
   if (!flat)
   {
+    if (selected && frame.visual_state != LDK_UI_CONTROL_VISUAL_STATE_DISABLED)
+    {
+      s_ui_render_quad(ctx, box.rect, bg, box.clip, 0);
+    }
     s_ui_render_border(
-      ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
+        ctx, box.rect, ctx->theme.control_border_size, border, box.clip);
   }
   else
   {
@@ -384,6 +421,7 @@ bool s_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
   content_rect.w = content_width;
   content_rect.h = content_height;
 
+  icon.color = s_ui_render_icon_color(ctx, icon, frame.visual_state);
   s_ui_render_icon_label_nowrap(
       ctx, icon, text, content_rect, text_color, box.clip);
 
@@ -393,13 +431,20 @@ bool s_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
 bool ldk_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
     char const *text, LDKUIRect rect)
 {
-  return s_ui_widget_icon_button(ctx, id, icon, text, rect, false);
+  return s_ui_widget_icon_button(ctx, id, icon, text, rect, false, false);
+}
+
+bool ldk_ui_widget_toggle_icon_button(LDKUIContext *ctx, LDKUIId id,
+    LDKUIIcon icon, char const *text, bool value, LDKUIRect rect)
+{
+  return s_ui_widget_icon_button(ctx, id, icon, text, rect, false, value)
+      ? !value : value;
 }
 
 bool ldk_ui_widget_icon_button_flat(LDKUIContext *ctx, LDKUIId id,
     LDKUIIcon icon, char const *text, LDKUIRect rect)
 {
-  return s_ui_widget_icon_button(ctx, id, icon, text, rect, true);
+  return s_ui_widget_icon_button(ctx, id, icon, text, rect, true, false);
 }
 
 bool ldk_ui_widget_tab(LDKUIContext *ctx, LDKUIId id, LDKUIIcon icon,
@@ -2273,6 +2318,37 @@ bool ldk_ui_icon_button(LDKUIContext *ctx, LDKUIIcon icon, char const *text)
   return ldk_ui_widget_icon_button(ctx, id, icon, text, rect);
 }
 
+bool ldk_ui_toggle_icon_button(LDKUIContext *ctx, LDKUIIcon icon,
+    char const *text, bool value)
+{
+  if (text == NULL)
+  {
+    text = "";
+  }
+  LDKUISize text_size = s_ui_layout_text_size(ctx, text);
+  LDKUISize min_size;
+  min_size.w = LDK_UI_DEFAULT_SPACING * 4.0f + text_size.w;
+  min_size.h = s_ui_maxf(LDK_UI_DEFAULT_CONTROL_HEIGHT, text_size.h);
+  if (s_ui_icon_valid(icon))
+  {
+    min_size.w += icon.size.w;
+    if (text[0] != '\0')
+    {
+      min_size.w += LDK_UI_DEFAULT_SPACING;
+    }
+    min_size.h = s_ui_maxf(min_size.h, icon.size.h);
+  }
+  LDKUILayoutRequest request =
+      s_ui_layout_request_make(LDK_UI_ITEM_ICON_BUTTON, min_size, 1.0f, true);
+  LDKUIRect rect;
+  LDKUIId id;
+  if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
+  {
+    return value;
+  }
+  return ldk_ui_widget_toggle_icon_button(ctx, id, icon, text, value, rect);
+}
+
 /* A custom combo popup shares the exact frame, arrow and interaction
  * rendering used by the regular single-selection combo box. */
 static bool s_ui_widget_combo_box_header(LDKUIContext *ctx, LDKUIId id,
@@ -2586,6 +2662,25 @@ bool ldk_ui_button(LDKUIContext *ctx, char const *text)
   }
 
   return ldk_ui_widget_button(ctx, id, text, rect);
+}
+
+bool ldk_ui_toggle_button(LDKUIContext *ctx, char const *text, bool value)
+{
+  if (text == NULL)
+  {
+    text = "";
+  }
+  LDKUISize text_size = s_ui_layout_text_size(ctx, text);
+  LDKUISize min_size = {text_size.w + 16.0f, LDK_UI_DEFAULT_CONTROL_HEIGHT};
+  LDKUILayoutRequest request =
+      s_ui_layout_request_make(LDK_UI_ITEM_BUTTON, min_size, 1.0f, true);
+  LDKUIRect rect;
+  LDKUIId id;
+  if (!s_ui_layout_rect_from_request(ctx, request, &rect, &id))
+  {
+    return value;
+  }
+  return ldk_ui_widget_toggle_button(ctx, id, text, value, rect);
 }
 
 bool ldk_ui_toggle(LDKUIContext *ctx, bool value)

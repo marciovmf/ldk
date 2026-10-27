@@ -314,16 +314,17 @@ static LDKUIIcon s_editor_status_message_icon(
   if (type == LDK_EDITOR_CONSOLE_ENTRY_INFO)
   {
     icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_INFO];
+    icon.color = editor->ui.theme.colors[LDK_UI_COLOR_ICON_INFO];
   }
   else if (type == LDK_EDITOR_CONSOLE_ENTRY_WARNING)
   {
     icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_WARNING];
-    icon.color = LDK_EDITOR_COLOR_ICON_WARNING;
+    icon.color = editor->ui.theme.colors[LDK_UI_COLOR_ICON_WARNING];
   }
   else if (type == LDK_EDITOR_CONSOLE_ENTRY_ERROR)
   {
     icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_ERROR];
-    icon.color = LDK_EDITOR_COLOR_ICON_ERROR;
+    icon.color = editor->ui.theme.colors[LDK_UI_COLOR_ICON_ERROR];
   }
 
   return icon;
@@ -473,11 +474,11 @@ static void s_editor_status_bar(LDKEditorContext *editor)
   {
     if (editor->job_history[0].status == LDK_EDITOR_JOB_STATUS_FAILED)
     {
-      build_icon.color = LDK_EDITOR_COLOR_ICON_ERROR;
+      build_icon.color = editor->ui.theme.colors[LDK_UI_COLOR_ICON_ERROR];
     }
     else if (editor->job_history[0].status == LDK_EDITOR_JOB_STATUS_CANCELLED)
     {
-      build_icon.color = LDK_EDITOR_COLOR_ICON_WARNING;
+      build_icon.color = editor->ui.theme.colors[LDK_UI_COLOR_ICON_WARNING];
     }
   }
 
@@ -792,55 +793,6 @@ static void s_editor_layout_combo_box(LDKEditorContext *editor)
   }
 }
 
-static bool s_editor_push_button(
-  LDKUIContext *ui, const char *text, LDKUIIcon icon, bool pushed)
-{
-  if (ui == NULL)
-  {
-    return false;
-  }
-
-  rgba32 control_bg = ui->theme.colors[LDK_UI_COLOR_CONTROL_BG];
-  rgba32 control_bg_hovered =
-      ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED];
-  rgba32 control_text = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
-  rgba32 control_text_hovered =
-      ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_HOVERED];
-  rgba32 control_border = ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER];
-  rgba32 control_border_hovered =
-      ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED];
-
-  icon.color = control_text;
-
-  if (pushed)
-  {
-    ui->theme.colors[LDK_UI_COLOR_CONTROL_BG] =
-        ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
-    ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED] =
-        ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_ACTIVE];
-    ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT] =
-        ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_ACTIVE];
-    ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_HOVERED] =
-        ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_ACTIVE];
-    ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER] =
-        ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE];
-    ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED] =
-        ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_ACTIVE];
-  }
-
-  bool clicked = ldk_ui_icon_button(ui, icon, text);
-
-  ui->theme.colors[LDK_UI_COLOR_CONTROL_BG] = control_bg;
-  ui->theme.colors[LDK_UI_COLOR_CONTROL_BG_HOVERED] = control_bg_hovered;
-  ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT] = control_text;
-  ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT_HOVERED] = control_text_hovered;
-  ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER] = control_border;
-  ui->theme.colors[LDK_UI_COLOR_CONTROL_BORDER_HOVERED] =
-      control_border_hovered;
-
-  return clicked;
-}
-
 static void s_editor_gizmo_space_buttons(LDKEditorContext *editor)
 {
   static const LDKEditorIcon items[] = {
@@ -870,7 +822,8 @@ static void s_editor_gizmo_space_buttons(LDKEditorContext *editor)
           editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_SCALE ||
           editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_PAN);
 
-  LDKUIIcon icon;
+  LDKUIIcon icon = {0};
+  icon.color_role = LDK_UI_ICON_COLOR_DEFAULT;
   icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
   icon.size.w = icon.size.h = 24;
 
@@ -879,7 +832,8 @@ static void s_editor_gizmo_space_buttons(LDKEditorContext *editor)
     icon.uv = ldk_editor_icon_rects[items[i]];
 
     ldk_ui_set_next_width(ui, ldk_ui_px(24.0f + 2 * LDK_UI_DEFAULT_PADDING));
-    if (s_editor_push_button(ui, NULL, icon, i == selected_index))
+    bool selected = i == selected_index;
+    if (ldk_ui_toggle_icon_button(ui, icon, NULL, selected) && !selected)
     {
       editor->gizmo.space = (LDKEditorGizmoSpace)i;
     }
@@ -904,7 +858,8 @@ static void s_editor_gizmo_mode_buttons(LDKEditorContext *editor)
   }
 
   LDKUIContext *ui = &editor->ui;
-  LDKUIIcon icon;
+  LDKUIIcon icon = {0};
+  icon.color_role = LDK_UI_ICON_COLOR_DEFAULT;
   icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
   icon.size.w = icon.size.h = 24;
 
@@ -927,7 +882,8 @@ static void s_editor_gizmo_mode_buttons(LDKEditorContext *editor)
   {
     icon.uv = ldk_editor_icon_rects[items[i]];
     ldk_ui_set_next_width(ui, ldk_ui_px(24.0f + 2 * LDK_UI_DEFAULT_PADDING));
-    if (s_editor_push_button(ui, NULL, icon, i == selected_index))
+    bool selected = i == selected_index;
+    if (ldk_ui_toggle_icon_button(ui, icon, NULL, selected) && !selected)
     {
       editor->gizmo.mode = modes[i];
     }
@@ -1249,7 +1205,7 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
 
   {
     LDKUIIcon icon = {0};
-    icon.color = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+    icon.color_role = LDK_UI_ICON_COLOR_DEFAULT;
     icon.size = ldk_sizef(
         LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
     icon.texture =
@@ -1282,7 +1238,7 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
     LDKUIRect button_rect;
     bool clicked;
 
-    icon.color = ui->theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+    icon.color_role = LDK_UI_ICON_COLOR_DEFAULT;
     icon.size = ldk_sizef(
         LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
     icon.texture =
@@ -1313,8 +1269,8 @@ static void s_editor_tool_bar(LDKEditorContext *editor)
   }
 
   /* Keep the playback icons in the same centered position. */
-  LDKUIIcon icon;
-  icon.color = editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+  LDKUIIcon icon = {0};
+  icon.color_role = LDK_UI_ICON_COLOR_DEFAULT;
   icon.size =
     ldk_sizef(LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
   icon.texture =

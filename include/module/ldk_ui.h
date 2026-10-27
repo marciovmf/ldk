@@ -229,6 +229,15 @@ extern "C"
     LDK_UI_COLOR_CONTROL_TEXT_ACTIVE,
     LDK_UI_COLOR_CONTROL_TEXT_ACTIVE_HOVERED,
     LDK_UI_COLOR_CONTROL_TEXT_DISABLED,
+    LDK_UI_COLOR_ICON_DEFAULT,
+    LDK_UI_COLOR_ICON_HOVERED,
+    LDK_UI_COLOR_ICON_ACTIVE,
+    LDK_UI_COLOR_ICON_HIGHLIGHT,
+    LDK_UI_COLOR_ICON_DISABLED,
+    LDK_UI_COLOR_ICON_INFO,
+    LDK_UI_COLOR_ICON_WARNING,
+    LDK_UI_COLOR_ICON_ERROR,
+    LDK_UI_COLOR_ICON_SUCCESS,
     LDK_UI_COLOR_CONTROL_BORDER,
     LDK_UI_COLOR_CONTROL_BORDER_HOVERED,
     LDK_UI_COLOR_CONTROL_BORDER_ACTIVE,
@@ -276,12 +285,25 @@ extern "C"
   } LDKUIColorSlot;
 
   /** @group ldk.module.ui */
+  /** @group ldk.module.ui */
+  typedef enum LDKUIIconColorRole
+  {
+    LDK_UI_ICON_COLOR_ORIGINAL = 0,
+    LDK_UI_ICON_COLOR_DEFAULT,
+    LDK_UI_ICON_COLOR_HIGHLIGHT,
+    LDK_UI_ICON_COLOR_INFO,
+    LDK_UI_ICON_COLOR_WARNING,
+    LDK_UI_ICON_COLOR_ERROR,
+    LDK_UI_ICON_COLOR_SUCCESS,
+  } LDKUIIconColorRole;
+
   typedef struct LDKUIIcon
   {
     uintptr_t texture;
     LDKUIRect uv;
     LDKUISize size;
     rgba32 color;
+    LDKUIIconColorRole color_role;
   } LDKUIIcon;
 
   /** @group ldk.module.ui */
@@ -1361,6 +1383,9 @@ extern "C"
    */
   LDK_API bool ldk_ui_icon_button(
       LDKUIContext *ctx, LDKUIIcon icon, char const *text);
+  /** @group ldk.module.ui */
+  LDK_API bool ldk_ui_toggle_icon_button(
+      LDKUIContext *ctx, LDKUIIcon icon, char const *text, bool value);
   /**
    * @brief Draw a label UI element.
    * @param ctx UI context used by this operation.
@@ -1401,6 +1426,9 @@ extern "C"
    * @group ldk.module.ui
    */
   LDK_API bool ldk_ui_button(LDKUIContext *ctx, char const *text);
+  /** @group ldk.module.ui */
+  LDK_API bool ldk_ui_toggle_button(
+      LDKUIContext *ctx, char const *text, bool value);
   /**
    * @brief Draw and interact with a toggle control.
    * @param ctx UI context used by this operation.
@@ -1631,6 +1659,9 @@ extern "C"
    */
   LDK_API bool ldk_ui_widget_button(
       LDKUIContext *ctx, LDKUIId id, char const *text, LDKUIRect rect);
+  /** @group ldk.module.ui */
+  LDK_API bool ldk_ui_widget_toggle_button(LDKUIContext *ctx,
+      LDKUIId id, char const *text, bool value, LDKUIRect rect);
   /**
    * @brief Draw and interact with an icon button control.
    * @param ctx UI context used by this operation.
@@ -1643,6 +1674,9 @@ extern "C"
    */
   LDK_API bool ldk_ui_widget_icon_button(LDKUIContext *ctx, LDKUIId id,
       LDKUIIcon icon, char const *text, LDKUIRect rect);
+  /** @group ldk.module.ui */
+  LDK_API bool ldk_ui_widget_toggle_icon_button(LDKUIContext *ctx,
+      LDKUIId id, LDKUIIcon icon, char const *text, bool value, LDKUIRect rect);
   /**
    * @brief Draw and interact with an icon button flat control.
    * @param ctx UI context used by this operation.
