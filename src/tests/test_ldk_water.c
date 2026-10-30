@@ -24,6 +24,9 @@ static int test_water_defaults_and_zero_effects(void)
   desc.caustics_strength = 0.0f;
   desc.distortion_strength = 0.0f;
   desc.surface_foam_strength = 0.0f;
+  desc.silhouette_edge_fade_distance = 0.0f;
+  ASSERT_FALSE(desc.debug_lake_mask);
+  desc.debug_lake_mask = true;
   ASSERT_TRUE(ldk_renderer_water_desc_is_valid(&desc));
   return 0;
 }
@@ -59,6 +62,20 @@ static int test_water_rejects_invalid_input(void)
   ldk_renderer_water_desc_defaults(&desc);
   desc.foam_cutoff = -0.01f;
   ASSERT_FALSE(ldk_renderer_water_desc_is_valid(&desc));
+  ldk_renderer_water_desc_defaults(&desc);
+  desc.silhouette_edge_fade_distance = -1.0f;
+  ASSERT_FALSE(ldk_renderer_water_desc_is_valid(&desc));
+  desc.silhouette_edge_fade_distance = NAN;
+  ASSERT_FALSE(ldk_renderer_water_desc_is_valid(&desc));
+  desc.silhouette_edge_fade_distance = 3.0f;
+  ASSERT_TRUE(ldk_renderer_water_desc_is_valid(&desc));
+  desc.center_x = NAN;
+  ASSERT_FALSE(ldk_renderer_water_desc_is_valid(&desc));
+  desc.center_x = 0.0f;
+  desc.center_z = INFINITY;
+  ASSERT_FALSE(ldk_renderer_water_desc_is_valid(&desc));
+  desc.center_z = 0.0f;
+  ASSERT_TRUE(ldk_renderer_water_desc_is_valid(&desc));
   return 0;
 }
 
@@ -71,6 +88,7 @@ static int test_water_legacy_scene_without_texture_settings(void)
   system.caustics_depth = 0.0f;
   ASSERT_EQ(system.normal_texture.h.index, X_HPOOL_NULL_INDEX);
   ASSERT_EQ(system.foam_texture.h.index, X_HPOOL_NULL_INDEX);
+  ASSERT_TRUE(system.silhouette_edge_fade_distance == 12.0f);
   ASSERT_EQ(system.noise_texture.h.index, X_HPOOL_NULL_INDEX);
   ASSERT_EQ(system.caustics_texture.h.index, X_HPOOL_NULL_INDEX);
   ASSERT_EQ(ldk_water_system_initialize(&system), 0);
@@ -155,6 +173,29 @@ static int test_water_direction_and_center(void)
   return 0;
 }
 
+static int test_water_without_terrain_preserves_waves(void)
+{
+  LDKWaterSystem system;
+  ldk_water_system_defaults(&system);
+  system.water_level = 2.0f;
+  system.width = 16.0f;
+  system.depth = 16.0f;
+  system.silhouette_edge_fade_distance = 12.0f;
+  system.wave_0_height = 0.5f;
+  system.wave_0_length = 20.0f;
+  system.wave_0_direction_degrees = 0.0f;
+  system.wave_1_height = 0.0f;
+  system.wave_2_height = 0.0f;
+  ASSERT_EQ(ldk_water_system_initialize(&system), 0);
+  float height = 0.0f;
+  ASSERT_TRUE(ldk_water_height_at_world(2.0f, 0.0f, &height));
+  float expected = 2.0f +
+      0.5f * sinf(6.283185307179586f * (2.0f / 20.0f));
+  ASSERT_TRUE(fabsf(height - expected) < 1e-5f);
+  ldk_water_system_terminate(&system);
+  return 0;
+}
+
 static int test_water_ownership_and_quad_size(void)
 {
   LDKWaterSystem first;
@@ -199,6 +240,9 @@ static int test_water_metadata_registration(void)
   u32 colors = 0u;
   u32 images = 0u;
   bool cell_size = false;
+  bool silhouette_edge_fade_distance = false;
+  bool foam_shallow_depth = false;
+  bool debug_lake_mask = false;
   for (u32 i = 0u; i < ldk_engine_system_metadata_count(); ++i)
   {
     const LDKSystemMeta *meta = ldk_engine_system_metadata_get(i);
@@ -214,6 +258,21 @@ static int test_water_metadata_registration(void)
         cell_size = field->type == LDK_FIELD_FLOAT &&
                     field->offset == offsetof(LDKWaterSystem, cell_size);
       }
+      if (strcmp(field->name, "silhouette_edge_fade_distance") == 0)
+      {
+        silhouette_edge_fade_distance = field->type == LDK_FIELD_FLOAT &&
+            field->offset == offsetof(LDKWaterSystem, silhouette_edge_fade_distance);
+      }
+      if (strcmp(field->name, "foam_shallow_depth") == 0)
+      {
+        foam_shallow_depth = field->type == LDK_FIELD_FLOAT &&
+            field->offset == offsetof(LDKWaterSystem, foam_shallow_depth);
+      }
+      if (strcmp(field->name, "debug_lake_mask") == 0)
+      {
+        debug_lake_mask = field->type == LDK_FIELD_BOOL &&
+            field->offset == offsetof(LDKWaterSystem, debug_lake_mask);
+      }
       if (field->widget == LDK_FIELD_WIDGET_COLOR)
       {
         ++colors;
@@ -226,6 +285,9 @@ static int test_water_metadata_registration(void)
     }
   }
   ASSERT_TRUE(cell_size);
+  ASSERT_TRUE(silhouette_edge_fade_distance);
+  ASSERT_TRUE(foam_shallow_depth);
+  ASSERT_TRUE(debug_lake_mask);
   ASSERT_EQ(colors, 3u);
   ASSERT_EQ(images, 4u);
   return 0;
@@ -239,6 +301,7 @@ int main(void)
       X_TEST(test_water_empty_system_with_assigned_image),
       X_TEST(test_water_surface_height_and_rectangle),
       X_TEST(test_water_direction_and_center),
+      X_TEST(test_water_without_terrain_preserves_waves),
       X_TEST(test_water_ownership_and_quad_size),
       X_TEST(test_water_metadata_registration)};
   return x_tests_run(tests, sizeof(tests) / sizeof(tests[0]), NULL);

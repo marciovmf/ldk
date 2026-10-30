@@ -17,12 +17,15 @@ typedef struct LDKRendererWaterParams
   float sun_direction[4];
   float sun_color[4];
   float ambient[4];
-  float texture_flags[LDK_RENDERER_WATER_TEXTURE_COUNT];
+  float texture_flags[4]; // std140 vec4: authored textures only.
   float noise[4];
   float foam_detail[4];
   float caustics[4];
   float fog_color[4];
   float fog_params[4];
+  float wave_fade[4];
+  float lakes[4];
+  float lake_uv[4];
 } LDKRendererWaterParams;
 
 LDK_STATIC_ASSERT(
@@ -32,7 +35,9 @@ LDK_STATIC_ASSERT(
     offsetof(LDKRendererWaterParams, fog_params) == 448,
     water_fog_params_std140_offset);
 LDK_STATIC_ASSERT(
-    sizeof(LDKRendererWaterParams) == 464, water_params_std140_size);
+    sizeof(LDKRendererWaterParams) == 512, water_params_std140_size);
+LDK_STATIC_ASSERT(offsetof(LDKRendererWaterParams, wave_fade) == 464,
+    water_wave_fade_std140_offset);
 LDK_STATIC_ASSERT(
     offsetof(LDKRendererWaterParams, waves) == 208, water_waves_std140_offset);
 LDK_STATIC_ASSERT(offsetof(LDKRendererWaterParams, ambient) == 352,
@@ -42,7 +47,7 @@ LDK_STATIC_ASSERT(offsetof(LDKRendererWaterParams, texture_flags) == 368,
 
 /* Match the normal-map and shader-defined material binding slots. */
 static const u32 s_water_texture_slots[LDK_RENDERER_WATER_TEXTURE_COUNT] = {
-    6u, 9u, 10u, 11u};
+    6u, 9u, 10u, 11u, 12u};
 
 LDK_API void ldk_renderer_water_desc_defaults(LDKRendererWaterDesc *desc)
 {
@@ -67,6 +72,8 @@ LDK_API void ldk_renderer_water_desc_defaults(LDKRendererWaterDesc *desc)
   desc->foam_width = 0.6f;
   desc->foam_strength = 0.8f;
   desc->foam_scale = 0.65f;
+  desc->silhouette_edge_fade_distance = 12.0f;
+  desc->foam_shallow_depth = 0.0f;
   desc->shore_range = 2.0f;
   desc->shore_wave_length = 1.4f;
   desc->shore_wave_speed = 0.35f;
@@ -96,6 +103,13 @@ LDK_API bool ldk_renderer_water_desc_is_valid(const LDKRendererWaterDesc *desc)
       desc->foam_width < 0.0f || !isfinite(desc->foam_strength) ||
       desc->foam_strength < 0.0f || desc->foam_strength > 1.0f ||
       !isfinite(desc->foam_scale) || desc->foam_scale < 0.01f ||
+      !isfinite(desc->silhouette_edge_fade_distance) ||
+      desc->silhouette_edge_fade_distance < 0.0f ||
+      !isfinite(desc->foam_shallow_depth) ||
+      desc->foam_shallow_depth < 0.0f ||
+      !isfinite(desc->center_x) || !isfinite(desc->center_z) ||
+      !isfinite(desc->lake_origin_x) || !isfinite(desc->lake_origin_z) ||
+      !isfinite(desc->lake_extent_x) || !isfinite(desc->lake_extent_z) ||
       !isfinite(desc->shore_range) || desc->shore_range < 0.0f ||
       !isfinite(desc->shore_wave_length) || desc->shore_wave_length < 0.01f ||
       !isfinite(desc->shore_wave_speed) ||
@@ -222,7 +236,9 @@ static bool s_renderer_water_pass_initialize(
   {
     layout.entries[2u + i].slot = s_water_texture_slots[i];
     layout.entries[2u + i].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
-    layout.entries[2u + i].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+    layout.entries[2u + i].stages = i == LDK_RENDERER_WATER_TEXTURE_SILHOUETTE
+        ? (LDK_RHI_SHADER_STAGE_VERTEX | LDK_RHI_SHADER_STAGE_FRAGMENT)
+        : LDK_RHI_SHADER_STAGE_FRAGMENT;
   }
   pass->bindings_layout = ldk_rhi_bindings_layout_create(rhi, &layout);
 
@@ -335,6 +351,18 @@ static void s_renderer_water_params(LDKRendererWaterParams *params,
   params->foam[1] = desc->foam_strength;
   params->foam[2] = desc->foam_scale;
   params->foam[3] = desc->edge_fade_distance;
+  params->wave_fade[0] = 0.0f; // Retained for std140 compatibility.
+  params->wave_fade[1] = desc->center_x;
+  params->wave_fade[2] = desc->center_z;
+  params->wave_fade[3] = desc->debug_lake_mask ? 1.0f : 0.0f;
+  params->lakes[0] = desc->lake_mask_enabled ? 1.0f : 0.0f;
+  params->lakes[1] = desc->foam_shallow_depth;
+  params->lake_uv[0] = desc->lake_origin_x;
+  params->lake_uv[1] = desc->lake_origin_z;
+  params->lake_uv[2] = desc->lake_extent_x > 0.0f
+      ? 1.0f / desc->lake_extent_x : 0.0f;
+  params->lake_uv[3] = desc->lake_extent_z > 0.0f
+      ? 1.0f / desc->lake_extent_z : 0.0f;
   params->shore[0] = desc->shore_range;
   params->shore[1] = desc->shore_wave_length;
   params->shore[2] = desc->shore_wave_speed;
@@ -468,7 +496,10 @@ static bool s_renderer_water_pass_draw(LDKRenderer *renderer,
           s_renderer_texture_get_resource(renderer, submit->desc.textures[t]);
       LDKRHITexture handle =
           texture ? texture->texture : pass->fallback_texture;
-      params.texture_flags[t] = texture ? 1.0f : 0.0f;
+      if (t < LDK_RENDERER_WATER_TEXTURE_SILHOUETTE)
+      {
+        params.texture_flags[t] = texture ? 1.0f : 0.0f;
+      }
       bindings_desc.bindings[2u + t].texture = handle;
       textures_changed = textures_changed || bound_textures[t] != handle;
     }

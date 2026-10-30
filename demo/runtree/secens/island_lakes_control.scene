@@ -1,0 +1,988 @@
+scene:
+  version: 1
+  properties:
+    ambient_sky_color: 4294967295
+    ambient_ground_color: 2020368639
+    ambient_intensity: 0.500000000
+    fog_enabled: true
+    fog_color: 3755991039
+    fog_density: 0.00999999978
+    fog_start: 3.00000000
+  entities:
+    - entity: 0
+      parent: 2
+      flags: 0
+      name: "MainCamera"
+      name_hash: "0x5134b2c6ef0d2a47"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 10.0000000, 10.0000000
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: -0.422618300, 0.00000000, 0.00000000, 0.906307817
+        - type: 4294967293 # LDKCamera
+          fields:
+            projection: 0
+            role: 1
+            fov_y: 0.800000012
+            orthographic_height: 15.0000000
+            near_plane: 0.100000001
+            far_plane: 1000.00000
+            enabled: true
+            background_mode: 0
+            background_color: 2880154623
+            skybox_asset: -1
+        - type: 4294967286 # LDKPostProcessing
+          fields:
+            enabled: false
+            tonemapping_enabled: false
+            exposure: 0.00000000
+            bloom_enabled: false
+            bloom_threshold: 1.00000000
+            bloom_intensity: 0.500000000
+            bloom_radius: 0.500000000
+            bloom_soft_knee: 0.500000000
+            blur_enabled: true
+            blur_strength: 0.500000000
+            blur_focus_size: 0.250000000
+            blur_focus_feather: 0.150000006
+            blur_inverted: false
+            blur_focus_offset_x: 0.00000000
+            blur_focus_offset_y: 0.00000000
+            color_enabled: true
+            brightness: 0.00000000
+            contrast: 1.00000000
+            saturation: 1.00000000
+            vignette_enabled: false
+            vignette_intensity: 0.500000000
+            vignette_radius: 0.500000000
+            vignette_softness: 0.500000000
+            screen_distortion_enabled: false
+            screen_distortion_strength: 0.250000000
+            chromatic_aberration_enabled: true
+            chromatic_aberration_strength: 0.250000000
+            heat_enabled: false
+            heat_strength: 1.00000000
+            heat_amplitude: 4.00000000
+            heat_scale: 1.00000000
+            heat_speed: 1.00000000
+            inverse_enabled: false
+            black_and_white_enabled: false
+            retro_enabled: false
+            retro_pixel_size: 2.00000000
+            retro_color_levels: 4.00000000
+            retro_dither_strength: 1.00000000
+            retro_pattern_scale: 1.00000000
+            drunk_enabled: false
+            drunk_strength: 0.750000000
+            drunk_speed: 1.00000000
+            drunk_ghosting: 0.500000000
+            drunk_chromatic_aberration: 0.349999994
+            drunk_movement: 0.500000000
+        - type: 4294967284 # LDKAudioSource
+          fields:
+            audio: "audio/ambient-music.mp3"
+            priority: 1
+            range: 10.0000000
+            volume: 1.00000000
+            loop: true
+            play_on_start: true
+    - entity: 1
+      parent: -1
+      flags: 0
+      name: "DirectionalLight"
+      name_hash: "0x3786b481b1f9c661"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 1.69555378, -6.63524818
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: -0.850504875, 0.00000000, 0.00000000, 0.525967181
+        - type: 4294967289 # LDKDirectionalLight
+          fields:
+            color: 4294967295
+            intensity: 1.00000000
+            enabled: true
+            casts_shadows: true
+    - entity: 2
+      parent: -1
+      flags: 0
+      name: "Capsule"
+      name_hash: "0xe61afc6bb8a571cc"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -10.4723206, 3.36211061, 5.78090858
+            local_scale: 0.488891602, 0.488891602, 0.488891602
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/capsule"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffe300ff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+        - type: 2637462986 # TFTFPlayerCharacterComponent
+          fields:
+            speed: 4.00000000
+            acceleration: 18.0000000
+            inertia: 0.150000006
+            high_grass_height: 0.600000024
+            high_grass_density_min: 90.0000000
+            high_grass_speed_scale: 0.800000012
+            grass_cut_density_scale: 0.750000000
+            deep_water_speed_scale: 1.00000000
+            shallow_water_speed_scale: 1.00000000
+            shore_speed_scale: 1.00000000
+            dry_speed_scale: 1.00000000
+            grass_speed_scale: 1.00000000
+            forest_speed_scale: 1.00000000
+            mountain_speed_scale: 1.00000000
+        - type: 4294967281 # LDKTerrainFollowerComponent
+          fields:
+            height_offset: 0.481540263
+        - type: 4294967283 # LDKGrassInteractComponent
+          fields:
+            enabled: true
+            radius: 0.300000012
+            strength: 30.0000000
+    - entity: 3
+      parent: -1
+      flags: 0
+      name: "BEACH"
+      name_hash: "0xe7b257b81d9fe1c8"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 241.505707, 1.01974034, -9.14954567
+            local_scale: 1.00000000, 100.000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+    - entity: 4
+      parent: -1
+      flags: 0
+      name: "BulbPlantEnemy"
+      name_hash: "0x18fd054d1e0d1c45"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -2.46804237, 0.790740013, -3.24956036
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+        - type: 1980476140 # TFTFBulbPlantAIComponent
+          fields:
+            enabled: true
+            activation_range: 12.0000000
+            cooldown: 1.50000000
+            burst_offset: 0.00000000, 0.500000000, 0.00000000
+    - entity: 5
+      parent: -1
+      flags: 0
+      name: "Cube"
+      name_hash: "0x76ed629cae245060"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -3.96513271, 0.546570301, 0.00000000
+            local_scale: 1.75000000, 1.75000000, 1.75000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+    - entity: 6
+      parent: -1
+      flags: 0
+      name: "SPAWN"
+      name_hash: "0xc54bdde487823238"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -12.5137682, 2.70695543, 7.42930365
+            local_scale: 1.75000000, 1.75000000, 1.75000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+    - entity: 7
+      parent: -1
+      flags: 0
+      name: "Cube"
+      name_hash: "0x76ed629cae245060"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 3.65173626, 1.47044468, 4.59259272
+            local_scale: 0.611383975, 2.85074186, 0.585422695
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+    - entity: 8
+      parent: -1
+      flags: 0
+      name: "Cube"
+      name_hash: "0x76ed629cae245060"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 4.34253407, 1.47044468, -9.43671227
+            local_scale: 0.611383975, 2.85074186, 0.585422695
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+    - entity: 9
+      parent: -1
+      flags: 0
+      name: "Cube"
+      name_hash: "0x76ed629cae245060"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 2.02493763, 0.241831779, 0.908796310
+            local_scale: 0.942550361, 1.47454798, 0.902526677
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+  systems:
+    - id: "0x0da6bbd10b0612d1"
+      data:
+        min_tilt_degrees: 27.4078560
+        max_tilt_degrees: 36.9034920
+        tilt_direction_degrees: 270.261902
+        wind_direction_degrees: 34.0074921
+        wind_force: 1.00000000
+        wind_speed: 0.214152709
+        color_noise_texture: "assets/textures/grass_color_noise.png"
+        color_noise_scale: 0.0199999996
+        color_stop_1_position: 0.176957831
+        color_stop_2_position: 0.856174707
+        color_stop_0_color: 3401742847
+        color_stop_1_color: 2797234943
+        color_stop_2_color: 1890277119
+        color_stop_3_color: 1115506943
+        specular: 0.00000000
+        shininess: 1.00000000
+        emission: 0.0783132613
+        casts_shadows: false
+        unlit: false
+        types:
+          - name: "dry_grass"
+            blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+            density: 6.00000000
+            clumping: 0.00000000
+            clump_radius: 0.00000000
+            min_height: 0.200000003
+            max_height: 2.00000000
+            use_noise_height: false
+            blade_width: 0.00999999978
+            curvature: 0.500000000
+            wind_strength: 0.00000000
+            interaction_recovery_time: 0.00000000
+            bottom_color: 3603797759
+            top_color: 2744809727
+            use_noise_color: false
+            use_custom_noise_palette: false
+            noise_color_stop_0_color: 0
+            noise_color_stop_1_color: 0
+            noise_color_stop_2_color: 0
+            noise_color_stop_3_color: 0
+          - name: "grass"
+            blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+            density: 40.0000000
+            clumping: 0.00000000
+            clump_radius: 3.00000000
+            min_height: 1.00000000
+            max_height: 1.00000000
+            use_noise_height: false
+            blade_width: 0.200000003
+            curvature: 0.00000000
+            wind_strength: 0.171109781
+            interaction_recovery_time: 16.0000000
+            bottom_color: 3201866751
+            top_color: 3201866751
+            use_noise_color: true
+            use_custom_noise_palette: true
+            noise_color_stop_0_color: 1266361343
+            noise_color_stop_1_color: 4091990271
+            noise_color_stop_2_color: 2074292735
+            noise_color_stop_3_color: 1451963135
+          - name: "forest_grass"
+            blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+            density: 30.0000000
+            clumping: 0.839608490
+            clump_radius: 1.56212354
+            min_height: 0.300000012
+            max_height: 0.349999994
+            use_noise_height: false
+            blade_width: 0.0299999993
+            curvature: 0.500000000
+            wind_strength: 0.380340666
+            interaction_recovery_time: 16.0000000
+            bottom_color: 2074292735
+            top_color: 2074292735
+            use_noise_color: true
+            use_custom_noise_palette: true
+            noise_color_stop_0_color: 3941590015
+            noise_color_stop_1_color: 4159754239
+            noise_color_stop_2_color: 2949677567
+            noise_color_stop_3_color: 2276087551
+          - name: "thorn_grass"
+            blade_preset: "LDK_GRASS_BLADE_PRESET_THORNY"
+            density: 18.0000000
+            clumping: 0.00000000
+            clump_radius: 0.00000000
+            min_height: 0.500000000
+            max_height: 0.850000024
+            use_noise_height: false
+            blade_width: 0.119999997
+            curvature: 0.158864960
+            wind_strength: 0.00849212985
+            interaction_recovery_time: 0.636288345
+            bottom_color: 1505008383
+            top_color: 1729237759
+            use_noise_color: true
+            use_custom_noise_palette: true
+            noise_color_stop_0_color: 3165736447
+            noise_color_stop_1_color: 908994559
+            noise_color_stop_2_color: 943601407
+            noise_color_stop_3_color: 1565674239
+          - name: "shallow_grass"
+            blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
+            density: 0.0799999982
+            clumping: 0.00000000
+            clump_radius: 0.00000000
+            min_height: 0.0599999987
+            max_height: 0.119999997
+            use_noise_height: false
+            blade_width: 0.00800000038
+            curvature: 0.0855928510
+            wind_strength: 0.0199999996
+            interaction_recovery_time: 2.00000000
+            bottom_color: 1130446591
+            top_color: 1922456575
+            use_noise_color: false
+            use_custom_noise_palette: false
+            noise_color_stop_0_color: 3401742847
+            noise_color_stop_1_color: 2797234943
+            noise_color_stop_2_color: 1890277119
+            noise_color_stop_3_color: 1115506943
+    - id: "0xf8ae7c8bf28b5e6d"
+      data:
+        seed: 10012
+        map_size: 600
+        land_scale: 0.00970000029
+        island_radius: 0.800000012
+        terrain_scale: 0.00999999978
+        surface_noise_scale: 0.0500000007
+        surface_noise_octaves: 3
+        surface_noise_strength: 0.300000012
+        moisture_scale: 0.0179999992
+        distribution_noise_scale: 0.0250000004
+        land_octaves: 5
+        terrain_octaves: 4
+        moisture_octaves: 3
+        land_noise_strength: 0.750000000
+        height_smoothing_strength: 0.899999976
+        height_smoothing_radius: 8
+        height_smoothing_edge_threshold: 0.00800000038
+        height_smoothing_passes: 2
+        biomes:
+          - name: "Deep Water"
+            land_min: -4.00000000
+            land_max: 0.00000000
+            terrain_min: 0.00000000
+            terrain_max: 1.00000000
+            moisture_min: 0.00000000
+            moisture_max: 1.00000000
+            distribution_min: 0.00000000
+            distribution_max: 1.00000000
+            min_height: 0.00000000
+            max_height: 0.00000000
+            land_height_weight: 0.00000000
+            height_smoothing_weight: 0.00000000
+            height_sample_weight: 0.00000000
+            grass_type_name: ""
+            allow_inland_pools: false
+            gameplay_tag: 0
+            legacy_atlas_layer: 0
+            resource_chance: 0.00000000
+            resource_type: 0
+            resource_center_bias: true
+            inherit_decoration_chance: true
+            decoration_0_chance: 0.00000000
+            decoration_1_chance: 0.00000000
+            decoration_2_chance: 0.00000000
+            decoration_3_chance: 0.00000000
+            decoration_4_chance: 0.00000000
+            decoration_5_chance: 0.00000000
+            decoration_6_chance: 0.00000000
+            decoration_7_chance: 0.00000000
+          - name: "Shallow Water"
+            land_min: 0.00000000
+            land_max: 0.0599999987
+            terrain_min: 0.00000000
+            terrain_max: 1.00000000
+            moisture_min: 0.00000000
+            moisture_max: 1.00000000
+            distribution_min: 0.00000000
+            distribution_max: 1.00000000
+            min_height: 0.00000000
+            max_height: 0.100000001
+            land_height_weight: 1.00000000
+            height_smoothing_weight: 0.00000000
+            height_sample_weight: 1.00000000
+            grass_type_name: "shallow_grass"
+            allow_inland_pools: false
+            gameplay_tag: 1
+            legacy_atlas_layer: 1
+            resource_chance: 0.00100000005
+            resource_type: 6
+            resource_center_bias: true
+            inherit_decoration_chance: true
+            decoration_0_chance: 0.0149999997
+            decoration_1_chance: 0.00000000
+            decoration_2_chance: 0.00000000
+            decoration_3_chance: 0.00000000
+            decoration_4_chance: 0.00000000
+            decoration_5_chance: 0.00000000
+            decoration_6_chance: 0.00000000
+            decoration_7_chance: 0.00000000
+          - name: "Shore"
+            land_min: 0.0599999987
+            land_max: 0.109999999
+            terrain_min: 0.00000000
+            terrain_max: 1.00000000
+            moisture_min: 0.00000000
+            moisture_max: 1.00000000
+            distribution_min: 0.00000000
+            distribution_max: 1.00000000
+            min_height: 0.100000001
+            max_height: 0.170000002
+            land_height_weight: 1.00000000
+            height_smoothing_weight: 1.00000000
+            height_sample_weight: 1.00000000
+            grass_type_name: ""
+            allow_inland_pools: false
+            gameplay_tag: 2
+            legacy_atlas_layer: 2
+            resource_chance: 0.00150000001
+            resource_type: 5
+            resource_center_bias: true
+            inherit_decoration_chance: true
+            decoration_0_chance: 0.0250000004
+            decoration_1_chance: 0.00000000
+            decoration_2_chance: 0.00000000
+            decoration_3_chance: 0.00000000
+            decoration_4_chance: 0.00000000
+            decoration_5_chance: 0.00000000
+            decoration_6_chance: 0.00000000
+            decoration_7_chance: 0.00000000
+          - name: "Mountain"
+            land_min: 0.109999999
+            land_max: 2.00000000
+            terrain_min: 0.699999988
+            terrain_max: 1.00000000
+            moisture_min: 0.00000000
+            moisture_max: 1.00000000
+            distribution_min: 0.00000000
+            distribution_max: 1.00000000
+            min_height: 0.270000011
+            max_height: 0.360000014
+            land_height_weight: 0.00000000
+            height_smoothing_weight: 1.00000000
+            height_sample_weight: 1.00000000
+            grass_type_name: ""
+            allow_inland_pools: false
+            gameplay_tag: 7
+            legacy_atlas_layer: 5
+            resource_chance: 0.00300000003
+            resource_type: 1
+            resource_center_bias: true
+            inherit_decoration_chance: true
+            decoration_0_chance: 0.140000001
+            decoration_1_chance: 0.00000000
+            decoration_2_chance: 0.00000000
+            decoration_3_chance: 0.00000000
+            decoration_4_chance: 0.00000000
+            decoration_5_chance: 0.00000000
+            decoration_6_chance: 0.00000000
+            decoration_7_chance: 0.00000000
+          - name: "Lowland"
+            land_min: 0.250000000
+            land_max: 2.00000000
+            terrain_min: 0.00000000
+            terrain_max: 1.00000000
+            moisture_min: 0.430000007
+            moisture_max: 0.699999988
+            distribution_min: 0.349999994
+            distribution_max: 0.620000005
+            min_height: 0.0500000007
+            max_height: 0.189999998
+            land_height_weight: 0.00000000
+            height_smoothing_weight: 1.00000000
+            height_sample_weight: 1.00000000
+            grass_type_name: ""
+            allow_inland_pools: true
+            gameplay_tag: 4
+            legacy_atlas_layer: 4
+            resource_chance: 0.00000000
+            resource_type: 0
+            resource_center_bias: true
+            inherit_decoration_chance: true
+            decoration_0_chance: 0.00000000
+            decoration_1_chance: 0.00000000
+            decoration_2_chance: 0.00000000
+            decoration_3_chance: 0.00000000
+            decoration_4_chance: 0.00000000
+            decoration_5_chance: 0.00000000
+            decoration_6_chance: 0.00000000
+            decoration_7_chance: 0.00000000
+          - name: "Thorns"
+            land_min: 0.109999999
+            land_max: 2.00000000
+            terrain_min: 0.00000000
+            terrain_max: 0.699999988
+            moisture_min: 0.00000000
+            moisture_max: 1.00000000
+            distribution_min: 0.600000024
+            distribution_max: 1.00000000
+            min_height: 0.250000000
+            max_height: 0.269499987
+            land_height_weight: 0.00000000
+            height_smoothing_weight: 1.00000000
+            height_sample_weight: 1.00000000
+            grass_type_name: "thorn_grass"
+            allow_inland_pools: true
+            gameplay_tag: 6
+            legacy_atlas_layer: 3
+            resource_chance: 0.00000000
+            resource_type: 0
+            resource_center_bias: true
+            inherit_decoration_chance: true
+            decoration_0_chance: 0.00000000
+            decoration_1_chance: 0.00000000
+            decoration_2_chance: 0.00000000
+            decoration_3_chance: 0.00000000
+            decoration_4_chance: 0.00000000
+            decoration_5_chance: 0.00000000
+            decoration_6_chance: 0.00000000
+            decoration_7_chance: 0.00000000
+          - name: "Dry"
+            land_min: 0.109999999
+            land_max: 2.00000000
+            terrain_min: 0.00000000
+            terrain_max: 0.699999988
+            moisture_min: 0.00000000
+            moisture_max: 0.250000000
+            distribution_min: 0.00000000
+            distribution_max: 0.600000024
+            min_height: 0.170000002
+            max_height: 0.199499995
+            land_height_weight: 0.00000000
+            height_smoothing_weight: 1.00000000
+            height_sample_weight: 1.00000000
+            grass_type_name: "dry_grass"
+            allow_inland_pools: true
+            gameplay_tag: 3
+            legacy_atlas_layer: 3
+            resource_chance: 0.00200000009
+            resource_type: 4
+            resource_center_bias: true
+            inherit_decoration_chance: true
+            decoration_0_chance: 0.0399999991
+            decoration_1_chance: 0.00000000
+            decoration_2_chance: 0.00000000
+            decoration_3_chance: 0.00000000
+            decoration_4_chance: 0.00000000
+            decoration_5_chance: 0.00000000
+            decoration_6_chance: 0.00000000
+            decoration_7_chance: 0.00000000
+          - name: "Grass"
+            land_min: 0.109999999
+            land_max: 2.00000000
+            terrain_min: 0.00000000
+            terrain_max: 0.699999988
+            moisture_min: 0.250000000
+            moisture_max: 0.439999998
+            distribution_min: 0.00000000
+            distribution_max: 0.600000024
+            min_height: 0.200000003
+            max_height: 0.229499996
+            land_height_weight: 0.00000000
+            height_smoothing_weight: 1.00000000
+            height_sample_weight: 1.00000000
+            grass_type_name: "grass"
+            allow_inland_pools: true
+            gameplay_tag: 4
+            legacy_atlas_layer: 4
+            resource_chance: 0.000199999995
+            resource_type: 3
+            resource_center_bias: true
+            inherit_decoration_chance: true
+            decoration_0_chance: 0.0299999993
+            decoration_1_chance: 0.180000007
+            decoration_2_chance: 0.00000000
+            decoration_3_chance: 0.00000000
+            decoration_4_chance: 0.00000000
+            decoration_5_chance: 0.00000000
+            decoration_6_chance: 0.00000000
+            decoration_7_chance: 0.00000000
+          - name: "Forest"
+            land_min: 0.109999999
+            land_max: 2.00000000
+            terrain_min: 0.00000000
+            terrain_max: 0.699999988
+            moisture_min: 0.439999998
+            moisture_max: 1.00000000
+            distribution_min: 0.00000000
+            distribution_max: 0.600000024
+            min_height: 0.230000004
+            max_height: 0.249500006
+            land_height_weight: 0.00000000
+            height_smoothing_weight: 1.00000000
+            height_sample_weight: 1.00000000
+            grass_type_name: "forest_grass"
+            allow_inland_pools: true
+            gameplay_tag: 5
+            legacy_atlas_layer: 4
+            resource_chance: 0.00300000003
+            resource_type: 2
+            resource_center_bias: true
+            inherit_decoration_chance: true
+            decoration_0_chance: 0.180000007
+            decoration_1_chance: 0.00000000
+            decoration_2_chance: 0.00000000
+            decoration_3_chance: 0.00000000
+            decoration_4_chance: 0.00000000
+            decoration_5_chance: 0.00000000
+            decoration_6_chance: 0.00000000
+            decoration_7_chance: 0.00000000
+          - name: "New Biome"
+            land_min: 0.109999999
+            land_max: 2.00000000
+            terrain_min: 0.00000000
+            terrain_max: 1.00000000
+            moisture_min: 0.00000000
+            moisture_max: 1.00000000
+            distribution_min: 0.00000000
+            distribution_max: 1.00000000
+            min_height: 0.200000003
+            max_height: 0.230000004
+            land_height_weight: 0.00000000
+            height_smoothing_weight: 1.00000000
+            height_sample_weight: 1.00000000
+            grass_type_name: ""
+            allow_inland_pools: true
+            gameplay_tag: 4
+            legacy_atlas_layer: 4
+            resource_chance: 0.00000000
+            resource_type: 0
+            resource_center_bias: true
+            inherit_decoration_chance: true
+            decoration_0_chance: 0.00000000
+            decoration_1_chance: 0.00000000
+            decoration_2_chance: 0.00000000
+            decoration_3_chance: 0.00000000
+            decoration_4_chance: 0.00000000
+            decoration_5_chance: 0.00000000
+            decoration_6_chance: 0.00000000
+            decoration_7_chance: 0.00000000
+        pool_spacing: 0.00000000
+        pool_chance: 0.00000000
+        pool_min_radius: 9.00000000
+        pool_max_radius: 15.0000000
+        pool_bank_width: 12.0000000
+        pool_min_land: 0.109999999
+        pool_land_value: 0.0500000007
+        pool_height: 0.100000001
+        radius: 8
+        cell_size: 1.00000000
+        elevation: 0.100000001
+        forward_offset: 4.00000000
+        material: "assets/tftf_island.material"
+    - id: "0x05047ea6f003fb8f"
+    - id: "0xea9d0015f4bf0348"
+      data:
+        projectile_mesh: -1
+        projectile_material: "assets/materials/tftf_projectile.tml"
+        pattern_0_name: "TFTF_BULLET_PATTERN_NAME_RING"
+        pattern_0_type: "TFTF_BULLET_PATTERN_TYPE_RING"
+        pattern_0_movement: "TFTF_PROJECTILE_MOVEMENT_LINEAR"
+        pattern_0_count: 16
+        pattern_0_speed: 2.50000000
+        pattern_0_acceleration: 0.00000000
+        pattern_0_lifetime: 5.00000000
+        pattern_0_radius: 0.150000006
+        pattern_0_damage: 0.00000000
+        pattern_0_scale: 0.150000006
+        pattern_0_height_offset: 0.00000000
+        pattern_0_angle_offset_degrees: 0.00000000
+        pattern_0_spread_degrees: 0.00000000
+        pattern_0_sine_amplitude: 0.00000000
+        pattern_0_sine_frequency: 0.00000000
+        pattern_0_sine_phase_degrees: 0.00000000
+        pattern_0_color: 4294967295
+        pattern_1_name: "TFTF_BULLET_PATTERN_NAME_NONE"
+        pattern_1_type: "TFTF_BULLET_PATTERN_TYPE_NONE"
+        pattern_1_movement: "TFTF_PROJECTILE_MOVEMENT_LINEAR"
+        pattern_1_count: 0
+        pattern_1_speed: 0.00000000
+        pattern_1_acceleration: 0.00000000
+        pattern_1_lifetime: 0.00000000
+        pattern_1_radius: 0.00000000
+        pattern_1_damage: 0.00000000
+        pattern_1_scale: 0.00000000
+        pattern_1_height_offset: 0.00000000
+        pattern_1_angle_offset_degrees: 0.00000000
+        pattern_1_spread_degrees: 0.00000000
+        pattern_1_sine_amplitude: 0.00000000
+        pattern_1_sine_frequency: 0.00000000
+        pattern_1_sine_phase_degrees: 0.00000000
+        pattern_1_color: 0
+        pattern_2_name: "TFTF_BULLET_PATTERN_NAME_NONE"
+        pattern_2_type: "TFTF_BULLET_PATTERN_TYPE_NONE"
+        pattern_2_movement: "TFTF_PROJECTILE_MOVEMENT_LINEAR"
+        pattern_2_count: 0
+        pattern_2_speed: 0.00000000
+        pattern_2_acceleration: 0.00000000
+        pattern_2_lifetime: 0.00000000
+        pattern_2_radius: 0.00000000
+        pattern_2_damage: 0.00000000
+        pattern_2_scale: 0.00000000
+        pattern_2_height_offset: 0.00000000
+        pattern_2_angle_offset_degrees: 0.00000000
+        pattern_2_spread_degrees: 0.00000000
+        pattern_2_sine_amplitude: 0.00000000
+        pattern_2_sine_frequency: 0.00000000
+        pattern_2_sine_phase_degrees: 0.00000000
+        pattern_2_color: 0
+        pattern_3_name: "TFTF_BULLET_PATTERN_NAME_NONE"
+        pattern_3_type: "TFTF_BULLET_PATTERN_TYPE_NONE"
+        pattern_3_movement: "TFTF_PROJECTILE_MOVEMENT_LINEAR"
+        pattern_3_count: 0
+        pattern_3_speed: 0.00000000
+        pattern_3_acceleration: 0.00000000
+        pattern_3_lifetime: 0.00000000
+        pattern_3_radius: 0.00000000
+        pattern_3_damage: 0.00000000
+        pattern_3_scale: 0.00000000
+        pattern_3_height_offset: 0.00000000
+        pattern_3_angle_offset_degrees: 0.00000000
+        pattern_3_spread_degrees: 0.00000000
+        pattern_3_sine_amplitude: 0.00000000
+        pattern_3_sine_frequency: 0.00000000
+        pattern_3_sine_phase_degrees: 0.00000000
+        pattern_3_color: 0
+    - id: "0xc438be868c0566d0"
+    - id: "0x1e2c227aa2362f6a"
+      data:
+        heightmap: -1
+        height_channel: "LDK_TERRAIN_CHANNEL_R"
+        cell_size: 1.00000000
+        height_scale: 10.0000000
+        height_offset: 0.00000000
+        center_on_origin: true
+        origin_x: 0.00000000
+        origin_z: 0.00000000
+        chunk_size: 16
+        material: -1
+        texture_atlas: "terrain_test.atlas"
+        color_noise_texture: "assets/textures/grass_color_noise.png"
+        color_noise_scale: 0.0199999996
+        color_noise_strength: 1.00000000
+        surface_count: 7
+        surface_0_name: "Shallow Water"
+        surface_0_min_height: 0.00000000
+        surface_0_blend_width: 0.00000000
+        surface_0_color: 3586760191
+        surface_0_noise_low_color: 3350694911
+        surface_0_noise_high_color: 3856118015
+        surface_0_sprite_id: "1"
+        surface_0_uv_scale: 1.00000000, 1.00000000
+        surface_0_texture_weight: 0.0799999982
+        surface_1_name: "Sand"
+        surface_1_min_height: 0.140000001
+        surface_1_blend_width: 0.131164595
+        surface_1_color: 3905259519
+        surface_1_noise_low_color: 3585112319
+        surface_1_noise_high_color: 4073954559
+        surface_1_sprite_id: "2"
+        surface_1_uv_scale: 1.00000000, 1.00000000
+        surface_1_texture_weight: 0.0799999982
+        surface_2_name: "Dry"
+        surface_2_min_height: 0.170000002
+        surface_2_blend_width: 0.0153194265
+        surface_2_color: 2660722175
+        surface_2_noise_low_color: 2963632639
+        surface_2_noise_high_color: 2222740991
+        surface_2_sprite_id: "3"
+        surface_2_uv_scale: 1.00000000, 1.00000000
+        surface_2_texture_weight: 0.0799999982
+        surface_3_name: "Grass"
+        surface_3_min_height: 0.200000003
+        surface_3_blend_width: 0.176042676
+        surface_3_color: 2679204607
+        surface_3_noise_low_color: 3132979711
+        surface_3_noise_high_color: 2073908991
+        surface_3_sprite_id: "4"
+        surface_3_uv_scale: 1.00000000, 1.00000000
+        surface_3_texture_weight: 0.0799999982
+        surface_4_name: "Forest"
+        surface_4_min_height: 0.211200893
+        surface_4_blend_width: 0.0404324383
+        surface_4_color: 1854947583
+        surface_4_noise_low_color: 2191476991
+        surface_4_noise_high_color: 1400648447
+        surface_4_sprite_id: "5"
+        surface_4_uv_scale: 1.00000000, 1.00000000
+        surface_4_texture_weight: 0.0799999982
+        surface_5_name: "Thorns"
+        surface_5_min_height: 0.250000000
+        surface_5_blend_width: 0.00499999989
+        surface_5_color: 2393275647
+        surface_5_noise_low_color: 2814086399
+        surface_5_noise_high_color: 1855155455
+        surface_5_sprite_id: "6"
+        surface_5_uv_scale: 1.00000000, 1.00000000
+        surface_5_texture_weight: 0.0799999982
+        surface_6_name: "Mountain"
+        surface_6_min_height: 0.258184999
+        surface_6_blend_width: 0.00800000038
+        surface_6_color: 2829950719
+        surface_6_noise_low_color: 2493222911
+        surface_6_noise_high_color: 3234182655
+        surface_6_sprite_id: "0"
+        surface_6_uv_scale: 1.00000000, 1.00000000
+        surface_6_texture_weight: 0.0799999982
+        surface_7_name: ""
+        surface_7_min_height: 0.00000000
+        surface_7_blend_width: 0.00000000
+        surface_7_color: 4294967295
+        surface_7_noise_low_color: 4294967295
+        surface_7_noise_high_color: 4294967295
+        surface_7_sprite_id: "0"
+        surface_7_uv_scale: 1.00000000, 1.00000000
+        surface_7_texture_weight: 0.00000000
+        casts_shadows: false
+    - id: "0x00e9968219b6aae4"
+      data:
+        water_level: 1.20000005
+        center_x: 0.00000000
+        center_z: 0.00000000
+        width: 600.000000
+        depth: 600.000000
+        cell_size: 1.00000000
+        chunk_size: 32
+        shallow_color: 1978720364
+        deep_color: 327580927
+        depth_color_distance: 0.100000001
+        edge_fade_distance: 0.300000012
+        wave_0_height: 0.0599999987
+        wave_0_length: 16.0000000
+        wave_0_speed: 1.20000005
+        wave_0_direction_degrees: 1.00000000
+        wave_1_height: 0.0399999991
+        wave_1_length: 100.000000
+        wave_1_speed: 10.0000000
+        wave_1_direction_degrees: 20.0000000
+        wave_2_height: 0.0149999997
+        wave_2_length: 10.0000000
+        wave_2_speed: 1.00000000
+        wave_2_direction_degrees: 110.000000
+        normal_texture: "assets/textures/water/water_normal.png"
+        detail_scale: 7.00000000
+        detail_strength: 0.200000003
+        detail_speed: 0.100000001
+        specular: 0.200000003
+        shininess: 50.0000000
+        noise_texture: "assets/textures/water/clouds_2.png"
+        noise_scale: 2.00000000
+        noise_speed: 0.100000001
+        distortion_strength: 0.900065482
+        foam_texture: "assets/textures/water/voronoise_3.png"
+        foam_color: 3891520191
+        foam_width: 0.300000012
+        foam_shallow_depth: 0.200000003
+        foam_strength: 0.385282397
+        foam_scale: 0.850000024
+        foam_speed: 0.0199999996
+        foam_cutoff: 0.797750235
+        surface_foam_strength: 0.333723933
+        wave_fade_distance: 5.00000000
+        shore_range: 1.00000000
+        shore_wave_length: 0.500000000
+        shore_wave_speed: 0.0299999993
+        shore_foam_strength: 0.505462468
+        caustics_texture: "assets/textures/water/surface_foam.png"
+        caustics_scale: 40.0000000
+        caustics_strength: 0.400000006
+        caustics_speed: 0.200000003
+        caustics_depth: 1.00000000
+    - id: "0xb9ce38dc680ce4e0"

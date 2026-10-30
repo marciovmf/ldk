@@ -48,6 +48,14 @@ LDK_API bool ldk_terrain_heightmap_set(LDKAssetImage image);
  */
 LDK_API bool ldk_terrain_system_is_active(void);
 /**
+ * @brief Revision of the currently queryable terrain geometry.
+ * Returns zero when no heightmap is ready. Changes when terrain heights or
+ * their world-space mapping change.
+ * @return Nonzero terrain geometry revision, or zero if unavailable.
+ * @group ldk.system.terrain_system
+ */
+LDK_API u64 ldk_terrain_geometry_revision_get(void);
+/**
  * @brief Query terrain height at a world-space X/Z point.
  * @param world_x World-space X coordinate.
  * @param world_z World-space Z coordinate.

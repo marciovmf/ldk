@@ -910,6 +910,15 @@ LDK_API bool ldk_terrain_system_is_active(void)
   return s_runtime.owner != NULL;
 }
 
+LDK_API u64 ldk_terrain_geometry_revision_get(void)
+{
+  if (!s_runtime.owner || !s_runtime.source.pixels)
+  {
+    return 0u;
+  }
+  return s_runtime.geometry_hash ? s_runtime.geometry_hash : 1u;
+}
+
 LDK_API bool ldk_terrain_height_at_world(
     float world_x, float world_z, float *out_height)
 {

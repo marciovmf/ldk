@@ -116,6 +116,22 @@ extern "C"
     float surface_foam_strength;
     //@end_group
 
+    //@begin_group "Lakes"
+    /** Length of the transition from the ocean-facing outer edge of the
+     * filled island silhouette into its interior, in world units. Inland
+     * lakes are filled when constructing this mask, so their shorelines
+     * never restart the transition. Zero produces a hard boundary. */
+    //@inspect min=0
+    float silhouette_edge_fade_distance;
+    /** Shallow contact-foam depth threshold, in world units. Applies only
+     * within the filled silhouette, weighted by the lake edge fade.
+     * Zero disables this suppression without affecting geometric waves. */
+    //@inspect min=0
+    float foam_shallow_depth;
+    /** Debug view: red=wave-free interior, blue=normal ocean waves. */
+    bool debug_lake_mask;
+    //@end_group
+
     //@begin_group "Shore Waves"
     //@inspect min=0
     float shore_range;

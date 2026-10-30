@@ -19,8 +19,8 @@
 
 #define ISLAND_MAP_FILE_NAME "map.bin"
 #define ISLAND_MAP_FILE_MAGIC 0x4C444B4Du
-#define ISLAND_MAP_FILE_VERSION 2u
-#define ISLAND_MAP_GENERATOR_VERSION 7u
+#define ISLAND_MAP_FILE_VERSION 3u
+#define ISLAND_MAP_GENERATOR_VERSION 11u
 
 #define ISLAND_TERRAIN_COLOR_DEEP_WATER 0x426F7DFFu
 #define ISLAND_TERRAIN_COLOR_SHALLOW_WATER 0x6696A0FFu
@@ -30,7 +30,7 @@
 #define ISLAND_TERRAIN_COLOR_ROCK 0x77766FFFu
 
 #define ISLAND_DECORATION_SLOT_COUNT 8u
-#define ISLAND_RESOURCE_RULE_COUNT 6u
+#define ISLAND_BIOME_INVALID UINT8_MAX
 
 #define ISLAND_MAP_CHANNEL_HEIGHT 0u
 #define ISLAND_MAP_CHANNEL_DECORATION 1u
@@ -43,28 +43,9 @@
 
 #define ARRAY_COUNT(array) (sizeof(array) / sizeof((array)[0]))
 
-typedef enum IslandTerrainClass
-{
-  ISLAND_TERRAIN_CLASS_DEEP_WATER,
-  ISLAND_TERRAIN_CLASS_SHALLOW_WATER,
-  ISLAND_TERRAIN_CLASS_SHORE,
-  ISLAND_TERRAIN_CLASS_LAND,
-  ISLAND_TERRAIN_CLASS_COUNT
-} IslandTerrainClass;
-
-typedef enum IslandBiome
-{
-  ISLAND_BIOME_MOUNTAIN,
-  ISLAND_BIOME_DRY,
-  ISLAND_BIOME_GRASS,
-  ISLAND_BIOME_FOREST,
-  ISLAND_BIOME_THORNS,
-  ISLAND_BIOME_COUNT
-} IslandBiome;
-
+/* Optional TFTF legacy atlas only. Not used to classify any biome. */
 typedef enum IslandTerrainSurface
 {
-  /* Ordered from lowest to highest visual layer. */
   ISLAND_TERRAIN_SURFACE_DEEP_WATER,
   ISLAND_TERRAIN_SURFACE_SHALLOW_WATER,
   ISLAND_TERRAIN_SURFACE_SAND,
@@ -87,8 +68,8 @@ typedef enum IslandTerrainCutoutBit
 
 typedef struct IslandMapCell
 {
-  u8 terrain_class;
   u8 biome;
+  u8 reserved;
   u8 decoration_mask;
   u8 resource_rule;
 } IslandMapCell;
@@ -113,15 +94,6 @@ typedef struct IslandMapFileHeader
   u32 height;
   u64 config_hash;
 } IslandMapFileHeader;
-
-typedef struct IslandMapPropRule
-{
-  IslandTerrainClass terrain_class;
-  IslandBiome biome;
-  u32 seed;
-  float chance;
-  u8 value;
-} IslandMapPropRule;
 
 typedef struct IslandTerrainBounds
 {
@@ -169,11 +141,7 @@ typedef struct IslandTerrainRuntime
   LDKResourceTexture renderer_normal_map;
   LDKResourceTexture renderer_specular_map;
   LDKAssetImage terrain_image;
-  LDKGrassTypeId dry_grass_type_id;
-  LDKGrassTypeId grass_type_id;
-  LDKGrassTypeId forest_grass_type_id;
-  LDKGrassTypeId thorn_grass_type_id;
-  LDKGrassTypeId shallow_grass_type_id;
+  LDKGrassTypeId grass_type_ids[255];
 
   /* IslandTerrain can initialize before TerrainSystem has consumed the
    * procedural heightmap. Grass patches must not fall back to the old flat
@@ -272,56 +240,53 @@ static float s_fbm_compose_2d(
   return amplitude_sum > 0.0f ? value / amplitude_sum : 0.0f;
 }
 
+
+static u32 s_island_biome_count(const IslandTerrain *system)
+{
+  return system && system->biomes
+      ? x_array_IslandBiomeDesc_count(system->biomes) : 0u;
+}
+
+static const IslandBiomeDesc *s_island_biome_get(
+    const IslandTerrain *system, u32 index)
+{
+  return index < s_island_biome_count(system)
+      ? x_array_IslandBiomeDesc_get_const(system->biomes, index) : NULL;
+}
+
+void island_terrain_biome_initialize(void *element)
+{
+  IslandBiomeDesc *b = element;
+  if (!b)
+    return;
+  memset(b, 0, sizeof(*b));
+  x_smallstr_from_cstr(&b->name, "New Biome");
+  b->gameplay_tag = 255u;
+  b->legacy_atlas_layer = 4u;
+  b->land_min = -4.0f;
+  b->land_max = 2.0f;
+  b->terrain_max = 1.0f;
+  b->moisture_max = 1.0f;
+  b->distribution_max = 1.0f;
+  b->min_height = 0.20f;
+  b->max_height = 0.23f;
+  b->height_smoothing_weight = 1.0f;
+  b->height_sample_weight = 1.0f;
+  b->allow_inland_pools = true;
+  b->resource_center_bias = true;
+  b->inherit_decoration_chance = true;
+}
+
 static void s_island_terrain_generation_defaults(IslandTerrain *system)
 {
   if (!system)
   {
     return;
   }
-
-  if (x_smallstr_length(&system->dry_grass_type_name) == 0u)
+  if (system->distribution_noise_scale == 0.0f)
   {
-    x_smallstr_from_cstr(&system->dry_grass_type_name, "dry_grass");
+    system->distribution_noise_scale = 0.025f;
   }
-  if (x_smallstr_length(&system->grass_type_name) == 0u)
-  {
-    x_smallstr_from_cstr(&system->grass_type_name, "grass");
-  }
-  if (x_smallstr_length(&system->forest_grass_type_name) == 0u)
-  {
-    x_smallstr_from_cstr(&system->forest_grass_type_name, "forest_grass");
-  }
-
-  if (x_smallstr_length(&system->thorn_grass_type_name) == 0u)
-  {
-    x_smallstr_from_cstr(&system->thorn_grass_type_name, "thorn_grass");
-  }
-
-  if (x_smallstr_length(&system->shallow_grass_type_name) == 0u)
-  {
-    x_smallstr_from_cstr(&system->shallow_grass_type_name, "shallow_grass");
-  }
-
-  /* Older scenes omit these new fields. Zero spacing disables inland pools. */
-  if (system->thorn_noise_scale == 0.0f && system->thorn_noise_min == 0.0f)
-  {
-    system->thorn_noise_scale = 0.025f;
-    system->thorn_noise_min = 0.60f;
-  }
-
-  if (system->shallow_water_height == 0.0f && system->max_height == 0.0f)
-  {
-    system->deep_water_height = 0.00f;
-    system->shallow_water_height = 0.10f;
-    system->dry_height = 0.17f;
-    system->grass_height = 0.20f;
-    system->forest_height = 0.23f;
-    system->thorn_height = 0.25f;
-    system->mountain_height = 0.27f;
-    system->max_height = 0.36f;
-    system->shallow_slope_fraction = 1.00f;
-  }
-
   if (system->map_size != 0u)
   {
     if (system->seed == 0u)
@@ -336,7 +301,6 @@ static void s_island_terrain_generation_defaults(IslandTerrain *system)
   system->land_scale = 0.0097f;
   system->island_radius = 0.8f;
   system->terrain_scale = 0.010f;
-  system->terrain_height_strength = 0.85f;
   system->surface_noise_scale = 0.050f;
   system->surface_noise_octaves = 3u;
   system->surface_noise_strength = 0.30f;
@@ -349,35 +313,15 @@ static void s_island_terrain_generation_defaults(IslandTerrain *system)
   system->height_smoothing_radius = 8u;
   system->height_smoothing_edge_threshold = 0.008f;
   system->height_smoothing_passes = 2u;
-  system->deep_water_max = 0.00f;
-  system->shallow_water_max = 0.06f;
-  system->shore_max = 0.11f;
-  system->mountain_min = 0.70f;
-  system->dry_moisture_max = 0.25f;
-  system->grass_moisture_max = 0.44f;
-  system->thorn_noise_scale = 0.025f;
-  system->thorn_noise_min = 0.60f;
-  system->thorn_grass_bias = 0.12f;
-  system->shallow_patch_spacing = 90.0f;
-  system->shallow_patch_chance = 0.35f;
-  system->shallow_patch_min_radius = 6.0f;
-  system->shallow_patch_max_radius = 11.0f;
-  system->shallow_patch_bank_width = 10.0f;
-
-  system->forest_decoration_0_chance = 0.18f;
-  system->grass_decoration_0_chance = 0.03f;
-  system->grass_decoration_1_chance = 0.18f;
-  system->mountain_decoration_0_chance = 0.14f;
-  system->dry_decoration_0_chance = 0.04f;
-  system->shore_decoration_0_chance = 0.025f;
-  system->shallow_water_decoration_0_chance = 0.015f;
-
-  system->mountain_resource_chance = 0.003f;
-  system->forest_resource_chance = 0.003f;
-  system->grass_resource_chance = 0.0002f;
-  system->dry_resource_chance = 0.002f;
-  system->shore_resource_chance = 0.0015f;
-  system->shallow_water_resource_chance = 0.001f;
+  system->distribution_noise_scale = 0.025f;
+  system->pool_spacing = 90.0f;
+  system->pool_chance = 0.35f;
+  system->pool_min_radius = 6.0f;
+  system->pool_max_radius = 11.0f;
+  system->pool_bank_width = 10.0f;
+  system->pool_min_land = 0.11f;
+  system->pool_land_value = 0.05f;
+  system->pool_height = 0.10f;
 }
 
 static bool s_island_chance_is_valid(float chance)
@@ -386,117 +330,62 @@ static bool s_island_chance_is_valid(float chance)
 }
 
 static float s_island_decoration_chance_raw_get(
-    const IslandTerrain *system, TFTFIslandTileKind kind, u32 slot)
+    const IslandTerrain *system, u32 biome_index, u32 slot)
 {
-  if (!system || slot >= ISLAND_DECORATION_SLOT_COUNT)
+  const IslandBiomeDesc *b = s_island_biome_get(system, biome_index);
+  if (!b)
   {
     return 0.0f;
   }
-
-#define ISLAND_DECORATION_SLOT_SWITCH(prefix)                                 \
-  switch (slot)                                                               \
-  {                                                                           \
-  case 0u:                                                                    \
-    return system->prefix##_decoration_0_chance;                              \
-  case 1u:                                                                    \
-    return system->prefix##_decoration_1_chance;                              \
-  case 2u:                                                                    \
-    return system->prefix##_decoration_2_chance;                              \
-  case 3u:                                                                    \
-    return system->prefix##_decoration_3_chance;                              \
-  case 4u:                                                                    \
-    return system->prefix##_decoration_4_chance;                              \
-  case 5u:                                                                    \
-    return system->prefix##_decoration_5_chance;                              \
-  case 6u:                                                                    \
-    return system->prefix##_decoration_6_chance;                              \
-  case 7u:                                                                    \
-    return system->prefix##_decoration_7_chance;                              \
-  default:                                                                    \
-    return 0.0f;                                                              \
-  }
-
-  switch (kind)
+  switch (slot)
   {
-  case TFTF_ISLAND_TILE_DEEP_WATER:
-    ISLAND_DECORATION_SLOT_SWITCH(deep_water);
-  case TFTF_ISLAND_TILE_SHALLOW_WATER:
-    ISLAND_DECORATION_SLOT_SWITCH(shallow_water);
-  case TFTF_ISLAND_TILE_SHORE:
-    ISLAND_DECORATION_SLOT_SWITCH(shore);
-  case TFTF_ISLAND_TILE_DRY:
-    ISLAND_DECORATION_SLOT_SWITCH(dry);
-  case TFTF_ISLAND_TILE_GRASS:
-    ISLAND_DECORATION_SLOT_SWITCH(grass);
-  case TFTF_ISLAND_TILE_FOREST:
-    ISLAND_DECORATION_SLOT_SWITCH(forest);
-  case TFTF_ISLAND_TILE_THORNS:
-    ISLAND_DECORATION_SLOT_SWITCH(thorns);
-  case TFTF_ISLAND_TILE_MOUNTAIN:
-    ISLAND_DECORATION_SLOT_SWITCH(mountain);
-  default:
-    break;
+  case 0u: return b->decoration_0_chance;
+  case 1u: return b->decoration_1_chance;
+  case 2u: return b->decoration_2_chance;
+  case 3u: return b->decoration_3_chance;
+  case 4u: return b->decoration_4_chance;
+  case 5u: return b->decoration_5_chance;
+  case 6u: return b->decoration_6_chance;
+  case 7u: return b->decoration_7_chance;
+  default: return 0.0f;
   }
-
-#undef ISLAND_DECORATION_SLOT_SWITCH
-
-  return 0.0f;
 }
 
 static float s_island_decoration_chance_get(
-    const IslandTerrain *system, TFTFIslandTileKind kind, u32 slot)
+    const IslandTerrain *system, u32 biome_index, u32 slot)
 {
-  float chance = s_island_decoration_chance_raw_get(system, kind, slot);
-
-  if (chance > 0.0f || !system || slot >= ISLAND_DECORATION_SLOT_COUNT)
-  {
+  float chance = s_island_decoration_chance_raw_get(system, biome_index, slot);
+  const IslandBiomeDesc *b = s_island_biome_get(system, biome_index);
+  if (chance > 0.0f || slot >= ISLAND_DECORATION_SLOT_COUNT ||
+      !b || !b->inherit_decoration_chance)
     return chance;
-  }
-
-  /*
-   * Zero means this slot inherits the biome's decoration frequency. The map
-   * stores contextual slot bits independently from the runtime mesh table, so
-   * assigning another mesh to a biome slot must not require a second, hidden
-   * generator setting before that slot can ever appear. An unbound runtime
-   * slot remains harmless even if its bit is present in the map.
-   */
-  for (u32 candidate = 0u; candidate < ISLAND_DECORATION_SLOT_COUNT;
-       ++candidate)
-  {
-    float candidate_chance =
-        s_island_decoration_chance_raw_get(system, kind, candidate);
-    if (candidate_chance > chance)
-    {
-      chance = candidate_chance;
-    }
-  }
-
+  /* Retain the generator's existing zero-slot frequency inheritance. */
+  for (u32 i = 0u; i < ISLAND_DECORATION_SLOT_COUNT; ++i)
+    chance = fmaxf(chance,
+        s_island_decoration_chance_raw_get(system, biome_index, i));
   return chance;
 }
 
 static bool s_island_terrain_generation_valid(const IslandTerrain *system)
 {
   u64 cell_count;
-
+  u32 count = s_island_biome_count(system);
   if (!system || system->seed == 0u || system->map_size == 0u ||
-      system->map_size > INT32_MAX)
+      system->map_size > INT32_MAX || count == 0u || count > 255u)
   {
+    if (count == 0u)
+      ldk_log_error("IslandTerrain has no configured biomes.\n");
     return false;
   }
 
   cell_count = (u64)system->map_size * (u64)system->map_size;
   if (cell_count > UINT32_MAX ||
       cell_count > (u64)(SIZE_MAX / sizeof(IslandMapCell)))
-  {
     return false;
-  }
 
   if (!isfinite(system->land_scale) || system->land_scale <= 0.0f ||
       !isfinite(system->island_radius) || system->island_radius <= 0.0f ||
       !isfinite(system->terrain_scale) || system->terrain_scale <= 0.0f ||
-      !isfinite(system->terrain_height_strength) ||
-      system->terrain_height_strength < 0.0f ||
-      system->terrain_height_strength > 1.0f ||
       !isfinite(system->surface_noise_scale) ||
       system->surface_noise_scale <= 0.0f ||
       system->surface_noise_octaves == 0u ||
@@ -518,94 +407,63 @@ static bool s_island_terrain_generation_valid(const IslandTerrain *system)
       system->height_smoothing_edge_threshold < 0.0f ||
       system->height_smoothing_edge_threshold > 0.1f ||
       system->height_smoothing_passes > 8u)
-  {
     return false;
-  }
 
-  if (!isfinite(system->deep_water_max) ||
-      !isfinite(system->shallow_water_max) ||
-      !isfinite(system->shore_max) ||
-      !(system->deep_water_max < system->shallow_water_max) ||
-      !(system->shallow_water_max < system->shore_max))
-  {
+  if (!isfinite(system->distribution_noise_scale) ||
+      system->distribution_noise_scale <= 0.0f ||
+      !isfinite(system->pool_spacing) ||
+      system->pool_spacing < 0.0f ||
+      !s_island_chance_is_valid(system->pool_chance) ||
+      !isfinite(system->pool_min_land) ||
+      !isfinite(system->pool_land_value) ||
+      !s_island_chance_is_valid(system->pool_height))
     return false;
-  }
 
-  if (!isfinite(system->mountain_min) || system->mountain_min < 0.0f ||
-      system->mountain_min > 1.0f ||
-      !isfinite(system->dry_moisture_max) ||
-      !isfinite(system->grass_moisture_max) ||
-      system->dry_moisture_max < 0.0f ||
-      system->grass_moisture_max > 1.0f ||
-      !(system->dry_moisture_max < system->grass_moisture_max))
-  {
+  if (system->pool_spacing > 0.0f &&
+      (!isfinite(system->pool_min_radius) ||
+          system->pool_min_radius < 1.0f ||
+          !isfinite(system->pool_max_radius) ||
+          system->pool_max_radius < system->pool_min_radius ||
+          !isfinite(system->pool_bank_width) ||
+          system->pool_bank_width < 1.0f ||
+          1.2f * system->pool_max_radius +
+              system->pool_bank_width >
+                  system->pool_spacing * 0.5f))
     return false;
-  }
 
-  if (!isfinite(system->deep_water_height) ||
-      system->deep_water_height < 0.0f ||
-      !isfinite(system->shallow_water_height) ||
-      !isfinite(system->dry_height) || !isfinite(system->grass_height) ||
-      !isfinite(system->forest_height) || !isfinite(system->thorn_height) ||
-      !isfinite(system->mountain_height) || !isfinite(system->max_height) ||
-      system->max_height > 1.0f ||
-      !(system->deep_water_height < system->shallow_water_height) ||
-      !(system->shallow_water_height < system->dry_height) ||
-      !(system->dry_height < system->grass_height) ||
-      !(system->grass_height < system->forest_height) ||
-      !(system->forest_height < system->thorn_height) ||
-      !(system->thorn_height < system->mountain_height) ||
-      !(system->mountain_height < system->max_height) ||
-      !isfinite(system->shallow_slope_fraction) ||
-      system->shallow_slope_fraction <= 0.0f ||
-      system->shallow_slope_fraction > 1.0f)
+  for (u32 i = 0u; i < count; ++i)
   {
-    return false;
-  }
-
-  if (!isfinite(system->thorn_noise_scale) ||
-      system->thorn_noise_scale <= 0.0f ||
-      !s_island_chance_is_valid(system->thorn_noise_min) ||
-      !s_island_chance_is_valid(system->thorn_grass_bias) ||
-      !isfinite(system->shallow_patch_spacing) ||
-      system->shallow_patch_spacing < 0.0f ||
-      !s_island_chance_is_valid(system->shallow_patch_chance))
-  {
-    return false;
-  }
-
-  if (system->shallow_patch_spacing > 0.0f &&
-      (!isfinite(system->shallow_patch_min_radius) ||
-          system->shallow_patch_min_radius < 1.0f ||
-          !isfinite(system->shallow_patch_max_radius) ||
-          system->shallow_patch_max_radius < system->shallow_patch_min_radius ||
-          !isfinite(system->shallow_patch_bank_width) ||
-          system->shallow_patch_bank_width < 1.0f ||
-          1.2f * system->shallow_patch_max_radius +
-                  system->shallow_patch_bank_width >
-              system->shallow_patch_spacing * 0.5f))
-  {
-    return false;
-  }
-
-  for (u32 kind = 0u; kind < (u32)TFTF_ISLAND_TILE_COUNT; ++kind)
-  {
-    for (u32 slot = 0u; slot < ISLAND_DECORATION_SLOT_COUNT; ++slot)
+    const IslandBiomeDesc *b = s_island_biome_get(system, i);
+    if (!b || b->legacy_atlas_layer >= ISLAND_TERRAIN_SURFACE_COUNT ||
+        b->gameplay_tag > 255u || b->resource_type > 255u ||
+        !s_island_chance_is_valid(b->resource_chance) ||
+        !isfinite(b->land_min) || !isfinite(b->land_max) ||
+        b->land_min >= b->land_max ||
+        !s_island_chance_is_valid(b->terrain_min) ||
+        !s_island_chance_is_valid(b->terrain_max) ||
+        !s_island_chance_is_valid(b->moisture_min) ||
+        !s_island_chance_is_valid(b->moisture_max) ||
+        !s_island_chance_is_valid(b->distribution_min) ||
+        !s_island_chance_is_valid(b->distribution_max) ||
+        b->terrain_min > b->terrain_max ||
+        b->moisture_min > b->moisture_max ||
+        b->distribution_min > b->distribution_max ||
+        !s_island_chance_is_valid(b->min_height) ||
+        !s_island_chance_is_valid(b->max_height) ||
+        b->min_height > b->max_height ||
+        !s_island_chance_is_valid(b->land_height_weight) ||
+        !s_island_chance_is_valid(b->height_smoothing_weight) ||
+        !s_island_chance_is_valid(b->height_sample_weight))
     {
-      if (!s_island_chance_is_valid(s_island_decoration_chance_raw_get(
-              system, (TFTFIslandTileKind)kind, slot)))
-      {
-        return false;
-      }
+      ldk_log_error("IslandTerrain: invalid biome settings at index %u.\n", i);
+      return false;
     }
+    for (u32 slot = 0u; slot < ISLAND_DECORATION_SLOT_COUNT; ++slot)
+      if (!s_island_chance_is_valid(s_island_decoration_chance_raw_get(
+              system, i, slot)))
+        return false;
   }
-
-  return s_island_chance_is_valid(system->mountain_resource_chance) &&
-         s_island_chance_is_valid(system->forest_resource_chance) &&
-         s_island_chance_is_valid(system->grass_resource_chance) &&
-         s_island_chance_is_valid(system->dry_resource_chance) &&
-         s_island_chance_is_valid(system->shore_resource_chance) &&
-         s_island_chance_is_valid(system->shallow_water_resource_chance);
+  return true;
 }
 
 static void s_island_hash_bytes(u64 *hash, const void *data, size_t size)
@@ -622,172 +480,101 @@ static void s_island_hash_bytes(u64 *hash, const void *data, size_t size)
 static u64 s_island_terrain_generation_hash(const IslandTerrain *system)
 {
   u64 hash = UINT64_C(14695981039346656037);
-
-#define ISLAND_HASH_FIELD(field)                                               \
-  s_island_hash_bytes(&hash, &system->field, sizeof(system->field))
-
-  ISLAND_HASH_FIELD(seed);
-  ISLAND_HASH_FIELD(map_size);
-  ISLAND_HASH_FIELD(land_scale);
-  ISLAND_HASH_FIELD(island_radius);
-  ISLAND_HASH_FIELD(terrain_scale);
-  ISLAND_HASH_FIELD(terrain_height_strength);
-  ISLAND_HASH_FIELD(surface_noise_scale);
-  ISLAND_HASH_FIELD(surface_noise_octaves);
-  ISLAND_HASH_FIELD(surface_noise_strength);
-  ISLAND_HASH_FIELD(moisture_scale);
-  ISLAND_HASH_FIELD(land_octaves);
-  ISLAND_HASH_FIELD(terrain_octaves);
-  ISLAND_HASH_FIELD(moisture_octaves);
-  ISLAND_HASH_FIELD(land_noise_strength);
-  ISLAND_HASH_FIELD(height_smoothing_strength);
-  ISLAND_HASH_FIELD(height_smoothing_radius);
-  ISLAND_HASH_FIELD(height_smoothing_edge_threshold);
-  ISLAND_HASH_FIELD(height_smoothing_passes);
-  ISLAND_HASH_FIELD(deep_water_height);
-  ISLAND_HASH_FIELD(shallow_water_height);
-  ISLAND_HASH_FIELD(dry_height);
-  ISLAND_HASH_FIELD(grass_height);
-  ISLAND_HASH_FIELD(forest_height);
-  ISLAND_HASH_FIELD(thorn_height);
-  ISLAND_HASH_FIELD(mountain_height);
-  ISLAND_HASH_FIELD(max_height);
-  ISLAND_HASH_FIELD(shallow_slope_fraction);
-  ISLAND_HASH_FIELD(deep_water_max);
-  ISLAND_HASH_FIELD(shallow_water_max);
-  ISLAND_HASH_FIELD(shore_max);
-  ISLAND_HASH_FIELD(mountain_min);
-  ISLAND_HASH_FIELD(dry_moisture_max);
-  ISLAND_HASH_FIELD(grass_moisture_max);
-  ISLAND_HASH_FIELD(thorn_noise_scale);
-  ISLAND_HASH_FIELD(thorn_noise_min);
-  ISLAND_HASH_FIELD(thorn_grass_bias);
-  ISLAND_HASH_FIELD(shallow_patch_spacing);
-  ISLAND_HASH_FIELD(shallow_patch_chance);
-  ISLAND_HASH_FIELD(shallow_patch_min_radius);
-  ISLAND_HASH_FIELD(shallow_patch_max_radius);
-  ISLAND_HASH_FIELD(shallow_patch_bank_width);
-  for (u32 kind = 0u; kind < (u32)TFTF_ISLAND_TILE_COUNT; ++kind)
+#define HASH_FIELD(field) s_island_hash_bytes(&hash, &system->field, sizeof(system->field))
+#define HASH_BIOME(field) s_island_hash_bytes(&hash, &b->field, sizeof(b->field))
+  HASH_FIELD(seed);
+  HASH_FIELD(map_size);
+  HASH_FIELD(land_scale);
+  HASH_FIELD(island_radius);
+  HASH_FIELD(terrain_scale);
+  HASH_FIELD(surface_noise_scale);
+  HASH_FIELD(surface_noise_octaves);
+  HASH_FIELD(surface_noise_strength);
+  HASH_FIELD(moisture_scale);
+  HASH_FIELD(land_octaves);
+  HASH_FIELD(terrain_octaves);
+  HASH_FIELD(moisture_octaves);
+  HASH_FIELD(land_noise_strength);
+  HASH_FIELD(height_smoothing_strength);
+  HASH_FIELD(height_smoothing_radius);
+  HASH_FIELD(height_smoothing_edge_threshold);
+  HASH_FIELD(height_smoothing_passes);
+  HASH_FIELD(distribution_noise_scale);
+  HASH_FIELD(pool_spacing);
+  HASH_FIELD(pool_chance);
+  HASH_FIELD(pool_min_radius);
+  HASH_FIELD(pool_max_radius);
+  HASH_FIELD(pool_bank_width);
+  HASH_FIELD(pool_min_land);
+  HASH_FIELD(pool_land_value);
+  HASH_FIELD(pool_height);
+  u32 count = s_island_biome_count(system);
+  s_island_hash_bytes(&hash, &count, sizeof(count));
+  for (u32 i = 0u; i < count; ++i)
   {
+    const IslandBiomeDesc *b = s_island_biome_get(system, i);
+    HASH_BIOME(land_min);
+    HASH_BIOME(land_max);
+    HASH_BIOME(gameplay_tag);
+    HASH_BIOME(legacy_atlas_layer);
+    HASH_BIOME(terrain_min);
+    HASH_BIOME(terrain_max);
+    HASH_BIOME(moisture_min);
+    HASH_BIOME(moisture_max);
+    HASH_BIOME(distribution_min);
+    HASH_BIOME(distribution_max);
+    HASH_BIOME(min_height);
+    HASH_BIOME(max_height);
+    HASH_BIOME(land_height_weight);
+    HASH_BIOME(height_smoothing_weight);
+    HASH_BIOME(height_sample_weight);
+    HASH_BIOME(allow_inland_pools);
+    HASH_BIOME(resource_chance);
+    HASH_BIOME(resource_type);
+    HASH_BIOME(resource_center_bias);
+    HASH_BIOME(inherit_decoration_chance);
     for (u32 slot = 0u; slot < ISLAND_DECORATION_SLOT_COUNT; ++slot)
     {
-      float chance = s_island_decoration_chance_get(
-          system, (TFTFIslandTileKind)kind, slot);
+      float chance = s_island_decoration_chance_get(system, i, slot);
       s_island_hash_bytes(&hash, &chance, sizeof(chance));
     }
   }
-  ISLAND_HASH_FIELD(mountain_resource_chance);
-  ISLAND_HASH_FIELD(forest_resource_chance);
-  ISLAND_HASH_FIELD(grass_resource_chance);
-  ISLAND_HASH_FIELD(dry_resource_chance);
-  ISLAND_HASH_FIELD(shore_resource_chance);
-  ISLAND_HASH_FIELD(shallow_water_resource_chance);
-
-#undef ISLAND_HASH_FIELD
-
+#undef HASH_FIELD
+#undef HASH_BIOME
   return hash;
 }
 
-static IslandTerrainClass s_island_terrain_class_select(
-    const IslandTerrain *system, float land)
+static bool s_island_range_match(float value, float min, float max)
 {
-  if (land < system->deep_water_max)
-  {
-    return ISLAND_TERRAIN_CLASS_DEEP_WATER;
-  }
-
-  if (land < system->shallow_water_max)
-  {
-    return ISLAND_TERRAIN_CLASS_SHALLOW_WATER;
-  }
-
-  if (land < system->shore_max)
-  {
-    return ISLAND_TERRAIN_CLASS_SHORE;
-  }
-
-  return ISLAND_TERRAIN_CLASS_LAND;
+  /* Inclusive bounds; array order resolves overlaps at shared endpoints. */
+  return value >= min && value <= max;
 }
 
-static IslandBiome s_island_biome_select(
-    const IslandTerrain *system, float terrain, float moisture, float thorns)
+static u8 s_island_biome_select(const IslandTerrain *system, float land,
+    float terrain, float moisture, float distribution)
 {
-  if (terrain >= system->mountain_min)
+  for (u32 i = 0u; i < s_island_biome_count(system); ++i)
   {
-    return ISLAND_BIOME_MOUNTAIN;
+    const IslandBiomeDesc *b = s_island_biome_get(system, i);
+    if (s_island_range_match(land, b->land_min, b->land_max) &&
+        s_island_range_match(terrain, b->terrain_min, b->terrain_max) &&
+        s_island_range_match(moisture, b->moisture_min, b->moisture_max) &&
+        s_island_range_match(distribution, b->distribution_min,
+            b->distribution_max))
+      return (u8)i;
   }
-
-  /* Encourage thorn clearings inside tall grass without excluding the
-   * independent patches elsewhere. Mountains retain their priority. */
-  if (moisture >= system->dry_moisture_max &&
-      moisture < system->grass_moisture_max)
-  {
-    thorns += system->thorn_grass_bias;
-  }
-
-  if (thorns >= system->thorn_noise_min)
-  {
-    return ISLAND_BIOME_THORNS;
-  }
-
-  if (moisture < system->dry_moisture_max)
-  {
-    return ISLAND_BIOME_DRY;
-  }
-
-  if (moisture < system->grass_moisture_max)
-  {
-    return ISLAND_BIOME_GRASS;
-  }
-
-  return ISLAND_BIOME_FOREST;
+  return ISLAND_BIOME_INVALID;
 }
 
 static bool s_island_map_cell_tile_kind(
     const IslandMapCell *cell, TFTFIslandTileKind *out_kind)
 {
-  if (!cell || !out_kind)
-  {
+  const IslandBiomeDesc *b = cell && s_runtime.owner
+      ? s_island_biome_get(s_runtime.owner, cell->biome) : NULL;
+  if (!b || !out_kind || b->gameplay_tag >= TFTF_ISLAND_TILE_COUNT)
     return false;
-  }
-
-  switch ((IslandTerrainClass)cell->terrain_class)
-  {
-  case ISLAND_TERRAIN_CLASS_DEEP_WATER:
-    *out_kind = TFTF_ISLAND_TILE_DEEP_WATER;
-    return true;
-  case ISLAND_TERRAIN_CLASS_SHALLOW_WATER:
-    *out_kind = TFTF_ISLAND_TILE_SHALLOW_WATER;
-    return true;
-  case ISLAND_TERRAIN_CLASS_SHORE:
-    *out_kind = TFTF_ISLAND_TILE_SHORE;
-    return true;
-  case ISLAND_TERRAIN_CLASS_LAND:
-    break;
-  default:
-    return false;
-  }
-
-  switch ((IslandBiome)cell->biome)
-  {
-  case ISLAND_BIOME_DRY:
-    *out_kind = TFTF_ISLAND_TILE_DRY;
-    return true;
-  case ISLAND_BIOME_GRASS:
-    *out_kind = TFTF_ISLAND_TILE_GRASS;
-    return true;
-  case ISLAND_BIOME_FOREST:
-    *out_kind = TFTF_ISLAND_TILE_FOREST;
-    return true;
-  case ISLAND_BIOME_THORNS:
-    *out_kind = TFTF_ISLAND_TILE_THORNS;
-    return true;
-  case ISLAND_BIOME_MOUNTAIN:
-    *out_kind = TFTF_ISLAND_TILE_MOUNTAIN;
-    return true;
-  default:
-    return false;
-  }
+  *out_kind = (TFTFIslandTileKind)b->gameplay_tag;
+  return true;
 }
 
 static u16 s_island_map_prop_pack(u8 type, float density)
@@ -838,190 +625,73 @@ static u16 s_island_map_decoration_pack(u8 mask, float density)
 }
 
 static u16 s_island_map_decoration_select(u32 x, u32 y,
-    TFTFIslandTileKind kind, u32 world_seed, const IslandTerrain *system)
+    u32 biome_index, u32 world_seed, const IslandTerrain *system)
 {
   u8 mask = 0u;
   float density = 0.0f;
-
   for (u32 slot = 0u; slot < ISLAND_DECORATION_SLOT_COUNT; ++slot)
   {
-    float chance = s_island_decoration_chance_get(system, kind, slot);
-    u32 seed = s_hash_u32(
-        0x64a2f9bdu ^ ((u32)kind * ISLAND_DECORATION_SLOT_COUNT + slot));
+    float chance = s_island_decoration_chance_get(system, biome_index, slot);
+    u32 seed = s_hash_u32(0x64a2f9bdu ^
+        (biome_index * ISLAND_DECORATION_SLOT_COUNT + slot));
     float random = s_hash_2d_rand01((int)x, (int)y, world_seed ^ seed);
-
     if (chance <= 0.0f || random >= chance)
     {
       continue;
     }
-
     mask |= (u8)(1u << slot);
     density = fmaxf(density, chance);
   }
-
   return mask ? s_island_map_decoration_pack(mask, density) : 0u;
 }
 
-static u16 s_island_map_prop_select(u32 x, u32 y, float dist,
-    IslandTerrainClass terrain_class, IslandBiome biome, u32 world_seed,
-    const IslandMapPropRule *rules, u32 rule_count, bool use_center_bias)
+static u16 s_island_map_resource_select(u32 x, u32 y, float dist,
+    u32 biome_index, u32 world_seed, const IslandTerrain *system)
 {
-  for (u32 rule_index = 0u; rule_index < rule_count; ++rule_index)
+  const IslandBiomeDesc *b = s_island_biome_get(system, biome_index);
+  if (!b || b->resource_type == 0u || b->resource_chance <= 0.0f)
   {
-    const IslandMapPropRule *rule = &rules[rule_index];
-    float random;
-    float value;
-    float density;
-
-    if (rule->terrain_class != terrain_class)
-    {
-      continue;
-    }
-
-    if (terrain_class == ISLAND_TERRAIN_CLASS_LAND && rule->biome != biome)
-    {
-      continue;
-    }
-
-    random = s_hash_2d_rand01((int)x, (int)y, world_seed ^ rule->seed);
-    value = use_center_bias ? random * dist : random;
-
-    if (value < rule->chance)
-    {
-      density = rule->chance;
-      if (use_center_bias && dist > 1e-6f)
-      {
-        density = rule->chance / dist;
-      }
-      return s_island_map_prop_pack(rule->value, density);
-    }
+    return 0u;
   }
-
-  return 0u;
+  float random = s_hash_2d_rand01((int)x, (int)y,
+      world_seed ^ s_hash_u32(0x44cc8821u + biome_index));
+  float value = b->resource_center_bias ? random * dist : random;
+  if (value >= b->resource_chance)
+  {
+    return 0u;
+  }
+  float density = b->resource_chance;
+  if (b->resource_center_bias && dist > 1e-6f)
+  {
+    density /= dist;
+  }
+  return s_island_map_prop_pack((u8)b->resource_type, density);
 }
 
 static u16 s_island_map_height_encode(const IslandTerrain *system,
-    IslandTerrainClass terrain_class, IslandBiome biome, float land,
-    float terrain, float surface_noise, const float *biome_terrain_min,
-    const float *biome_terrain_max)
+    u32 biome_index, float land, float terrain, float surface_noise,
+    const float *biome_terrain_min, const float *biome_terrain_max)
 {
-  float height;
-
-  switch (terrain_class)
-  {
-  case ISLAND_TERRAIN_CLASS_DEEP_WATER:
-    height = system->deep_water_height;
-    break;
-
-  case ISLAND_TERRAIN_CLASS_SHALLOW_WATER:
-  {
-    /* Slope within the configured fraction of the coastal shallow band. */
-    float t = (land - system->deep_water_max) /
-        ((system->shallow_water_max - system->deep_water_max) *
-            system->shallow_slope_fraction);
-    t = fminf(1.0f, fmaxf(0.0f, t));
-    height = s_lerp_f32(system->deep_water_height,
-        system->shallow_water_height, s_smoothstep_f32(t));
-    break;
-  }
-
-  case ISLAND_TERRAIN_CLASS_SHORE:
-  {
-    float t = (land - system->shallow_water_max) /
-        (system->shore_max - system->shallow_water_max);
-    t = fminf(1.0f, fmaxf(0.0f, t));
-    height = s_lerp_f32(system->shallow_water_height,
-        system->dry_height, s_smoothstep_f32(t));
-    break;
-  }
-
-  case ISLAND_TERRAIN_CLASS_LAND:
-  default:
-  {
-    float terrain_min = biome_terrain_min[(u32)biome];
-    float terrain_max = biome_terrain_max[(u32)biome];
-    float terrain_range = terrain_max - terrain_min;
-    float relief = terrain_range > 1e-6f
-        ? (terrain - terrain_min) / terrain_range
-        : 0.5f;
-    float base_height;
-    float top_height;
-
-    if (relief < 0.0f)
-    {
-      relief = 0.0f;
-    }
-    else if (relief > 1.0f)
-    {
-      relief = 1.0f;
-    }
-
-    /*
-     * The large terrain fBm can be locally very smooth. Add a small,
-     * independent higher-frequency component so even broad biome interiors
-     * retain some surface relief. The value is expressed as a fraction of
-     * the biome's own height band, so it cannot change biome classification.
-     */
-    relief +=
-        (surface_noise * 2.0f - 1.0f) * system->surface_noise_strength;
-    if (relief < 0.0f)
-    {
-      relief = 0.0f;
-    }
-    else if (relief > 1.0f)
-    {
-      relief = 1.0f;
-    }
-
-    /*
-     * Use the complete height band reserved for this biome. Keep a very small
-     * margin below the next band's threshold so the TerrainSystem still
-     * classifies the generated height unambiguously.
-     */
-    switch (biome)
-    {
-    case ISLAND_BIOME_DRY:
-      base_height = system->dry_height;
-      top_height = system->grass_height - 0.0005f;
-      break;
-
-    case ISLAND_BIOME_GRASS:
-      base_height = system->grass_height;
-      top_height = system->forest_height - 0.0005f;
-      break;
-
-    case ISLAND_BIOME_FOREST:
-      base_height = system->forest_height;
-      top_height = system->thorn_height - 0.0005f;
-      break;
-
-    case ISLAND_BIOME_THORNS:
-      base_height = system->thorn_height;
-      top_height = system->mountain_height - 0.0005f;
-      break;
-
-    case ISLAND_BIOME_MOUNTAIN:
-    default:
-      base_height = system->mountain_height;
-      top_height = system->max_height;
-      break;
-    }
-
-    height = s_lerp_f32(base_height, top_height, relief);
-    break;
-  }
-  }
-
-  if (height < 0.0f)
-  {
-    height = 0.0f;
-  }
-  else if (height > 1.0f)
-  {
-    height = 1.0f;
-  }
-
-  return (u16)(height * 65535.0f + 0.5f);
+  const IslandBiomeDesc *b = s_island_biome_get(system, biome_index);
+  float terrain_range = biome_terrain_max[biome_index] -
+      biome_terrain_min[biome_index];
+  float terrain_relief = terrain_range > 1e-6f
+      ? (terrain - biome_terrain_min[biome_index]) / terrain_range
+      : 0.5f;
+  float land_relief = (land - b->land_min) / (b->land_max - b->land_min);
+  terrain_relief = fminf(1.0f, fmaxf(0.0f, terrain_relief));
+  land_relief = s_smoothstep_f32(
+      fminf(1.0f, fmaxf(0.0f, land_relief)));
+  /* Both elevation methods are available to every biome. In particular,
+   * using a land weight of 1 yields the smooth coastal ramp without any
+   * special coastline class or per-name code path. */
+  float relief = s_lerp_f32(terrain_relief, land_relief,
+      b->land_height_weight);
+  relief += (surface_noise * 2.0f - 1.0f) *
+      system->surface_noise_strength * (1.0f - b->land_height_weight);
+  relief = fminf(1.0f, fmaxf(0.0f, relief));
+  float height = s_lerp_f32(b->min_height, b->max_height, relief);
+  return (u16)(fminf(1.0f, fmaxf(0.0f, height)) * 65535.0f + 0.5f);
 }
 
 static void s_island_map_release(void)
@@ -1052,19 +722,16 @@ static void s_island_map_take(
 
 static bool s_island_map_cell_valid(const IslandMapCell *cell)
 {
-  if (!cell || cell->terrain_class >= ISLAND_TERRAIN_CLASS_COUNT ||
-      cell->biome >= ISLAND_BIOME_COUNT ||
-      cell->resource_rule > ISLAND_RESOURCE_RULE_COUNT)
-  {
-    return false;
-  }
-
-  return true;
+  const IslandBiomeDesc *b = cell && s_runtime.owner
+      ? s_island_biome_get(s_runtime.owner, cell->biome) : NULL;
+  return b && (cell->resource_rule == 0u ||
+      cell->resource_rule == b->resource_type);
 }
 
-static bool s_island_map_data_valid(const u16 *data, u64 cell_count)
+static bool s_island_map_data_valid(const IslandMapCell *cells,
+    const u16 *data, u64 cell_count)
 {
-  if (!data)
+  if (!cells || !data)
   {
     return false;
   }
@@ -1072,8 +739,10 @@ static bool s_island_map_data_valid(const u16 *data, u64 cell_count)
   for (u64 i = 0u; i < cell_count; ++i)
   {
     const u16 *texel = &data[i * ISLAND_MAP_CHANNEL_COUNT];
-    if (s_island_map_prop_type(texel[ISLAND_MAP_CHANNEL_RESOURCE]) >
-        ISLAND_RESOURCE_RULE_COUNT)
+    if (s_island_map_prop_type(texel[ISLAND_MAP_CHANNEL_RESOURCE]) !=
+            cells[i].resource_rule ||
+        s_island_map_prop_type(texel[ISLAND_MAP_CHANNEL_DECORATION]) !=
+            cells[i].decoration_mask)
     {
       return false;
     }
@@ -1231,7 +900,7 @@ static bool s_island_map_load(IslandTerrain *system)
       goto done;
     }
   }
-  if (!s_island_map_data_valid(map_data, cell_count))
+  if (!s_island_map_data_valid(cells, map_data, cell_count))
   {
     goto done;
   }
@@ -1305,7 +974,7 @@ done:
   return ok;
 }
 
-static bool s_island_map_height_smooth_land(const IslandTerrain *system,
+static bool s_island_map_height_smooth(const IslandTerrain *system,
     const IslandMapCell *cells, u16 *map_data)
 {
   u16 *source = NULL;
@@ -1365,11 +1034,9 @@ static bool s_island_map_height_smooth_land(const IslandTerrain *system,
         double weighted_sum = 0.0;
         double weight_sum = 0.0;
 
-        /* Preserve the analytic ocean floor and coastal ramp exactly. */
-        if ((IslandTerrainClass)cells[index].terrain_class ==
-                ISLAND_TERRAIN_CLASS_DEEP_WATER ||
-            (IslandTerrainClass)cells[index].terrain_class ==
-                ISLAND_TERRAIN_CLASS_SHALLOW_WATER)
+        const IslandBiomeDesc *current_biome =
+            s_island_biome_get(system, cells[index].biome);
+        if (current_biome->height_smoothing_weight <= 0.0f)
         {
           target[index] = source[index];
           continue;
@@ -1377,9 +1044,8 @@ static bool s_island_map_height_smooth_land(const IslandTerrain *system,
 
         /*
          * Detect actual height discontinuities instead of only biome changes.
-         * This also catches coast/shore steps such as the red regions in the
-         * debug heightmap. Normal surface noise stays untouched because its
-         * local delta is below the configured threshold.
+         * Normal surface noise stays untouched because its local delta
+         * is below the configured threshold.
          */
         for (i32 oy = -radius;
              oy <= radius && !near_hard_edge;
@@ -1485,21 +1151,14 @@ static bool s_island_map_height_smooth_land(const IslandTerrain *system,
             sample_index =
                 (u64)sy * (u64)system->map_size + (u64)sx;
 
-            /*
-             * Do not let deep ocean dominate the shoreline slope. The deep
-             * water floor and shallow ramp remain analytic; shore/land
-             * heights can blend without importing the zero ocean floor.
-             */
-            if ((IslandTerrainClass)cells[index].terrain_class !=
-                    ISLAND_TERRAIN_CLASS_DEEP_WATER &&
-                (IslandTerrainClass)cells[sample_index].terrain_class ==
-                    ISLAND_TERRAIN_CLASS_DEEP_WATER)
-            {
+            const IslandBiomeDesc *sample_biome =
+                s_island_biome_get(system, cells[sample_index].biome);
+            if (sample_biome->height_sample_weight <= 0.0f)
               continue;
-            }
 
             distance = sqrtf((float)distance2);
-            weight = (float)(radius + 1) - distance;
+            weight = ((float)(radius + 1) - distance) *
+                sample_biome->height_sample_weight;
             if (weight <= 0.0f)
             {
               continue;
@@ -1518,7 +1177,8 @@ static bool s_island_map_height_smooth_land(const IslandTerrain *system,
         {
           float current = (float)source[index];
           float blurred = (float)(weighted_sum / weight_sum);
-          float smoothed = s_lerp_f32(current, blurred, strength);
+          float smoothed = s_lerp_f32(current, blurred,
+              strength * current_biome->height_smoothing_weight);
 
           if (smoothed < 0.0f)
           {
@@ -1553,15 +1213,15 @@ static bool s_island_map_height_smooth_land(const IslandTerrain *system,
 }
 
 /* Distances here use heightmap cells, matching the island's generation scale. */
-static float s_island_shallow_patch_weight(
+/* Candidate basins remain independent of biome boundaries. */
+static float s_island_pool_weight(
     const IslandTerrain *system, u32 x, u32 y)
 {
-  float spacing = system->shallow_patch_spacing;
+  float spacing = system->pool_spacing;
   float weight = 0.0f;
   i32 grid_x;
   i32 grid_y;
-
-  if (spacing <= 0.0f || system->shallow_patch_chance <= 0.0f)
+  if (spacing <= 0.0f || system->pool_chance <= 0.0f)
   {
     return 0.0f;
   }
@@ -1574,63 +1234,51 @@ static float s_island_shallow_patch_weight(
     {
       i32 gx = grid_x + ox;
       i32 gy = grid_y + oy;
-      float center_x;
-      float center_y;
-      float radius;
-      float dx;
-      float dy;
-      float distance;
-      float angle;
-      float nx;
-      float ny;
-      float land_noise;
-      float land;
-      float terrain;
-      float t;
-
       if (s_hash_2d_rand01(gx, gy, system->seed ^ 0x68E31DA4u) >=
-          system->shallow_patch_chance)
-      {
+          system->pool_chance)
         continue;
-      }
-      center_x = ((float)gx + 0.25f + 0.5f *
+      float cx = ((float)gx + 0.25f + 0.5f *
           s_hash_2d_rand01(gx, gy, system->seed ^ 0x1B56C4E9u)) * spacing;
-      center_y = ((float)gy + 0.25f + 0.5f *
+      float cy = ((float)gy + 0.25f + 0.5f *
           s_hash_2d_rand01(gx, gy, system->seed ^ 0x9E3779B9u)) * spacing;
-      radius = s_lerp_f32(system->shallow_patch_min_radius,
-          system->shallow_patch_max_radius,
+      float radius = s_lerp_f32(system->pool_min_radius,
+          system->pool_max_radius,
           s_hash_2d_rand01(gx, gy, system->seed ^ 0xA511E9B3u));
-      dx = (float)x - center_x;
-      dy = (float)y - center_y;
-      distance = sqrtf(dx * dx + dy * dy);
-      if (distance >= radius * 1.2f + system->shallow_patch_bank_width)
+      float dx = (float)x - cx;
+      float dy = (float)y - cy;
+      float distance = sqrtf(dx * dx + dy * dy);
+      if (distance >= radius * 1.2f + system->pool_bank_width)
       {
         continue;
       }
 
-      /* Only place basins well inland and away from mountain centres. */
-      nx = center_x / (float)system->map_size * 2.0f - 1.0f;
-      ny = center_y / (float)system->map_size * 2.0f - 1.0f;
-      land_noise = s_fbm_compose_2d(center_x * system->land_scale,
-          center_y * system->land_scale, system->seed, system->land_octaves);
-      land = 1.0f - sqrtf(nx * nx + ny * ny) / system->island_radius +
+      float nx = cx / (float)system->map_size * 2.0f - 1.0f;
+      float ny = cy / (float)system->map_size * 2.0f - 1.0f;
+      float land_noise = s_fbm_compose_2d(cx * system->land_scale,
+          cy * system->land_scale, system->seed, system->land_octaves);
+      float land = 1.0f - sqrtf(nx * nx + ny * ny) / system->island_radius +
           (land_noise - 0.5f) * system->land_noise_strength;
-      terrain = s_fbm_compose_2d(center_x * system->terrain_scale,
-          center_y * system->terrain_scale, system->seed,
-          system->terrain_octaves);
-      if (land < system->shore_max +
-              4.0f * (radius + system->shallow_patch_bank_width) /
+      float terrain = s_fbm_compose_2d(cx * system->terrain_scale,
+          cy * system->terrain_scale, system->seed, system->terrain_octaves);
+      float moisture = s_fbm_compose_2d(cx * system->moisture_scale,
+          cy * system->moisture_scale, system->seed, system->moisture_octaves);
+      float distribution = s_fbm_compose_2d(
+          cx * system->distribution_noise_scale,
+          cy * system->distribution_noise_scale, system->seed ^ 0xB5297A4Du,
+          system->moisture_octaves);
+      u8 index = s_island_biome_select(system, land,
+          terrain, moisture, distribution);
+      const IslandBiomeDesc *b = s_island_biome_get(system, index);
+      if (land < system->pool_min_land +
+              4.0f * (radius + system->pool_bank_width) /
                   ((float)system->map_size * system->island_radius) ||
-          terrain >= system->mountain_min)
-      {
+          !b || !b->allow_inland_pools)
         continue;
-      }
 
-      /* Break up the circular contour without changing the flat basin floor. */
-      angle = atan2f(dy, dx);
+      float angle = atan2f(dy, dx);
       radius *= 1.0f + 0.12f * sinf(angle * 3.0f + (float)gx) +
           0.08f * cosf(angle * 5.0f + (float)gy);
-      t = (distance - radius) / system->shallow_patch_bank_width;
+      float t = (distance - radius) / system->pool_bank_width;
       t = fminf(1.0f, fmaxf(0.0f, t));
       weight = fmaxf(weight, 1.0f - s_smoothstep_f32(t));
     }
@@ -1640,186 +1288,113 @@ static float s_island_shallow_patch_weight(
 
 static bool s_island_map_generate(const IslandTerrain *system)
 {
-  IslandMapCell *cells;
-  u16 *map_data;
-  IslandMapPropRule resources[ISLAND_RESOURCE_RULE_COUNT];
-  u64 cell_count;
-  u64 value_count;
-  float *terrain_values;
-  float biome_terrain_min[ISLAND_BIOME_COUNT];
-  float biome_terrain_max[ISLAND_BIOME_COUNT];
-
-  if (!system)
-  {
-    return false;
-  }
-
-  cell_count = (u64)system->map_size * (u64)system->map_size;
-  value_count = cell_count * ISLAND_MAP_CHANNEL_COUNT;
+  IslandMapCell *cells = NULL;
+  u16 *map_data = NULL;
+  float *terrain_values = NULL;
+  float *biome_terrain_min = NULL;
+  float *biome_terrain_max = NULL;
+  u32 biome_count = s_island_biome_count(system);
+  u64 cell_count = (u64)system->map_size * (u64)system->map_size;
+  u64 value_count = cell_count * ISLAND_MAP_CHANNEL_COUNT;
+  bool ok = false;
   if (cell_count == 0u || cell_count > UINT32_MAX ||
       cell_count > (u64)(SIZE_MAX / sizeof(*cells)) ||
+      cell_count > (u64)(SIZE_MAX / sizeof(*terrain_values)) ||
       value_count > (u64)(SIZE_MAX / sizeof(*map_data)))
-  {
     return false;
-  }
-
-  resources[0] = (IslandMapPropRule){ISLAND_TERRAIN_CLASS_LAND,
-      ISLAND_BIOME_MOUNTAIN, 0x44cc8821u,
-      system->mountain_resource_chance, 1u};
-  resources[1] = (IslandMapPropRule){ISLAND_TERRAIN_CLASS_LAND,
-      ISLAND_BIOME_FOREST, 0x55dd9932u,
-      system->forest_resource_chance, 2u};
-  resources[2] = (IslandMapPropRule){ISLAND_TERRAIN_CLASS_LAND,
-      ISLAND_BIOME_GRASS, 0x66eeaa43u,
-      system->grass_resource_chance, 3u};
-  resources[3] = (IslandMapPropRule){ISLAND_TERRAIN_CLASS_LAND,
-      ISLAND_BIOME_DRY, 0x77ffbb54u, system->dry_resource_chance, 4u};
-  resources[4] = (IslandMapPropRule){ISLAND_TERRAIN_CLASS_SHORE,
-      ISLAND_BIOME_GRASS, 0x88aacc66u,
-      system->shore_resource_chance, 5u};
-  resources[5] = (IslandMapPropRule){ISLAND_TERRAIN_CLASS_SHALLOW_WATER,
-      ISLAND_BIOME_GRASS, 0x99bbdd77u,
-      system->shallow_water_resource_chance, 6u};
 
   cells = (IslandMapCell *)malloc((size_t)cell_count * sizeof(*cells));
   map_data = (u16 *)calloc((size_t)value_count, sizeof(*map_data));
   terrain_values = (float *)calloc((size_t)cell_count, sizeof(*terrain_values));
-  if (!cells || !map_data || !terrain_values)
-  {
-    free(cells);
-    free(map_data);
-    free(terrain_values);
-    return false;
-  }
-
-  for (u32 i = 0u; i < (u32)ISLAND_BIOME_COUNT; ++i)
+  biome_terrain_min = (float *)malloc((size_t)biome_count * sizeof(float));
+  biome_terrain_max = (float *)malloc((size_t)biome_count * sizeof(float));
+  if (!cells || !map_data || !terrain_values ||
+      !biome_terrain_min || !biome_terrain_max)
+    goto done;
+  for (u32 i = 0u; i < biome_count; ++i)
   {
     biome_terrain_min[i] = INFINITY;
     biome_terrain_max[i] = -INFINITY;
   }
 
-  /*
-   * First pass: generate/classify the island and record the actual terrain fBm
-   * range present in each biome. The old encoder assumed that fBm naturally
-   * covered 0..1, but in practice it occupies a much narrower middle range,
-   * which is why the heightmap looked almost flat.
-   */
+  /* Classify the map using editor-defined biome intervals and priority. */
   for (u32 y = 0u; y < system->map_size; ++y)
   {
     for (u32 x = 0u; x < system->map_size; ++x)
     {
       float land_noise = s_fbm_compose_2d((float)x * system->land_scale,
-          (float)y * system->land_scale, system->seed,
-          system->land_octaves);
-      float nx = ((float)x / (float)system->map_size) * 2.0f - 1.0f;
-      float ny = ((float)y / (float)system->map_size) * 2.0f - 1.0f;
-      float dist = sqrtf(nx * nx + ny * ny) / system->island_radius;
-      float island_mask = 1.0f - dist;
-      float land = island_mask +
-                   (land_noise - 0.5f) * system->land_noise_strength;
-      float terrain = 0.0f;
-      IslandTerrainClass terrain_class =
-          s_island_terrain_class_select(system, land);
-      IslandBiome biome = ISLAND_BIOME_GRASS;
-      u64 cell_index = (u64)y * (u64)system->map_size + (u64)x;
-      IslandMapCell *cell = &cells[cell_index];
-      if (terrain_class == ISLAND_TERRAIN_CLASS_LAND)
+          (float)y * system->land_scale, system->seed, system->land_octaves);
+      float nx = (float)x / (float)system->map_size * 2.0f - 1.0f;
+      float ny = (float)y / (float)system->map_size * 2.0f - 1.0f;
+      float land = 1.0f - sqrtf(nx * nx + ny * ny) / system->island_radius +
+          (land_noise - 0.5f) * system->land_noise_strength;
+      float terrain = s_fbm_compose_2d((float)x * system->terrain_scale,
+          (float)y * system->terrain_scale, system->seed,
+          system->terrain_octaves);
+      float moisture = s_fbm_compose_2d((float)x * system->moisture_scale,
+          (float)y * system->moisture_scale, system->seed,
+          system->moisture_octaves);
+      float distribution = s_fbm_compose_2d(
+          (float)x * system->distribution_noise_scale,
+          (float)y * system->distribution_noise_scale,
+          system->seed ^ 0xB5297A4Du, system->moisture_octaves);
+      u8 biome = s_island_biome_select(
+          system, land, terrain, moisture, distribution);
+      if (biome == ISLAND_BIOME_INVALID)
       {
-        terrain = s_fbm_compose_2d(
-            (float)x * system->terrain_scale,
-            (float)y * system->terrain_scale, system->seed,
-            system->terrain_octaves);
-        float moisture = s_fbm_compose_2d(
-            (float)x * system->moisture_scale,
-            (float)y * system->moisture_scale, system->seed,
-            system->moisture_octaves);
-
-        float thorns = s_fbm_compose_2d(
-            (float)x * system->thorn_noise_scale,
-            (float)y * system->thorn_noise_scale,
-            system->seed ^ 0xB5297A4Du, system->moisture_octaves);
-        biome = s_island_biome_select(system, terrain, moisture, thorns);
-
-        terrain_values[cell_index] = terrain;
-        if (terrain < biome_terrain_min[(u32)biome])
-        {
-          biome_terrain_min[(u32)biome] = terrain;
-        }
-        if (terrain > biome_terrain_max[(u32)biome])
-        {
-          biome_terrain_max[(u32)biome] = terrain;
-        }
+        ldk_log_error("IslandTerrain: no biome at (%u, %u): "
+            "land=%.4f terrain=%.4f moisture=%.4f distribution=%.4f.\n",
+            x, y, land, terrain, moisture, distribution);
+        goto done;
       }
-
-      cell->terrain_class = (u8)terrain_class;
-      cell->biome = (u8)biome;
-      cell->decoration_mask = 0u;
-      cell->resource_rule = 0u;
+      u64 index = (u64)y * (u64)system->map_size + (u64)x;
+      cells[index] = (IslandMapCell){biome, 0u, 0u, 0u};
+      terrain_values[index] = terrain;
+      biome_terrain_min[biome] = fminf(biome_terrain_min[biome], terrain);
+      biome_terrain_max[biome] = fmaxf(biome_terrain_max[biome], terrain);
     }
   }
 
-  /*
-   * Second pass: now that we know the range actually generated for every
-   * biome, stretch that range across the biome's full height interval.
-   */
   for (u32 y = 0u; y < system->map_size; ++y)
   {
     for (u32 x = 0u; x < system->map_size; ++x)
     {
-      u64 cell_index = (u64)y * (u64)system->map_size + (u64)x;
-      IslandMapCell *cell = &cells[cell_index];
-      IslandTerrainClass terrain_class =
-          (IslandTerrainClass)cell->terrain_class;
-      IslandBiome biome = (IslandBiome)cell->biome;
-      float land_noise = s_fbm_compose_2d(
-          (float)x * system->land_scale,
-          (float)y * system->land_scale,
-          system->seed, system->land_octaves);
-      float nx = ((float)x / (float)system->map_size) * 2.0f - 1.0f;
-      float ny = ((float)y / (float)system->map_size) * 2.0f - 1.0f;
+      u64 index = (u64)y * (u64)system->map_size + (u64)x;
+      IslandMapCell *cell = &cells[index];
+      float land_noise = s_fbm_compose_2d((float)x * system->land_scale,
+          (float)y * system->land_scale, system->seed, system->land_octaves);
+      float nx = (float)x / (float)system->map_size * 2.0f - 1.0f;
+      float ny = (float)y / (float)system->map_size * 2.0f - 1.0f;
       float land = 1.0f - sqrtf(nx * nx + ny * ny) / system->island_radius +
           (land_noise - 0.5f) * system->land_noise_strength;
-      float terrain = terrain_values[cell_index];
       float surface_noise = s_fbm_compose_2d(
           (float)x * system->surface_noise_scale,
           (float)y * system->surface_noise_scale,
-          system->seed ^ 0xA511E9B3u,
-          system->surface_noise_octaves);
-      u16 *texel = &map_data[cell_index * ISLAND_MAP_CHANNEL_COUNT];
-
-      texel[ISLAND_MAP_CHANNEL_HEIGHT] = s_island_map_height_encode(
-          system, terrain_class, biome, land, terrain, surface_noise,
-          biome_terrain_min, biome_terrain_max);
+          system->seed ^ 0xA511E9B3u, system->surface_noise_octaves);
+      map_data[index * ISLAND_MAP_CHANNEL_COUNT + ISLAND_MAP_CHANNEL_HEIGHT] =
+          s_island_map_height_encode(system, cell->biome, land,
+              terrain_values[index], surface_noise,
+              biome_terrain_min, biome_terrain_max);
     }
   }
 
 #ifdef LDK_SHAREDLIB
-  ldk_log_info(
-      "Island terrain fBm ranges: dry=[%.4f, %.4f] grass=[%.4f, %.4f] "
-      "forest=[%.4f, %.4f] thorns=[%.4f, %.4f] mountain=[%.4f, %.4f].\n",
-      biome_terrain_min[ISLAND_BIOME_DRY],
-      biome_terrain_max[ISLAND_BIOME_DRY],
-      biome_terrain_min[ISLAND_BIOME_GRASS],
-      biome_terrain_max[ISLAND_BIOME_GRASS],
-      biome_terrain_min[ISLAND_BIOME_FOREST],
-      biome_terrain_max[ISLAND_BIOME_FOREST],
-      biome_terrain_min[ISLAND_BIOME_THORNS],
-      biome_terrain_max[ISLAND_BIOME_THORNS],
-      biome_terrain_min[ISLAND_BIOME_MOUNTAIN],
-      biome_terrain_max[ISLAND_BIOME_MOUNTAIN]);
+  for (u32 i = 0u; i < biome_count; ++i)
+  {
+    const IslandBiomeDesc *b = s_island_biome_get(system, i);
+    if (biome_terrain_min[i] != INFINITY)
+      ldk_log_info("Island fBm %s: [%.4f, %.4f].\n",
+          x_smallstr_cstr(&b->name),
+          biome_terrain_min[i], biome_terrain_max[i]);
+  }
 #endif
 
-  free(terrain_values);
-  terrain_values = NULL;
-
-  if (!s_island_map_height_smooth_land(system, cells, map_data))
+  if (!s_island_map_height_smooth(system, cells, map_data))
   {
-    free(cells);
-    free(map_data);
-    free(terrain_values);
-    return false;
+    goto done;
   }
 
+  /* Apply inland pools, reselect using the adjusted land field, then props. */
   for (u32 y = 0u; y < system->map_size; ++y)
   {
     for (u32 x = 0u; x < system->map_size; ++x)
@@ -1830,50 +1405,66 @@ static bool s_island_map_generate(const IslandTerrain *system)
       float nx = (float)x / (float)system->map_size * 2.0f - 1.0f;
       float ny = (float)y / (float)system->map_size * 2.0f - 1.0f;
       float dist = sqrtf(nx * nx + ny * ny) / system->island_radius;
-
-      if ((IslandTerrainClass)cell->terrain_class == ISLAND_TERRAIN_CLASS_LAND)
+      const IslandBiomeDesc *original =
+          s_island_biome_get(system, cell->biome);
+      if (original->allow_inland_pools)
       {
-        float weight = s_island_shallow_patch_weight(system, x, y);
+        float weight = s_island_pool_weight(system, x, y);
         if (weight > 0.0f)
         {
+          float land_noise = s_fbm_compose_2d(
+              (float)x * system->land_scale, (float)y * system->land_scale,
+              system->seed, system->land_octaves);
+          float land = 1.0f - dist +
+              (land_noise - 0.5f) * system->land_noise_strength;
+          float adjusted_land = s_lerp_f32(land,
+              system->pool_land_value, weight);
+          float terrain = terrain_values[index];
+          float moisture = s_fbm_compose_2d((float)x * system->moisture_scale,
+              (float)y * system->moisture_scale, system->seed,
+              system->moisture_octaves);
+          float distribution = s_fbm_compose_2d(
+              (float)x * system->distribution_noise_scale,
+              (float)y * system->distribution_noise_scale,
+              system->seed ^ 0xB5297A4Du, system->moisture_octaves);
+          u8 adjusted_biome = s_island_biome_select(system,
+              adjusted_land, terrain, moisture, distribution);
+          if (adjusted_biome == ISLAND_BIOME_INVALID)
+          {
+            ldk_log_error("IslandTerrain: no biome for pool at (%u, %u): "
+                "land=%.4f terrain=%.4f moisture=%.4f distribution=%.4f.\n",
+                x, y, adjusted_land, terrain, moisture, distribution);
+            goto done;
+          }
           float height = s_lerp_f32((float)texel[ISLAND_MAP_CHANNEL_HEIGHT],
-              system->shallow_water_height * 65535.0f, weight);
-          texel[ISLAND_MAP_CHANNEL_HEIGHT] = (u16)(height + 0.5f);
-          if (weight >= 1.0f)
-          {
-            cell->terrain_class = ISLAND_TERRAIN_CLASS_SHALLOW_WATER;
-          }
-          else if (height < system->dry_height * 65535.0f)
-          {
-            cell->terrain_class = ISLAND_TERRAIN_CLASS_SHORE;
-          }
+              system->pool_height * 65535.0f, weight);
+          texel[ISLAND_MAP_CHANNEL_HEIGHT] =
+              (u16)(fminf(65535.0f, fmaxf(0.0f, height)) + 0.5f);
+          cell->biome = adjusted_biome;
         }
       }
-
-      /*
-       * Reclassify props as well: basins use the shallow-water configuration.
-       * Decoration uses a contextual eight-bit mask; resources remain a
-       * single selected type.
-       */
-      TFTFIslandTileKind tile_kind;
-      u16 decoration = 0u;
-      if (s_island_map_cell_tile_kind(cell, &tile_kind))
-      {
-        decoration = s_island_map_decoration_select(
-            x, y, tile_kind, system->seed, system);
-      }
-      u16 resource = s_island_map_prop_select(x, y, dist,
-          (IslandTerrainClass)cell->terrain_class, (IslandBiome)cell->biome,
-          system->seed, resources, (u32)ARRAY_COUNT(resources), true);
+      u16 decoration = s_island_map_decoration_select(
+          x, y, cell->biome, system->seed, system);
+      u16 resource = s_island_map_resource_select(
+          x, y, dist, cell->biome, system->seed, system);
       cell->decoration_mask = s_island_map_prop_type(decoration);
       cell->resource_rule = s_island_map_prop_type(resource);
       texel[ISLAND_MAP_CHANNEL_DECORATION] = decoration;
       texel[ISLAND_MAP_CHANNEL_RESOURCE] = resource;
     }
   }
-
   s_island_map_take(cells, map_data, system->map_size, system->map_size);
-  return true;
+  cells = NULL;
+  map_data = NULL;
+  ok = true;
+
+done:
+  free(cells);
+  free(map_data);
+  free(terrain_values);
+  free(biome_terrain_min);
+  free(biome_terrain_max);
+  return ok;
 }
 
 
@@ -1896,37 +1487,10 @@ bool island_terrain_map_data_get(IslandMapDataView *out_view)
 static IslandTerrainSurface s_island_map_cell_surface(
     const IslandMapCell *cell)
 {
-  if (!cell)
-  {
-    return ISLAND_TERRAIN_SURFACE_GRASS;
-  }
-
-  switch ((IslandTerrainClass)cell->terrain_class)
-  {
-  case ISLAND_TERRAIN_CLASS_DEEP_WATER:
-    return ISLAND_TERRAIN_SURFACE_DEEP_WATER;
-  case ISLAND_TERRAIN_CLASS_SHALLOW_WATER:
-    return ISLAND_TERRAIN_SURFACE_SHALLOW_WATER;
-  case ISLAND_TERRAIN_CLASS_SHORE:
-    return ISLAND_TERRAIN_SURFACE_SAND;
-  case ISLAND_TERRAIN_CLASS_LAND:
-    break;
-  default:
-    return ISLAND_TERRAIN_SURFACE_GRASS;
-  }
-
-  switch ((IslandBiome)cell->biome)
-  {
-  case ISLAND_BIOME_MOUNTAIN:
-    return ISLAND_TERRAIN_SURFACE_ROCK;
-  case ISLAND_BIOME_DRY:
-  case ISLAND_BIOME_THORNS:
-    return ISLAND_TERRAIN_SURFACE_GRASS_DARK;
-  case ISLAND_BIOME_GRASS:
-  case ISLAND_BIOME_FOREST:
-  default:
-    return ISLAND_TERRAIN_SURFACE_GRASS;
-  }
+  const IslandBiomeDesc *b = cell && s_runtime.owner
+      ? s_island_biome_get(s_runtime.owner, cell->biome) : NULL;
+  return b ? (IslandTerrainSurface)b->legacy_atlas_layer
+      : ISLAND_TERRAIN_SURFACE_GRASS;
 }
 
 static u32 s_island_terrain_surface_color(IslandTerrainSurface surface)
@@ -2141,60 +1705,38 @@ static u32 s_island_terrain_layers_at(i32 x, i32 y)
   return layers;
 }
 
-static LDKGrassTypeId s_island_terrain_grass_type_id(
-    IslandBiome biome)
+static LDKGrassTypeId s_island_terrain_grass_type_id(u32 biome_index)
 {
-  switch (biome)
+  if (biome_index >= s_island_biome_count(s_runtime.owner))
   {
-  case ISLAND_BIOME_DRY:
-    return s_runtime.dry_grass_type_id;
-  case ISLAND_BIOME_FOREST:
-    return s_runtime.forest_grass_type_id;
-  case ISLAND_BIOME_THORNS:
-    return s_runtime.thorn_grass_type_id;
-  case ISLAND_BIOME_GRASS:
-  default:
-    return s_runtime.grass_type_id;
+    return LDK_GRASS_TYPE_ID_INVALID;
   }
+  return s_runtime.grass_type_ids[biome_index];
 }
 
 static bool s_island_terrain_grass_types_resolve(
     const IslandTerrain *system, bool *out_changed)
 {
-  LDKGrassTypeId dry_id;
-  LDKGrassTypeId grass_id;
-  LDKGrassTypeId forest_id;
-  LDKGrassTypeId thorn_id;
-  LDKGrassTypeId shallow_id;
-  bool changed;
-
   if (!system)
   {
     return false;
   }
-
-  dry_id = ldk_grass_get_id_by_name(
-      x_smallstr_cstr(&system->dry_grass_type_name));
-  grass_id = ldk_grass_get_id_by_name(
-      x_smallstr_cstr(&system->grass_type_name));
-  forest_id = ldk_grass_get_id_by_name(
-      x_smallstr_cstr(&system->forest_grass_type_name));
-  thorn_id = ldk_grass_get_id_by_name(
-      x_smallstr_cstr(&system->thorn_grass_type_name));
-  shallow_id = ldk_grass_get_id_by_name(
-      x_smallstr_cstr(&system->shallow_grass_type_name));
-
-  changed = dry_id != s_runtime.dry_grass_type_id ||
-      grass_id != s_runtime.grass_type_id ||
-      forest_id != s_runtime.forest_grass_type_id ||
-      thorn_id != s_runtime.thorn_grass_type_id ||
-      shallow_id != s_runtime.shallow_grass_type_id;
-  s_runtime.dry_grass_type_id = dry_id;
-  s_runtime.grass_type_id = grass_id;
-  s_runtime.forest_grass_type_id = forest_id;
-  s_runtime.thorn_grass_type_id = thorn_id;
-  s_runtime.shallow_grass_type_id = shallow_id;
-
+  bool changed = false;
+  u32 count = s_island_biome_count(system);
+  for (u32 i = 0u; i < count; ++i)
+  {
+    const IslandBiomeDesc *b = s_island_biome_get(system, i);
+    LDKGrassTypeId id = LDK_GRASS_TYPE_ID_INVALID;
+    if (x_smallstr_length(&b->grass_type_name) != 0u)
+    {
+      id = ldk_grass_get_id_by_name(x_smallstr_cstr(&b->grass_type_name));
+    }
+    if (id != s_runtime.grass_type_ids[i])
+    {
+      changed = true;
+    }
+    s_runtime.grass_type_ids[i] = id;
+  }
   if (out_changed)
   {
     *out_changed = changed;
@@ -2222,17 +1764,7 @@ static bool s_island_terrain_tile_grass_desc(IslandTerrain *system,
   }
 
   cell = &s_map.cells[(u32)tile_y * s_map.width + (u32)tile_x];
-  bool shallow = (IslandTerrainClass)cell->terrain_class ==
-      ISLAND_TERRAIN_CLASS_SHALLOW_WATER;
-  if (!shallow &&
-      ((IslandTerrainClass)cell->terrain_class != ISLAND_TERRAIN_CLASS_LAND ||
-          (IslandBiome)cell->biome == ISLAND_BIOME_MOUNTAIN))
-  {
-    return false;
-  }
-
-  type_id = shallow ? s_runtime.shallow_grass_type_id :
-      s_island_terrain_grass_type_id((IslandBiome)cell->biome);
+  type_id = s_island_terrain_grass_type_id(cell->biome);
   if (!ldk_grass_type_get(type_id, &type) || type.density == 0.0f)
   {
     return false;
@@ -2384,6 +1916,31 @@ bool tftf_island_terrain_tile_kind_at(
   }
 
   return tftf_island_terrain_tile_kind_at_cell(cell_x, cell_y, out_kind);
+}
+
+bool island_terrain_biome_index_at_cell(
+    i32 cell_x, i32 cell_y, u32 *out_index)
+{
+  if (!out_index || !s_map.cells || cell_x < 0 || cell_y < 0 ||
+      cell_x >= (i32)s_map.width || cell_y >= (i32)s_map.height)
+    return false;
+  const IslandMapCell *cell = &s_map.cells[
+      (u32)cell_y * s_map.width + (u32)cell_x];
+  if (!s_island_biome_get(s_runtime.owner, cell->biome))
+  {
+    return false;
+  }
+  *out_index = cell->biome;
+  return true;
+}
+
+bool island_terrain_biome_index_at(Vec3 world_position, u32 *out_index)
+{
+  i32 cell_x;
+  i32 cell_y;
+  return out_index && island_terrain_world_to_cell(
+      world_position, &cell_x, &cell_y) &&
+      island_terrain_biome_index_at_cell(cell_x, cell_y, out_index);
 }
 
 bool island_terrain_grass_state_at(Vec3 world_position,
@@ -3175,11 +2732,8 @@ int island_terrain_system_initialize(void *data)
 
   memset(&s_runtime, 0, sizeof(s_runtime));
   s_runtime.owner = system;
-  s_runtime.dry_grass_type_id = LDK_GRASS_TYPE_ID_INVALID;
-  s_runtime.grass_type_id = LDK_GRASS_TYPE_ID_INVALID;
-  s_runtime.forest_grass_type_id = LDK_GRASS_TYPE_ID_INVALID;
-  s_runtime.thorn_grass_type_id = LDK_GRASS_TYPE_ID_INVALID;
-  s_runtime.shallow_grass_type_id = LDK_GRASS_TYPE_ID_INVALID;
+  for (u32 i = 0u; i < 255u; ++i)
+    s_runtime.grass_type_ids[i] = LDK_GRASS_TYPE_ID_INVALID;
   s_runtime.material_asset = ldk_asset_material_null();
   s_runtime.renderer_material = ldk_renderer_material_null();
   s_runtime.renderer_texture = ldk_renderer_texture_null();
@@ -3199,6 +2753,8 @@ int island_terrain_system_initialize(void *data)
     if (!s_island_map_generate(system))
     {
       ldk_log_error("Failed to generate island map.\n");
+      s_island_map_release();
+      memset(&s_runtime, 0, sizeof(s_runtime));
       return -1;
     }
 

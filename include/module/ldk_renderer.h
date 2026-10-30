@@ -131,6 +131,7 @@ extern "C" {
     LDK_RENDERER_WATER_TEXTURE_FOAM,
     LDK_RENDERER_WATER_TEXTURE_NOISE,
     LDK_RENDERER_WATER_TEXTURE_CAUSTICS,
+    LDK_RENDERER_WATER_TEXTURE_SILHOUETTE,
     LDK_RENDERER_WATER_TEXTURE_COUNT
   } LDKRendererWaterTexture;
 
@@ -161,6 +162,16 @@ extern "C" {
     float foam_width; // Horizontal surface distance in world units.
     float foam_strength;
     float foam_scale;
+    float silhouette_edge_fade_distance; // Outer shoreline fade in world units.
+    float foam_shallow_depth; // Shallow contact foam threshold inside outline.
+    bool lake_mask_enabled; // CPU-classified silhouette texture is available.
+    float center_x; // Water rectangle center in world coordinates.
+    float center_z;
+    float lake_origin_x; // Water rectangle minimum X/Z.
+    float lake_origin_z;
+    float lake_extent_x; // Water rectangle world-space dimensions.
+    float lake_extent_z;
+    bool debug_lake_mask; // Red inside silhouette, blue outside.
     float shore_range;
     float shore_wave_length;
     float shore_wave_speed;

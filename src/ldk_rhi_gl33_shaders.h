@@ -1570,6 +1570,9 @@
   "  vec4 u_caustics;\n" \
   "  vec4 u_fog_color;\n" \
   "  vec4 u_fog_params;\n" \
+  "  vec4 u_wave_fade;\n" \
+  "  vec4 u_lakes;\n" \
+  "  vec4 u_lake_uv;\n" \
   "};\n" \
   "const float LDK_WATER_TAU = 6.283185307179586;\n" \
   "float ldk_water_height(vec2 p)\n" \
@@ -1598,10 +1601,28 @@
   "}\n" \
   "layout(location = 0) in vec3 a_position;\n" \
   "out vec3 v_world_position;\n" \
+  "uniform sampler2D LDK_TEXTURE_12; // Filled island silhouette.\n" \
+  "float ldk_water_silhouette(vec2 p)\n" \
+  "{\n" \
+  "  if (u_lakes.x < 0.5) return 0.0;\n" \
+  "  vec2 uv = (p - u_lake_uv.xy) * u_lake_uv.zw;\n" \
+  "  if (any(lessThan(uv, vec2(0.0))) ||\n" \
+  "      any(greaterThanEqual(uv, vec2(1.0)))) return 0.0;\n" \
+  "  ivec2 size_px = textureSize(LDK_TEXTURE_12, 0);\n" \
+  "  ivec2 texel = clamp(ivec2(uv * vec2(size_px)),\n" \
+  "      ivec2(0), size_px - ivec2(1));\n" \
+  "  return texelFetch(LDK_TEXTURE_12, texel, 0).r;\n" \
+  "}\n" \
+  "float ldk_water_wave_fade(vec2 p)\n" \
+  "{\n" \
+  "  return 1.0 - ldk_water_silhouette(p);\n" \
+  "}\n" \
   "void main()\n" \
   "{\n" \
-  "  v_world_position = vec3(a_position.x, ldk_water_height(a_position.xz),\n" \
-  "      a_position.z);\n" \
+  "  float fade = ldk_water_wave_fade(a_position.xz);\n" \
+  "  float height = u_viewport.z + fade *\n" \
+  "      (ldk_water_height(a_position.xz) - u_viewport.z);\n" \
+  "  v_world_position = vec3(a_position.x, height, a_position.z);\n" \
   "  gl_Position = u_view_projection * vec4(v_world_position, 1.0);\n" \
   "}\n"
 
@@ -1630,6 +1651,9 @@
   "  vec4 u_caustics;\n" \
   "  vec4 u_fog_color;\n" \
   "  vec4 u_fog_params;\n" \
+  "  vec4 u_wave_fade;\n" \
+  "  vec4 u_lakes;\n" \
+  "  vec4 u_lake_uv;\n" \
   "};\n" LDK_GL33_FOG_FACTOR_GLSL \
   "const float LDK_WATER_TAU = 6.283185307179586;\n" \
   "uniform sampler2D LDK_TEXTURE_1;  // Opaque depth, nearest/clamp.\n" \
@@ -1639,6 +1663,22 @@
   "uniform sampler2D LDK_TEXTURE_11; // Caustics mask, R.\n" \
   "in vec3 v_world_position;\n" \
   "out vec4 out_color;\n" \
+  "uniform sampler2D LDK_TEXTURE_12; // Filled island silhouette.\n" \
+  "float ldk_water_silhouette(vec2 p)\n" \
+  "{\n" \
+  "  if (u_lakes.x < 0.5) return 0.0;\n" \
+  "  vec2 uv = (p - u_lake_uv.xy) * u_lake_uv.zw;\n" \
+  "  if (any(lessThan(uv, vec2(0.0))) ||\n" \
+  "      any(greaterThanEqual(uv, vec2(1.0)))) return 0.0;\n" \
+  "  ivec2 size_px = textureSize(LDK_TEXTURE_12, 0);\n" \
+  "  ivec2 texel = clamp(ivec2(uv * vec2(size_px)),\n" \
+  "      ivec2(0), size_px - ivec2(1));\n" \
+  "  return texelFetch(LDK_TEXTURE_12, texel, 0).r;\n" \
+  "}\n" \
+  "float ldk_water_wave_fade(vec2 p)\n" \
+  "{\n" \
+  "  return 1.0 - ldk_water_silhouette(p);\n" \
+  "}\n" \
   "\n" \
   "vec2 ldk_water_gradient(vec2 p)\n" \
   "{\n" \
@@ -1806,8 +1846,10 @@
   "\n" \
   "  vec2 noise = ldk_water_noise(v_world_position.xz);\n" \
   "  vec2 distortion = noise * u_noise.z;\n" \
-  "  vec2 gradient = ldk_water_gradient(v_world_position.xz) +\n" \
-  "      ldk_water_detail(v_world_position.xz, distortion);\n" \
+  "  float wave_fade = ldk_water_wave_fade(v_world_position.xz);\n" \
+  "  vec2 gradient = wave_fade *\n" \
+  "      (ldk_water_gradient(v_world_position.xz) +\n" \
+  "      ldk_water_detail(v_world_position.xz, distortion));\n" \
   "  vec3 normal = normalize(vec3(-gradient.x, 1.0, -gradient.y));\n" \
   "  vec3 view_direction = normalize(u_camera_time.xyz - v_world_position);\n" \
   "  vec3 sun_direction = u_sun_color.a > 0.0\n" \
@@ -1889,8 +1931,15 @@
   "      ? (1.0 - smoothstep(contact_range * 0.55, contact_range, " \
   "contact_distance)) *\n" \
   "          contact_pattern * u_foam.y : 0.0;\n" \
+  "  if (u_lakes.x > 0.5 && u_lakes.y > 0.0)\n" \
+  "  {\n" \
+  "    float shallow = smoothstep(0.0, u_lakes.y, water_depth);\n" \
+  "    contact *= mix(1.0, shallow,\n" \
+  "        ldk_water_silhouette(v_world_position.xz));\n" \
+  "  }\n" \
   "  float surf = u_shore.x > 0.0\n" \
-  "      ? band * (1.0 - smoothstep(0.0, u_shore.x, water_depth)) *\n" \
+  "      ? band *\n" \
+  "          (1.0 - smoothstep(0.0, u_shore.x, water_depth)) *\n" \
   "          surface_pattern * u_shore.w * shore_slope *\n" \
   "          smoothstep(0.2, 0.6, bottom_normal.y) : 0.0;\n" \
   "  float surface_foam = u_texture_flags.y > 0.5\n" \
@@ -1910,6 +1959,8 @@
   "      u_camera_time.xyz, u_fog_params);\n" \
   "  color.rgb = mix(color.rgb, u_fog_color.rgb * color.a, fog);\n" \
   "  out_color = color;\n" \
+  "  if (u_wave_fade.w > 0.5)\n" \
+  "    out_color = vec4(1.0 - wave_fade, 0.0, wave_fade, 1.0);\n" \
   "}\n"
 
 #endif // LDK_RHI_GL33_SHADERS_H
