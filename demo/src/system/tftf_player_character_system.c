@@ -1,6 +1,6 @@
 #include "tftf_player_character_system.h"
 
-#include "island_terrain.h"
+#include "tftf_island_system.h"
 #include "../component/tftf_player_character.h"
 
 #include <component/ldk_transform.h>
@@ -129,7 +129,7 @@ static float s_environment_speed_scale(LDKEntity entity,
     return 1.0f;
   }
 
-  if (tftf_island_terrain_tile_kind_at(position, &tile))
+  if (tftf_island_tile_kind_at(position, &tile))
   {
     speed_scale *= s_tile_speed_scale(player, tile);
   }
@@ -139,7 +139,7 @@ static float s_environment_speed_scale(LDKEntity entity,
   high_grass_density_min =
       s_finite_non_negative(player->high_grass_density_min, 0.0f);
 
-  if (island_terrain_grass_state_at(position, &density, &min_height) &&
+  if (tftf_island_grass_state_at(position, &density, &min_height) &&
       isfinite(density) && isfinite(min_height) &&
       min_height >= high_grass_height)
   {
@@ -148,7 +148,7 @@ static float s_environment_speed_scale(LDKEntity entity,
       float cut_scale = isfinite(player->grass_cut_density_scale)
           ? float_clamp(player->grass_cut_density_scale, 0.0f, 1.0f)
           : 1.0f;
-      if (island_terrain_grass_density_multiply_at(position, cut_scale))
+      if (tftf_island_grass_density_multiply_at(position, cut_scale))
       {
         density *= cut_scale;
       }

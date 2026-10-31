@@ -1,6 +1,6 @@
 #include "tftf_decoration_system.h"
 
-#include "island_terrain.h"
+#include "tftf_island_system.h"
 
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_transform.h>
@@ -1123,20 +1123,20 @@ static bool s_rebuild(TFTFDecorationSystem *system,
       const u16 *texel =
           &map->texels[cell_index * TFTF_ISLAND_MAP_CHANNEL_COUNT];
       u16 packed = texel[TFTF_ISLAND_MAP_CHANNEL_DECORATION];
-      u8 mask = island_terrain_map_decoration_mask_get(packed);
+      u8 mask = tftf_island_map_decoration_mask_get(packed);
       TFTFIslandTileKind kind;
 
       ++active_cells;
-      if (mask == 0u || !tftf_island_terrain_tile_kind_at_cell(
+      if (mask == 0u || !tftf_island_tile_kind_at_cell(
                              (i32)x, (i32)y, &kind))
       {
         continue;
       }
 
-      float density = island_terrain_map_density_get(packed);
+      float density = tftf_island_map_density_get(packed);
       Vec2 cell_min;
       Vec2 cell_max;
-      if (!island_terrain_cell_world_bounds(
+      if (!tftf_island_cell_world_bounds(
               (i32)x, (i32)y, &cell_min, &cell_max))
       {
         return false;
@@ -1272,9 +1272,9 @@ void tftf_decoration_system_update(
     return;
   }
 
-  if (!island_terrain_map_data_get(&map) ||
+  if (!tftf_island_map_data_get(&map) ||
       !s_player_world_position(group->entities[0], &player_position) ||
-      !island_terrain_world_to_cell(player_position, &center_x, &center_y))
+      !tftf_island_world_to_cell(player_position, &center_x, &center_y))
   {
     return;
   }

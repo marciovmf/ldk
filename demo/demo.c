@@ -22,7 +22,7 @@
 #include "src/component/tftf_projectile.h"
 #include "src/component/tftf_player_character.h"
 #include "src/system/hello.h"
-#include "src/system/island_terrain.h"
+#include "src/system/tftf_island_system.h"
 #include "src/system/tftf_decoration_system.h"
 #include "src/system/tftf_bulb_plant_ai_system.h"
 #include "src/system/tftf_bullet_system.h"
