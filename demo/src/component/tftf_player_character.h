@@ -15,6 +15,9 @@ typedef struct TFTFPlayerCharacterComponent
   /* Seconds to coast from full speed to rest after input is released. */
   //@inspect min=0
   float inertia;
+  /** Maximum walkable terrain inclination in degrees (0 disables limit). */
+  //@inspect slider min=0 max=89
+  float max_slope_degrees;
   //@end_group
 
   //@begin_group "High Grass"

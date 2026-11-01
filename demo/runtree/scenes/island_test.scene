@@ -131,13 +131,14 @@ scene:
             speed: 4.00000000
             acceleration: 18.0000000
             inertia: 0.150000006
+            max_slope_degrees: 25.0000000
             high_grass_height: 0.600000024
-            high_grass_density_min: 90.0000000
-            high_grass_speed_scale: 0.800000012
+            high_grass_density_min: 15.0000000
+            high_grass_speed_scale: 0.307344615
             grass_cut_density_scale: 0.750000000
-            deep_water_speed_scale: 1.00000000
-            shallow_water_speed_scale: 1.00000000
-            shore_speed_scale: 1.00000000
+            deep_water_speed_scale: 0.319774002
+            shallow_water_speed_scale: 0.717514157
+            shore_speed_scale: 0.816949129
             dry_speed_scale: 1.00000000
             grass_speed_scale: 1.00000000
             forest_speed_scale: 1.00000000
@@ -435,52 +436,22 @@ scene:
             noise_color_stop_3_color: 1115506943
     - id: "0x16579764b6b8ca95"
       data:
-        seed: 10012
+        seed: 10013
         map_size: 600
-        generator_land_percent: 33.0000000
-        generator_min_satellite_gap_tiles: 3.00000000
-        generator_max_satellite_gap_tiles: 5.00000000
-        generator_sea_level: 0.120000000
-        generator_height_scale: 2.00000000
-        generator_water_depth_scale: 0.500000000
-        land_scale: 0.00970000029
-        island_radius: 0.800000012
-        terrain_scale: 0.00999999978
-        surface_noise_scale: 0.0500000007
-        surface_noise_octaves: 3
-        surface_noise_strength: 0.300000012
-        moisture_scale: 0.0179999992
-        distribution_noise_scale: 0.0250000004
-        land_octaves: 5
-        terrain_octaves: 4
-        moisture_octaves: 3
-        land_noise_strength: 0.750000000
-        height_smoothing_strength: 0.899999976
-        height_smoothing_radius: 8
-        height_smoothing_edge_threshold: 0.00800000038
-        height_smoothing_passes: 2
+        land_coverage_percent: 33.0000000
+        min_island_gap_tiles: 10.0000000
+        max_island_gap_tiles: 15.0000000
+        sea_level: 0.119999997
+        land_height_scale: 2.00000000
+        underwater_depth_scale: 0.500000000
         biomes:
           - name: "Deep Water"
-            land_min: -4.00000000
-            land_max: 2.00000000
-            terrain_min: 0.00000000
-            terrain_max: 1.00000000
-            moisture_min: 0.00000000
-            moisture_max: 1.00000000
-            distribution_min: 0.00000000
-            distribution_max: 1.00000000
-            min_height: 0.00000000
-            max_height: 0.10000000
-            land_height_weight: 0.00000000
-            height_smoothing_weight: 1.00000000
-            height_sample_weight: 1.00000000
             grass_type_name: ""
             generator_surface_enabled: true
             generator_surface: 0
-            allow_inland_pools: false
             gameplay_tag: 0
             legacy_atlas_layer: 0
-            resource_chance: 0.000000000
+            resource_chance: 0.00000000
             resource_type: 0
             resource_center_bias: true
             inherit_decoration_chance: true
@@ -493,23 +464,9 @@ scene:
             decoration_6_chance: 0.00000000
             decoration_7_chance: 0.00000000
           - name: "Shallow Water"
-            land_min: -4.00000000
-            land_max: 2.00000000
-            terrain_min: 0.00000000
-            terrain_max: 1.00000000
-            moisture_min: 0.00000000
-            moisture_max: 1.00000000
-            distribution_min: 0.00000000
-            distribution_max: 1.00000000
-            min_height: 0.00000000
-            max_height: 0.10000000
-            land_height_weight: 0.00000000
-            height_smoothing_weight: 1.00000000
-            height_sample_weight: 1.00000000
             grass_type_name: "shallow_grass"
             generator_surface_enabled: true
             generator_surface: 1
-            allow_inland_pools: false
             gameplay_tag: 1
             legacy_atlas_layer: 1
             resource_chance: 0.00100000005
@@ -525,23 +482,9 @@ scene:
             decoration_6_chance: 0.00000000
             decoration_7_chance: 0.00000000
           - name: "Sand"
-            land_min: -4.00000000
-            land_max: 2.00000000
-            terrain_min: 0.00000000
-            terrain_max: 1.00000000
-            moisture_min: 0.00000000
-            moisture_max: 1.00000000
-            distribution_min: 0.00000000
-            distribution_max: 1.00000000
-            min_height: 0.10000000
-            max_height: 0.17000000
-            land_height_weight: 0.00000000
-            height_smoothing_weight: 1.00000000
-            height_sample_weight: 1.00000000
             grass_type_name: ""
             generator_surface_enabled: true
             generator_surface: 2
-            allow_inland_pools: false
             gameplay_tag: 2
             legacy_atlas_layer: 2
             resource_chance: 0.00150000001
@@ -557,23 +500,9 @@ scene:
             decoration_6_chance: 0.00000000
             decoration_7_chance: 0.00000000
           - name: "Grass"
-            land_min: -4.00000000
-            land_max: 2.00000000
-            terrain_min: 0.00000000
-            terrain_max: 1.00000000
-            moisture_min: 0.00000000
-            moisture_max: 1.00000000
-            distribution_min: 0.00000000
-            distribution_max: 1.00000000
-            min_height: 0.20000000
-            max_height: 0.22950000
-            land_height_weight: 0.00000000
-            height_smoothing_weight: 1.00000000
-            height_sample_weight: 1.00000000
             grass_type_name: "grass"
             generator_surface_enabled: true
             generator_surface: 3
-            allow_inland_pools: true
             gameplay_tag: 4
             legacy_atlas_layer: 4
             resource_chance: 0.000199999995
@@ -589,23 +518,9 @@ scene:
             decoration_6_chance: 0.00000000
             decoration_7_chance: 0.00000000
           - name: "Dry"
-            land_min: -4.00000000
-            land_max: 2.00000000
-            terrain_min: 0.00000000
-            terrain_max: 1.00000000
-            moisture_min: 0.00000000
-            moisture_max: 1.00000000
-            distribution_min: 0.00000000
-            distribution_max: 1.00000000
-            min_height: 0.17000000
-            max_height: 0.19950000
-            land_height_weight: 0.00000000
-            height_smoothing_weight: 1.00000000
-            height_sample_weight: 1.00000000
             grass_type_name: "dry_grass"
             generator_surface_enabled: true
             generator_surface: 4
-            allow_inland_pools: true
             gameplay_tag: 3
             legacy_atlas_layer: 3
             resource_chance: 0.00200000009
@@ -621,23 +536,9 @@ scene:
             decoration_6_chance: 0.00000000
             decoration_7_chance: 0.00000000
           - name: "Forest"
-            land_min: -4.00000000
-            land_max: 2.00000000
-            terrain_min: 0.00000000
-            terrain_max: 1.00000000
-            moisture_min: 0.00000000
-            moisture_max: 1.00000000
-            distribution_min: 0.00000000
-            distribution_max: 1.00000000
-            min_height: 0.23000000
-            max_height: 0.24950000
-            land_height_weight: 0.00000000
-            height_smoothing_weight: 1.00000000
-            height_sample_weight: 1.00000000
             grass_type_name: "forest_grass"
             generator_surface_enabled: true
             generator_surface: 5
-            allow_inland_pools: true
             gameplay_tag: 5
             legacy_atlas_layer: 4
             resource_chance: 0.00300000003
@@ -653,23 +554,9 @@ scene:
             decoration_6_chance: 0.00000000
             decoration_7_chance: 0.00000000
           - name: "Tall Grass"
-            land_min: -4.00000000
-            land_max: 2.00000000
-            terrain_min: 0.00000000
-            terrain_max: 1.00000000
-            moisture_min: 0.00000000
-            moisture_max: 1.00000000
-            distribution_min: 0.00000000
-            distribution_max: 1.00000000
-            min_height: 0.20000000
-            max_height: 0.22950000
-            land_height_weight: 0.00000000
-            height_smoothing_weight: 1.00000000
-            height_sample_weight: 1.00000000
             grass_type_name: "grass"
             generator_surface_enabled: true
             generator_surface: 6
-            allow_inland_pools: true
             gameplay_tag: 4
             legacy_atlas_layer: 4
             resource_chance: 0.000199999995
@@ -685,26 +572,12 @@ scene:
             decoration_6_chance: 0.00000000
             decoration_7_chance: 0.00000000
           - name: "Thorns"
-            land_min: -4.00000000
-            land_max: 2.00000000
-            terrain_min: 0.00000000
-            terrain_max: 1.00000000
-            moisture_min: 0.00000000
-            moisture_max: 1.00000000
-            distribution_min: 0.00000000
-            distribution_max: 1.00000000
-            min_height: 0.25000000
-            max_height: 0.26950000
-            land_height_weight: 0.00000000
-            height_smoothing_weight: 1.00000000
-            height_sample_weight: 1.00000000
             grass_type_name: "thorn_grass"
             generator_surface_enabled: true
             generator_surface: 7
-            allow_inland_pools: true
             gameplay_tag: 6
             legacy_atlas_layer: 3
-            resource_chance: 0.000000000
+            resource_chance: 0.00000000
             resource_type: 0
             resource_center_bias: true
             inherit_decoration_chance: true
@@ -717,23 +590,9 @@ scene:
             decoration_6_chance: 0.00000000
             decoration_7_chance: 0.00000000
           - name: "Rock"
-            land_min: -4.00000000
-            land_max: 2.00000000
-            terrain_min: 0.00000000
-            terrain_max: 1.00000000
-            moisture_min: 0.00000000
-            moisture_max: 1.00000000
-            distribution_min: 0.00000000
-            distribution_max: 1.00000000
-            min_height: 0.27000000
-            max_height: 0.36000000
-            land_height_weight: 0.00000000
-            height_smoothing_weight: 1.00000000
-            height_sample_weight: 1.00000000
             grass_type_name: ""
             generator_surface_enabled: true
             generator_surface: 8
-            allow_inland_pools: false
             gameplay_tag: 7
             legacy_atlas_layer: 5
             resource_chance: 0.00300000003
@@ -748,14 +607,6 @@ scene:
             decoration_5_chance: 0.00000000
             decoration_6_chance: 0.00000000
             decoration_7_chance: 0.00000000
-        pool_spacing: 120.000000
-        pool_chance: 0.500000000
-        pool_min_radius: 9.00000000
-        pool_max_radius: 15.0000000
-        pool_bank_width: 12.0000000
-        pool_min_land: 0.110000000
-        pool_land_value: 0.0500000007
-        pool_height: 0.100000001
         radius: 8
         cell_size: 1.00000000
         elevation: 0.100000001
@@ -870,6 +721,9 @@ scene:
         surface_1_sprite_id: "2"
         surface_1_uv_scale: 1.00000000, 1.00000000
         surface_1_texture_weight: 0.0799999982
+        surface_1_use_slope: false
+        surface_1_min_slope_degrees: 0.00000000
+        surface_1_slope_blend_degrees: 0.00000000
         surface_2_name: "Dry"
         surface_2_min_height: 0.170000002
         surface_2_blend_width: 0.0153194265
@@ -879,6 +733,9 @@ scene:
         surface_2_sprite_id: "3"
         surface_2_uv_scale: 1.00000000, 1.00000000
         surface_2_texture_weight: 0.0799999982
+        surface_2_use_slope: false
+        surface_2_min_slope_degrees: 0.00000000
+        surface_2_slope_blend_degrees: 0.00000000
         surface_3_name: "Grass"
         surface_3_min_height: 0.200000003
         surface_3_blend_width: 0.176042676
@@ -888,6 +745,9 @@ scene:
         surface_3_sprite_id: "4"
         surface_3_uv_scale: 1.00000000, 1.00000000
         surface_3_texture_weight: 0.0799999982
+        surface_3_use_slope: false
+        surface_3_min_slope_degrees: 0.00000000
+        surface_3_slope_blend_degrees: 0.00000000
         surface_4_name: "Forest"
         surface_4_min_height: 0.211200893
         surface_4_blend_width: 0.0404324383
@@ -897,6 +757,9 @@ scene:
         surface_4_sprite_id: "5"
         surface_4_uv_scale: 1.00000000, 1.00000000
         surface_4_texture_weight: 0.0799999982
+        surface_4_use_slope: false
+        surface_4_min_slope_degrees: 0.00000000
+        surface_4_slope_blend_degrees: 0.00000000
         surface_5_name: "Thorns"
         surface_5_min_height: 0.250000000
         surface_5_blend_width: 0.00499999989
@@ -906,6 +769,9 @@ scene:
         surface_5_sprite_id: "6"
         surface_5_uv_scale: 1.00000000, 1.00000000
         surface_5_texture_weight: 0.0799999982
+        surface_5_use_slope: false
+        surface_5_min_slope_degrees: 0.00000000
+        surface_5_slope_blend_degrees: 0.00000000
         surface_6_name: "Mountain"
         surface_6_min_height: 0.258184999
         surface_6_blend_width: 0.00800000038
@@ -915,6 +781,9 @@ scene:
         surface_6_sprite_id: "0"
         surface_6_uv_scale: 1.00000000, 1.00000000
         surface_6_texture_weight: 0.0799999982
+        surface_6_use_slope: false
+        surface_6_min_slope_degrees: 0.00000000
+        surface_6_slope_blend_degrees: 0.00000000
         surface_7_name: ""
         surface_7_min_height: 0.00000000
         surface_7_blend_width: 0.00000000
@@ -924,6 +793,10 @@ scene:
         surface_7_sprite_id: "0"
         surface_7_uv_scale: 1.00000000, 1.00000000
         surface_7_texture_weight: 0.00000000
+        surface_7_use_slope: false
+        surface_7_min_slope_degrees: 0.00000000
+        surface_7_slope_blend_degrees: 0.00000000
+        cull: true
         casts_shadows: false
     - id: "0x00e9968219b6aae4"
       data:

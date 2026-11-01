@@ -1513,6 +1513,7 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
       material_params.terrain_range[i][0] = surface->min_height;
       material_params.terrain_range[i][1] = surface->blend_width;
       material_params.terrain_range[i][2] = surface->texture_weight;
+      material_params.terrain_range[i][3] = surface->use_slope ? 1.0f : 0.0f;
       material_params.terrain_color[i][0] = color.r;
       material_params.terrain_color[i][1] = color.g;
       material_params.terrain_color[i][2] = color.b;
@@ -1523,6 +1524,8 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
       material_params.terrain_atlas_rect[i][3] = surface->atlas_rect.w;
       material_params.terrain_uv_scale[i][0] = surface->uv_scale.x;
       material_params.terrain_uv_scale[i][1] = surface->uv_scale.y;
+      material_params.terrain_uv_scale[i][2] = surface->min_slope_degrees;
+      material_params.terrain_uv_scale[i][3] = surface->slope_blend_degrees;
     }
   }
   if (vegetation && renderer->vegetation_interaction_enabled)

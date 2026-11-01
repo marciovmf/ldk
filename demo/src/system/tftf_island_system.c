@@ -21,7 +21,7 @@
 #define ISLAND_MAP_FILE_NAME "map.bin"
 #define ISLAND_MAP_FILE_MAGIC 0x4C444B4Du
 #define ISLAND_MAP_FILE_VERSION 3u
-#define ISLAND_MAP_GENERATOR_VERSION 12u
+#define ISLAND_MAP_GENERATOR_VERSION 13u
 
 #define ISLAND_TERRAIN_COLOR_DEEP_WATER 0x426F7DFFu
 #define ISLAND_TERRAIN_COLOR_SHALLOW_WATER 0x6696A0FFu
@@ -204,16 +204,6 @@ void tftf_island_biome_initialize(void *element)
   b->legacy_atlas_layer = 4u;
   b->generator_surface_enabled = false;
   b->generator_surface = 3u;
-  b->land_min = -4.0f;
-  b->land_max = 2.0f;
-  b->terrain_max = 1.0f;
-  b->moisture_max = 1.0f;
-  b->distribution_max = 1.0f;
-  b->min_height = 0.20f;
-  b->max_height = 0.23f;
-  b->height_smoothing_weight = 1.0f;
-  b->height_sample_weight = 1.0f;
-  b->allow_inland_pools = true;
   b->resource_center_bias = true;
   b->inherit_decoration_chance = true;
 }
@@ -224,18 +214,14 @@ static void s_island_terrain_generation_defaults(TFTFIslandSystem *system)
   {
     return;
   }
-  if (system->generator_land_percent == 0.0f)
+  if (system->land_coverage_percent == 0.0f)
   {
-    system->generator_land_percent = 33.0f;
-    system->generator_min_satellite_gap_tiles = 3.0f;
-    system->generator_max_satellite_gap_tiles = 5.0f;
-    system->generator_sea_level = 0.12f;
-    system->generator_height_scale = 2.0f;
-    system->generator_water_depth_scale = 0.5f;
-  }
-  if (system->distribution_noise_scale == 0.0f)
-  {
-    system->distribution_noise_scale = 0.025f;
+    system->land_coverage_percent = 33.0f;
+    system->min_island_gap_tiles = 3.0f;
+    system->max_island_gap_tiles = 5.0f;
+    system->sea_level = 0.12f;
+    system->land_height_scale = 2.0f;
+    system->underwater_depth_scale = 0.5f;
   }
   if (system->map_size != 0u)
   {
@@ -248,30 +234,6 @@ static void s_island_terrain_generation_defaults(TFTFIslandSystem *system)
 
   system->seed = system->seed ? system->seed : 1u;
   system->map_size = 800u;
-  system->land_scale = 0.0097f;
-  system->island_radius = 0.8f;
-  system->terrain_scale = 0.010f;
-  system->surface_noise_scale = 0.050f;
-  system->surface_noise_octaves = 3u;
-  system->surface_noise_strength = 0.30f;
-  system->moisture_scale = 0.018f;
-  system->land_octaves = 5u;
-  system->terrain_octaves = 4u;
-  system->moisture_octaves = 3u;
-  system->land_noise_strength = 0.75f;
-  system->height_smoothing_strength = 0.90f;
-  system->height_smoothing_radius = 8u;
-  system->height_smoothing_edge_threshold = 0.008f;
-  system->height_smoothing_passes = 2u;
-  system->distribution_noise_scale = 0.025f;
-  system->pool_spacing = 90.0f;
-  system->pool_chance = 0.35f;
-  system->pool_min_radius = 6.0f;
-  system->pool_max_radius = 11.0f;
-  system->pool_bank_width = 10.0f;
-  system->pool_min_land = 0.11f;
-  system->pool_land_value = 0.05f;
-  system->pool_height = 0.10f;
 }
 
 static bool s_island_chance_is_valid(float chance)
@@ -333,70 +295,22 @@ static bool s_island_terrain_generation_valid(const TFTFIslandSystem *system)
       cell_count > (u64)(SIZE_MAX / sizeof(IslandMapCell)))
     return false;
 
-  if (!isfinite(system->land_scale) || system->land_scale <= 0.0f ||
-      !isfinite(system->island_radius) || system->island_radius <= 0.0f ||
-      !isfinite(system->terrain_scale) || system->terrain_scale <= 0.0f ||
-      !isfinite(system->surface_noise_scale) ||
-      system->surface_noise_scale <= 0.0f ||
-      system->surface_noise_octaves == 0u ||
-      system->surface_noise_octaves > 8u ||
-      !isfinite(system->surface_noise_strength) ||
-      system->surface_noise_strength < 0.0f ||
-      system->surface_noise_strength > 0.5f ||
-      !isfinite(system->moisture_scale) || system->moisture_scale <= 0.0f ||
-      system->land_octaves == 0u || system->land_octaves > 32u ||
-      system->terrain_octaves == 0u || system->terrain_octaves > 32u ||
-      system->moisture_octaves == 0u || system->moisture_octaves > 32u ||
-      !isfinite(system->land_noise_strength) ||
-      system->land_noise_strength < 0.0f ||
-      !isfinite(system->height_smoothing_strength) ||
-      system->height_smoothing_strength < 0.0f ||
-      system->height_smoothing_strength > 1.0f ||
-      system->height_smoothing_radius > 24u ||
-      !isfinite(system->height_smoothing_edge_threshold) ||
-      system->height_smoothing_edge_threshold < 0.0f ||
-      system->height_smoothing_edge_threshold > 0.1f ||
-      system->height_smoothing_passes > 8u)
-    return false;
-
   if (!isfinite(system->cell_size) || system->cell_size <= 0.0f ||
-      !isfinite(system->generator_land_percent) ||
-      system->generator_land_percent < 1.0f ||
-      system->generator_land_percent > 80.0f ||
-      !isfinite(system->generator_min_satellite_gap_tiles) ||
-      system->generator_min_satellite_gap_tiles < 0.0f ||
-      !isfinite(system->generator_max_satellite_gap_tiles) ||
-      system->generator_max_satellite_gap_tiles <
-          system->generator_min_satellite_gap_tiles ||
-      !isfinite(system->generator_sea_level) ||
-      system->generator_sea_level < 0.0f ||
-      system->generator_sea_level > 1.0f ||
-      !isfinite(system->generator_height_scale) ||
-      system->generator_height_scale <= 0.0f ||
-      !isfinite(system->generator_water_depth_scale) ||
-      system->generator_water_depth_scale <= 0.0f)
-    return false;
-
-  if (!isfinite(system->distribution_noise_scale) ||
-      system->distribution_noise_scale <= 0.0f ||
-      !isfinite(system->pool_spacing) ||
-      system->pool_spacing < 0.0f ||
-      !s_island_chance_is_valid(system->pool_chance) ||
-      !isfinite(system->pool_min_land) ||
-      !isfinite(system->pool_land_value) ||
-      !s_island_chance_is_valid(system->pool_height))
-    return false;
-
-  if (system->pool_spacing > 0.0f &&
-      (!isfinite(system->pool_min_radius) ||
-          system->pool_min_radius < 1.0f ||
-          !isfinite(system->pool_max_radius) ||
-          system->pool_max_radius < system->pool_min_radius ||
-          !isfinite(system->pool_bank_width) ||
-          system->pool_bank_width < 1.0f ||
-          1.2f * system->pool_max_radius +
-              system->pool_bank_width >
-                  system->pool_spacing * 0.5f))
+      !isfinite(system->land_coverage_percent) ||
+      system->land_coverage_percent < 1.0f ||
+      system->land_coverage_percent > 80.0f ||
+      !isfinite(system->min_island_gap_tiles) ||
+      system->min_island_gap_tiles < 0.0f ||
+      !isfinite(system->max_island_gap_tiles) ||
+      system->max_island_gap_tiles <
+          system->min_island_gap_tiles ||
+      !isfinite(system->sea_level) ||
+      system->sea_level < 0.0f ||
+      system->sea_level > 1.0f ||
+      !isfinite(system->land_height_scale) ||
+      system->land_height_scale <= 0.0f ||
+      !isfinite(system->underwater_depth_scale) ||
+      system->underwater_depth_scale <= 0.0f)
     return false;
 
   for (u32 i = 0u; i < count; ++i)
@@ -406,24 +320,7 @@ static bool s_island_terrain_generation_valid(const TFTFIslandSystem *system)
           b->generator_surface >= TFTF_ISLAND_GENERATOR_SURFACE_COUNT) ||
         b->legacy_atlas_layer >= ISLAND_TERRAIN_SURFACE_COUNT ||
         b->gameplay_tag > 255u || b->resource_type > 255u ||
-        !s_island_chance_is_valid(b->resource_chance) ||
-        !isfinite(b->land_min) || !isfinite(b->land_max) ||
-        b->land_min >= b->land_max ||
-        !s_island_chance_is_valid(b->terrain_min) ||
-        !s_island_chance_is_valid(b->terrain_max) ||
-        !s_island_chance_is_valid(b->moisture_min) ||
-        !s_island_chance_is_valid(b->moisture_max) ||
-        !s_island_chance_is_valid(b->distribution_min) ||
-        !s_island_chance_is_valid(b->distribution_max) ||
-        b->terrain_min > b->terrain_max ||
-        b->moisture_min > b->moisture_max ||
-        b->distribution_min > b->distribution_max ||
-        !s_island_chance_is_valid(b->min_height) ||
-        !s_island_chance_is_valid(b->max_height) ||
-        b->min_height > b->max_height ||
-        !s_island_chance_is_valid(b->land_height_weight) ||
-        !s_island_chance_is_valid(b->height_smoothing_weight) ||
-        !s_island_chance_is_valid(b->height_sample_weight))
+        !s_island_chance_is_valid(b->resource_chance))
     {
       ldk_log_error("TFTFIslandSystem: invalid biome settings at index %u.\n", i);
       return false;
@@ -454,63 +351,26 @@ static u64 s_island_terrain_generation_hash(const TFTFIslandSystem *system)
 #define HASH_BIOME(field) s_island_hash_bytes(&hash, &b->field, sizeof(b->field))
   HASH_FIELD(seed);
   HASH_FIELD(map_size);
-  HASH_FIELD(generator_land_percent);
-  HASH_FIELD(generator_min_satellite_gap_tiles);
-  HASH_FIELD(generator_max_satellite_gap_tiles);
-  HASH_FIELD(generator_sea_level);
-  HASH_FIELD(generator_height_scale);
-  HASH_FIELD(generator_water_depth_scale);
+  HASH_FIELD(cell_size);
+  HASH_FIELD(land_coverage_percent);
+  HASH_FIELD(min_island_gap_tiles);
+  HASH_FIELD(max_island_gap_tiles);
+  HASH_FIELD(sea_level);
+  HASH_FIELD(land_height_scale);
+  HASH_FIELD(underwater_depth_scale);
   {
     const u32 version = TFTF_ISLAND_GENERATOR_VERSION;
     s_island_hash_bytes(&hash, &version, sizeof(version));
   }
-  HASH_FIELD(land_scale);
-  HASH_FIELD(island_radius);
-  HASH_FIELD(terrain_scale);
-  HASH_FIELD(surface_noise_scale);
-  HASH_FIELD(surface_noise_octaves);
-  HASH_FIELD(surface_noise_strength);
-  HASH_FIELD(moisture_scale);
-  HASH_FIELD(land_octaves);
-  HASH_FIELD(terrain_octaves);
-  HASH_FIELD(moisture_octaves);
-  HASH_FIELD(land_noise_strength);
-  HASH_FIELD(height_smoothing_strength);
-  HASH_FIELD(height_smoothing_radius);
-  HASH_FIELD(height_smoothing_edge_threshold);
-  HASH_FIELD(height_smoothing_passes);
-  HASH_FIELD(distribution_noise_scale);
-  HASH_FIELD(pool_spacing);
-  HASH_FIELD(pool_chance);
-  HASH_FIELD(pool_min_radius);
-  HASH_FIELD(pool_max_radius);
-  HASH_FIELD(pool_bank_width);
-  HASH_FIELD(pool_min_land);
-  HASH_FIELD(pool_land_value);
-  HASH_FIELD(pool_height);
   u32 count = s_island_biome_count(system);
   s_island_hash_bytes(&hash, &count, sizeof(count));
   for (u32 i = 0u; i < count; ++i)
   {
     const IslandBiomeDesc *b = s_island_biome_get(system, i);
-    HASH_BIOME(land_min);
-    HASH_BIOME(land_max);
     HASH_BIOME(gameplay_tag);
     HASH_BIOME(legacy_atlas_layer);
     HASH_BIOME(generator_surface_enabled);
     HASH_BIOME(generator_surface);
-    HASH_BIOME(terrain_min);
-    HASH_BIOME(terrain_max);
-    HASH_BIOME(moisture_min);
-    HASH_BIOME(moisture_max);
-    HASH_BIOME(distribution_min);
-    HASH_BIOME(distribution_max);
-    HASH_BIOME(min_height);
-    HASH_BIOME(max_height);
-    HASH_BIOME(land_height_weight);
-    HASH_BIOME(height_smoothing_weight);
-    HASH_BIOME(height_sample_weight);
-    HASH_BIOME(allow_inland_pools);
     HASH_BIOME(resource_chance);
     HASH_BIOME(resource_type);
     HASH_BIOME(resource_center_bias);
@@ -684,7 +544,7 @@ static bool s_island_map_data_valid(const IslandMapCell *cells,
   return true;
 }
 
-#ifdef LDK_SHAREDLIB
+#ifndef LDK_MONOLITHIC
 static bool s_island_map_height_debug_write_ppm(const char *path)
 {
   FILE *file;
@@ -964,11 +824,11 @@ static bool s_island_map_generate(const TFTFIslandSystem *system)
   config.seed = system->seed;
   config.map_size = system->map_size;
   config.cell_size_meters = system->cell_size;
-  config.land_percent = system->generator_land_percent;
+  config.land_percent = system->land_coverage_percent;
   config.min_satellite_gap_tiles =
-      system->generator_min_satellite_gap_tiles;
+      system->min_island_gap_tiles;
   config.max_satellite_gap_tiles =
-      system->generator_max_satellite_gap_tiles;
+      system->max_island_gap_tiles;
   if (!tftf_island_generator_generate(&config, &generated))
   {
     ldk_log_error("TFTF island geography generation failed (seed %u).\n",
@@ -997,10 +857,10 @@ static bool s_island_map_generate(const TFTFIslandSystem *system)
       IslandMapCell *cell = &cells[at];
       u16 *texel = &map_data[(size_t)at * ISLAND_MAP_CHANNEL_COUNT];
       const float normalized = fminf(1.0f, fmaxf(0.0f,
-          system->generator_sea_level +
+          system->sea_level +
           sample->height * (sample->height < 0.0f
-              ? system->generator_water_depth_scale
-              : system->generator_height_scale)));
+              ? system->underwater_depth_scale
+              : system->land_height_scale)));
       texel[ISLAND_MAP_CHANNEL_HEIGHT] =
           (u16)(normalized * 65535.0f + 0.5f);
       /* High byte: 8-bit decorative vegetation mask. Low byte:
@@ -2338,7 +2198,7 @@ int tftf_island_system_initialize(void *data)
     }
   }
 
-#ifdef LDK_LDK_EDITOR
+#ifndef LDK_MONOLITHIC
   (void)s_island_map_height_debug_write_ppm("island_heightmap.ppm");
 #endif
 

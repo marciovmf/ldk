@@ -816,36 +816,69 @@
   "};\n" \
   "uniform sampler2D LDK_TEXTURE_3;\n" \
   "out vec4 out_color;\n" \
-  "vec4 ldk_terrain_surface(int index)\n" \
+  "vec4 ldk_terrain_atlas_sample(int index, vec2 uv)\n" \
   "{\n" \
   "  vec4 rect = u_terrain_atlas_rect[index];\n" \
+  "  vec2 atlas_uv = mix(rect.xy, rect.zw, fract(uv));\n" \
+  "  return texture(LDK_TEXTURE_3, atlas_uv);\n" \
+  "}\n" \
+  "vec4 ldk_terrain_surface(int index, vec3 normal)\n" \
+  "{\n" \
   "  vec2 scale = u_terrain_uv_scale[index].xy;\n" \
-  "  vec2 tile_uv = fract((v_uv * u_uv_transform[0].xy + u_uv_transform[0].zw) * scale);\n" \
-  "  vec2 atlas_uv = mix(rect.xy, rect.zw, tile_uv);\n" \
-  "  vec4 atlas = texture(LDK_TEXTURE_3, atlas_uv);\n" \
+  "  vec2 planar_uv = (v_uv * u_uv_transform[0].xy + u_uv_transform[0].zw) * scale;\n" \
+  "  vec4 atlas;\n" \
+  "  if (u_terrain_range[index].w > 0.5)\n" \
+  "  {\n" \
+  "    /* Triplanar mapping prevents texture stretching on near-vertical cliffs. */\n" \
+  "    vec3 weight = pow(abs(normal), vec3(4.0));\n" \
+  "    weight /= max(weight.x + weight.y + weight.z, 1e-5);\n" \
+  "    vec3 world = v_world_position * u_uv_transform[0].xxx + u_uv_transform[0].zzz;\n" \
+  "    vec4 on_x = ldk_terrain_atlas_sample(index, world.zy * scale);\n" \
+  "    vec4 on_y = ldk_terrain_atlas_sample(index, world.xz * scale);\n" \
+  "    vec4 on_z = ldk_terrain_atlas_sample(index, world.xy * scale);\n" \
+  "    atlas = on_x * weight.x + on_y * weight.y + on_z * weight.z;\n" \
+  "  }\n" \
+  "  else\n" \
+  "  {\n" \
+  "    atlas = ldk_terrain_atlas_sample(index, planar_uv);\n" \
+  "  }\n" \
   "  float weight = clamp(u_terrain_range[index].z, 0.0, 1.0);\n" \
   "  return u_terrain_color[index] * mix(vec4(1.0), atlas, weight);\n" \
   "}\n" \
   "void main()\n" \
   "{\n" \
   "  int count = clamp(int(u_terrain_info.x + 0.5), 1, 8);\n" \
-  "  vec4 color = ldk_terrain_surface(0);\n" \
+  "  vec3 normal = normalize(v_normal);\n" \
+  "  vec4 color = ldk_terrain_surface(0, normal);\n" \
   "  float height = v_world_position.y;\n" \
   "  for (int i = 1; i < 8; ++i)\n" \
   "  {\n" \
   "    if (i >= count) break;\n" \
+  "    if (u_terrain_range[i].w > 0.5) continue;\n" \
   "    float threshold = u_terrain_range[i].x;\n" \
   "    float width = u_terrain_range[i].y;\n" \
   "    float t = width > 0.000001\n" \
   "        ? smoothstep(threshold - width, threshold, height)\n" \
   "        : step(threshold, height);\n" \
-  "    color = mix(color, ldk_terrain_surface(i), t);\n" \
+  "    color = mix(color, ldk_terrain_surface(i, normal), t);\n" \
+  "  }\n" \
+  "  float slope_degrees = degrees(acos(clamp(normal.y, 0.0, 1.0)));\n" \
+  "  for (int i = 1; i < 8; ++i)\n" \
+  "  {\n" \
+  "    if (i >= count) break;\n" \
+  "    if (u_terrain_range[i].w < 0.5) continue;\n" \
+  "    float threshold = u_terrain_uv_scale[i].z;\n" \
+  "    float width = u_terrain_uv_scale[i].w;\n" \
+  "    float t = width > 0.000001\n" \
+  "        ? smoothstep(threshold - width, threshold, slope_degrees)\n" \
+  "        : step(threshold, slope_degrees);\n" \
+  "    if (t > 0.0)\n" \
+  "      color = mix(color, ldk_terrain_surface(i, normal), t);\n" \
   "  }\n" \
   "  color *= u_material_color * v_instance_color;\n" \
   "  color.rgb *= mix(vec3(1.0), 2.0 * v_color.rgb, v_color.a);\n" \
   "  vec3 diffuse;\n" \
   "  vec3 specular;\n" \
-  "  vec3 normal = v_normal / max(length(v_normal), 1e-6);\n" \
   "  ldk_lighting(normal, u_surface.x, u_surface.y, diffuse, specular);\n" \
   "  vec3 emission = color.rgb * u_surface.z;\n" \
   "  out_color = vec4(ldk_apply_fog(color.rgb * diffuse + specular +\n" \

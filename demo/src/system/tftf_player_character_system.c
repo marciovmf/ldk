@@ -8,6 +8,7 @@
 #include <ldk.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_scenegraph.h>
+#include <system/ldk_terrain_system.h>
 #include <stdx/stdx_math.h>
 
 #include <math.h>
@@ -164,6 +165,45 @@ static float s_environment_speed_scale(LDKEntity entity,
   return isfinite(speed_scale) ? float_max(speed_scale, 0.0f) : 1.0f;
 }
 
+/* The terrain's geometric triangle normal is the authority for walking.
+ * Use short segments so a large frame step cannot tunnel through a cliff. */
+static bool s_slope_segment_walkable(Vec3 origin, Vec3 destination,
+    float max_slope_degrees)
+{
+  if (max_slope_degrees <= 0.0f || !ldk_terrain_system_is_active())
+  {
+    return true;
+  }
+
+  float dx = destination.x - origin.x;
+  float dz = destination.z - origin.z;
+  float distance = sqrtf(dx * dx + dz * dz);
+  u32 steps = (u32)ceilf(distance / 0.4f);
+  if (steps == 0u)
+  {
+    return true;
+  }
+
+  const float min_normal_y = cosf(max_slope_degrees *
+      (STDXM_PI / 180.0f));
+  for (u32 i = 1u; i <= steps; ++i)
+  {
+    float t = (float)i / (float)steps;
+    Vec3 normal;
+    if (!ldk_terrain_normal_at_world(origin.x + dx * t,
+            origin.z + dz * t, &normal))
+    {
+      /* No heightfield: retain the controller's existing behavior. */
+      continue;
+    }
+    if (normal.y < min_normal_y)
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
 static void s_player_character_update(LDKEntity entity,
     TFTFPlayerCharacterComponent *player, Vec3 input_direction,
     bool cut_grass, float dt)
@@ -203,7 +243,47 @@ static void s_player_character_update(LDKEntity entity,
     player->velocity = vec3_make(0.0f, 0.0f, 0.0f);
   }
 
-  position = vec3_add(position, vec3_mul(player->velocity, dt));
+  Vec3 delta = vec3_mul(player->velocity, dt);
+  Vec3 world_position;
+  float max_slope = isfinite(player->max_slope_degrees)
+      ? float_clamp(player->max_slope_degrees, 0.0f, 89.0f)
+      : 45.0f;
+
+  if (s_entity_world_position(entity, &world_position))
+  {
+    Vec3 destination = vec3_add(world_position, delta);
+    if (!s_slope_segment_walkable(world_position, destination, max_slope))
+    {
+      /* Try both horizontal axes separately to slide along steep walls. */
+      Vec3 along_x = vec3_make(world_position.x + delta.x,
+          world_position.y, world_position.z);
+      Vec3 along_z = vec3_make(world_position.x,
+          world_position.y, world_position.z + delta.z);
+      bool x_ok = s_slope_segment_walkable(world_position,
+          along_x, max_slope);
+      bool z_ok = s_slope_segment_walkable(world_position,
+          along_z, max_slope);
+      if (x_ok && (!z_ok || fabsf(delta.x) >= fabsf(delta.z)))
+      {
+        delta.z = 0.0f;
+        player->velocity.z = 0.0f;
+      }
+      else if (z_ok)
+      {
+        delta.x = 0.0f;
+        player->velocity.x = 0.0f;
+      }
+      else
+      {
+        delta.x = 0.0f;
+        delta.z = 0.0f;
+        player->velocity.x = 0.0f;
+        player->velocity.z = 0.0f;
+      }
+    }
+  }
+
+  position = vec3_add(position, delta);
   (void)ldk_transform_set_local_position(entity, position);
 }
 

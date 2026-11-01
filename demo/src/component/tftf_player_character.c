@@ -12,6 +12,7 @@ static TFTFPlayerCharacterComponent s_tftf_player_character_default(void)
   player.speed = 4.0f;
   player.acceleration = 18.0f;
   player.inertia = 0.15f;
+  player.max_slope_degrees = 45.0f;
 
   player.high_grass_height = 0.6f;
   player.high_grass_density_min = 90.0f;

@@ -118,6 +118,9 @@ static float s_color_noise_sample(const LDKTerrainSystem *system,
 
 static float s_surface_min_height(const LDKTerrainSystem *s, u32 i);
 static float s_surface_blend_width(const LDKTerrainSystem *s, u32 i);
+static bool s_surface_use_slope(const LDKTerrainSystem *s, u32 i);
+static float s_surface_min_slope(const LDKTerrainSystem *s, u32 i);
+static float s_surface_slope_blend(const LDKTerrainSystem *s, u32 i);
 static rgba32 s_surface_color(const LDKTerrainSystem *s, u32 i);
 static rgba32 s_surface_noise_low(const LDKTerrainSystem *s, u32 i);
 static rgba32 s_surface_noise_high(const LDKTerrainSystem *s, u32 i);
@@ -142,50 +145,71 @@ static float s_palette_channel(rgba32 base, rgba32 low, rgba32 high,
  * weights used by the terrain shader. The per-surface palette is evaluated
  * before mixing, preserving smooth biome transitions. */
 static u32 s_color_noise_vertex_color(const LDKTerrainSystem *system,
-    float x, float y, float z)
+    float x, float y, float z, Vec3 normal)
 {
   if (!s_runtime.color_noise_image || system->color_noise_strength <= 0.0f)
     return 0xffffff00u;
 
   float noise = s_color_noise_sample(system, x, z);
+  float slope_degrees = acosf(fmaxf(0.0f, fminf(1.0f, normal.y))) *
+      (180.0f / STDXM_PI);
   float original[3] = {0};
   float varied[3] = {0};
   const u32 shifts[3] = {24u, 16u, 8u};
 
-  for (u32 i = 0; i < system->surface_count; ++i)
+  /* Elevation layers first, then slope layers; mirror the fragment shader. */
+  for (u32 pass = 0u; pass < 2u; ++pass)
   {
-    rgba32 base = s_surface_color(system, i);
-    rgba32 low = s_surface_noise_low(system, i);
-    rgba32 high = s_surface_noise_high(system, i);
-    float t = 1.0f;
-    if (i > 0u)
+    for (u32 i = 0u; i < system->surface_count; ++i)
     {
-      float threshold = system->height_offset +
-          s_surface_min_height(system, i) * system->height_scale;
-      float width = s_surface_blend_width(system, i) * system->height_scale;
-      if (width > 0.000001f)
+      bool use_slope = s_surface_use_slope(system, i);
+      if ((pass == 0u && use_slope) || (pass == 1u && !use_slope))
+        continue;
+
+      rgba32 base = s_surface_color(system, i);
+      rgba32 low = s_surface_noise_low(system, i);
+      rgba32 high = s_surface_noise_high(system, i);
+      float t = 1.0f;
+      if (use_slope)
       {
-        t = fmaxf(0.0f, fminf(1.0f,
-            (y - (threshold - width)) / width));
-        t = t * t * (3.0f - 2.0f * t);
+        float threshold = s_surface_min_slope(system, i);
+        float width = s_surface_slope_blend(system, i);
+        if (width > 0.000001f)
+        {
+          t = fmaxf(0.0f, fminf(1.0f,
+              (slope_degrees - (threshold - width)) / width));
+          t = t * t * (3.0f - 2.0f * t);
+        }
+        else
+          t = slope_degrees >= threshold ? 1.0f : 0.0f;
       }
-      else
-        t = y >= threshold ? 1.0f : 0.0f;
-    }
-    for (u32 k = 0; k < 3u; ++k)
-    {
-      float b = s_color_channel(base, shifts[k]);
-      float v = s_palette_channel(base, low, high, noise, shifts[k]);
-      original[k] += (b - original[k]) * t;
-      varied[k] += (v - varied[k]) * t;
+      else if (i > 0u)
+      {
+        float threshold = system->height_offset +
+            s_surface_min_height(system, i) * system->height_scale;
+        float width = s_surface_blend_width(system, i) * system->height_scale;
+        if (width > 0.000001f)
+        {
+          t = fmaxf(0.0f, fminf(1.0f,
+              (y - (threshold - width)) / width));
+          t = t * t * (3.0f - 2.0f * t);
+        }
+        else
+          t = y >= threshold ? 1.0f : 0.0f;
+      }
+      for (u32 k = 0; k < 3u; ++k)
+      {
+        float b = s_color_channel(base, shifts[k]);
+        float v = s_palette_channel(base, low, high, noise, shifts[k]);
+        original[k] += (b - original[k]) * t;
+        varied[k] += (v - varied[k]) * t;
+      }
     }
   }
 
   u32 packed = 0xffu;
   for (u32 k = 0; k < 3u; ++k)
   {
-    /* The renderer decodes vertex colors from sRGB to linear, then
-     * multiplies by 2. Encode the multiplier accordingly. */
     float base = original[k] * original[k];
     float target = varied[k] * varied[k];
     float factor = (1.0f - system->color_noise_strength) +
@@ -351,6 +375,51 @@ static float s_surface_texture_weight(const LDKTerrainSystem *s, u32 i)
   }
 }
 
+static bool s_surface_use_slope(const LDKTerrainSystem *s, u32 i)
+{
+  switch (i)
+  {
+  case 1: return s->surface_1_use_slope;
+  case 2: return s->surface_2_use_slope;
+  case 3: return s->surface_3_use_slope;
+  case 4: return s->surface_4_use_slope;
+  case 5: return s->surface_5_use_slope;
+  case 6: return s->surface_6_use_slope;
+  case 7: return s->surface_7_use_slope;
+  default: return false;
+  }
+}
+
+static float s_surface_min_slope(const LDKTerrainSystem *s, u32 i)
+{
+  switch (i)
+  {
+  case 1: return s->surface_1_min_slope_degrees;
+  case 2: return s->surface_2_min_slope_degrees;
+  case 3: return s->surface_3_min_slope_degrees;
+  case 4: return s->surface_4_min_slope_degrees;
+  case 5: return s->surface_5_min_slope_degrees;
+  case 6: return s->surface_6_min_slope_degrees;
+  case 7: return s->surface_7_min_slope_degrees;
+  default: return 0.0f;
+  }
+}
+
+static float s_surface_slope_blend(const LDKTerrainSystem *s, u32 i)
+{
+  switch (i)
+  {
+  case 1: return s->surface_1_slope_blend_degrees;
+  case 2: return s->surface_2_slope_blend_degrees;
+  case 3: return s->surface_3_slope_blend_degrees;
+  case 4: return s->surface_4_slope_blend_degrees;
+  case 5: return s->surface_5_slope_blend_degrees;
+  case 6: return s->surface_6_slope_blend_degrees;
+  case 7: return s->surface_7_slope_blend_degrees;
+  default: return 0.0f;
+  }
+}
+
 static void s_surface_defaults(LDKTerrainSystem *system)
 {
   for (u32 i = 0u; i < LDK_TERRAIN_SURFACE_COUNT; ++i)
@@ -453,12 +522,19 @@ static bool s_config_is_valid(const LDKTerrainSystem *system)
     float blend = s_surface_blend_width(system, i);
     float weight = s_surface_texture_weight(system, i);
     Vec2 uv = s_surface_uv_scale(system, i);
-    if (!isfinite(h) || h < 0.0f || h > 1.0f || h < previous ||
+    bool use_slope = s_surface_use_slope(system, i);
+    float min_slope = s_surface_min_slope(system, i);
+    float slope_blend = s_surface_slope_blend(system, i);
+    if (!isfinite(h) || h < 0.0f || h > 1.0f ||
+        (!use_slope && h < previous) ||
+        !isfinite(min_slope) || min_slope < 0.0f || min_slope > 90.0f ||
+        !isfinite(slope_blend) || slope_blend < 0.0f ||
+        slope_blend > 90.0f ||
         !isfinite(blend) || blend < 0.0f || blend > 1.0f ||
         !isfinite(weight) || weight < 0.0f || weight > 1.0f ||
         !isfinite(uv.x) || !isfinite(uv.y))
       return false;
-    previous = h;
+    if (!use_slope) previous = h;
   }
   return true;
 }
@@ -610,11 +686,17 @@ static u64 s_geometry_hash(const LDKTerrainSystem *s)
     rgba32 high = s_surface_noise_high(s, i);
     float min_height = s_surface_min_height(s, i);
     float blend_width = s_surface_blend_width(s, i);
+    bool use_slope = s_surface_use_slope(s, i);
+    float min_slope = s_surface_min_slope(s, i);
+    float slope_blend = s_surface_slope_blend(s, i);
     h = s_hash_bytes(h, &base, sizeof(base));
     h = s_hash_bytes(h, &low, sizeof(low));
     h = s_hash_bytes(h, &high, sizeof(high));
     h = s_hash_bytes(h, &min_height, sizeof(min_height));
     h = s_hash_bytes(h, &blend_width, sizeof(blend_width));
+    h = s_hash_bytes(h, &use_slope, sizeof(use_slope));
+    h = s_hash_bytes(h, &min_slope, sizeof(min_slope));
+    h = s_hash_bytes(h, &slope_blend, sizeof(slope_blend));
   }
   return h;
 }
@@ -638,10 +720,16 @@ static u64 s_appearance_hash(const LDKTerrainSystem *s,
     rgba32 c=s_surface_color(s,i);
     u64 region=s_surface_region_id(s,i);
     Vec2 u=s_surface_uv_scale(s,i);
+    bool use_slope=s_surface_use_slope(s,i);
+    float min_slope=s_surface_min_slope(s,i);
+    float slope_blend=s_surface_slope_blend(s,i);
     h=s_hash_bytes(h,&a,sizeof(a)); h=s_hash_bytes(h,&b,sizeof(b));
     h=s_hash_bytes(h,&w,sizeof(w)); h=s_hash_bytes(h,&c,sizeof(c));
     h=s_hash_bytes(h,&region,sizeof(region));
     h=s_hash_bytes(h,&u,sizeof(u));
+    h=s_hash_bytes(h,&use_slope,sizeof(use_slope));
+    h=s_hash_bytes(h,&min_slope,sizeof(min_slope));
+    h=s_hash_bytes(h,&slope_blend,sizeof(slope_blend));
   }
   h=s_hash_bytes(h,&s->height_scale,sizeof(s->height_scale));
   h=s_hash_bytes(h,&s->height_offset,sizeof(s->height_offset));
@@ -713,7 +801,8 @@ static bool s_chunks_rebuild(LDKTerrainSystem *system, LDKRenderer *renderer)
           vertices[vi].normal=s_vertex_normal(system,gx,gy);
           vertices[vi].uv=vec2_make(wx,wz);
           vertices[vi].color = LDK_RGBA32(
-              s_color_noise_vertex_color(system, wx, wy, wz));
+              s_color_noise_vertex_color(system, wx, wy, wz,
+                  vertices[vi].normal));
           if(wx<bmin.x)bmin.x=wx; if(wy<bmin.y)bmin.y=wy; if(wz<bmin.z)bmin.z=wz;
           if(wx>bmax.x)bmax.x=wx; if(wy>bmax.y)bmax.y=wy; if(wz>bmax.z)bmax.z=wz;
         }
@@ -784,6 +873,9 @@ static void s_surface_descs(const LDKTerrainSystem *system,
     out[i].uv_scale = s_surface_uv_scale(system, i);
     out[i].atlas_rect = vec4_make(0, 0, 1, 1);
     out[i].texture_weight = 0.0f;
+    out[i].use_slope = s_surface_use_slope(system, i);
+    out[i].min_slope_degrees = s_surface_min_slope(system, i);
+    out[i].slope_blend_degrees = s_surface_slope_blend(system, i);
     u64 id = s_surface_region_id(system, i);
     if (!id || !atlas_data || !image) continue;
     const LDKTextureAtlasRegion *region =
@@ -939,6 +1031,53 @@ LDK_API bool ldk_terrain_height_at_world(
   return true;
 }
 
+LDK_API bool ldk_terrain_normal_at_world(
+    float world_x, float world_z, Vec3 *out_normal)
+{
+  LDKTerrainSystem *system = s_runtime.owner;
+  if (!system || !out_normal || !s_config_is_valid(system) ||
+      !s_runtime.source.pixels || !isfinite(world_x) || !isfinite(world_z))
+    return false;
+
+  float ox, oz;
+  s_world_origin(system, &ox, &oz);
+  float lx = (world_x - ox) / system->cell_size;
+  float lz = (world_z - oz) / system->cell_size;
+  if (lx < 0.0f || lz < 0.0f ||
+      lx > (float)s_runtime.source.width ||
+      lz > (float)s_runtime.source.height)
+    return false;
+
+  u32 x = (u32)floorf(lx), y = (u32)floorf(lz);
+  float tx, tz;
+  if (x >= s_runtime.source.width)
+  {
+    x = s_runtime.source.width - 1u;
+    tx = 1.0f;
+  }
+  else tx = lx - (float)x;
+  if (y >= s_runtime.source.height)
+  {
+    y = s_runtime.source.height - 1u;
+    tz = 1.0f;
+  }
+  else tz = lz - (float)y;
+
+  float h00 = s_vertex_world_height(system, x, y);
+  float h10 = s_vertex_world_height(system, x + 1u, y);
+  float h01 = s_vertex_world_height(system, x, y + 1u);
+  float h11 = s_vertex_world_height(system, x + 1u, y + 1u);
+  float inv_cell_size = 1.0f / system->cell_size;
+  float dx = (tx >= tz ? h10 - h00 : h11 - h01) * inv_cell_size;
+  float dz = (tx >= tz ? h11 - h10 : h01 - h00) * inv_cell_size;
+  Vec3 normal = vec3_make(-dx, 1.0f, -dz);
+  float length = vec3_len(normal);
+  *out_normal = length > 1e-8f
+      ? vec3_mul(normal, 1.0f / length)
+      : vec3_make(0.0f, 1.0f, 0.0f);
+  return true;
+}
+
 int ldk_terrain_system_initialize(void *data)
 {
   LDKTerrainSystem *system=(LDKTerrainSystem*)data;
@@ -1015,8 +1154,9 @@ void ldk_terrain_system_update(
   for(u32 i=0;i<system->chunk_count;++i)
   {
     LDKTerrainChunk *chunk=&s_runtime.chunks[i];
-    if(!ldk_renderer_view_bounds_visible(renderer,renderer->game_view,
-        chunk->bounds_min,chunk->bounds_max))
+    if(system->cull &&
+        !ldk_renderer_view_bounds_visible(renderer,renderer->game_view,
+            chunk->bounds_min,chunk->bounds_max))
       continue;
     if(ldk_renderer_submit_mesh_with_flags(renderer,chunk->mesh,
         s_runtime.material,mat4_identity(),flags))

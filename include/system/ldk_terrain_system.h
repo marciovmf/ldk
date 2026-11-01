@@ -59,6 +59,14 @@ LDK_API bool ldk_terrain_height_at_world(
     float world_x, float world_z, float *out_height);
 
 /**
+ * @brief Query the geometric normal of the heightfield triangle at world X/Z.
+ * @return False if there is no active terrain at the position.
+ * @group ldk.system.terrain_system
+ */
+LDK_API bool ldk_terrain_normal_at_world(
+    float world_x, float world_z, Vec3 *out_normal);
+
+/**
  * @brief Initialize the terrain system.
  * @param data Source data or system-owned context for this operation.
  * @return System initialization status code.
@@ -160,6 +168,14 @@ typedef struct LDKTerrainSystem
   Vec2 surface_1_uv_scale;
   //@inspect slider min=0 max=1
   float surface_1_texture_weight;
+  /** Select this surface by steepness instead of elevation. */
+  bool surface_1_use_slope;
+  /** Slope threshold in degrees from horizontal. */
+  //@inspect slider min=0 max=90
+  float surface_1_min_slope_degrees;
+  /** Gradual transition below the threshold, in degrees. */
+  //@inspect slider min=0 max=90
+  float surface_1_slope_blend_degrees;
   //@end_group
   //@begin_group "Surface 2"
   XSmallstr surface_2_name;
@@ -181,6 +197,14 @@ typedef struct LDKTerrainSystem
   Vec2 surface_2_uv_scale;
   //@inspect slider min=0 max=1
   float surface_2_texture_weight;
+  /** Select this surface by steepness instead of elevation. */
+  bool surface_2_use_slope;
+  /** Slope threshold in degrees from horizontal. */
+  //@inspect slider min=0 max=90
+  float surface_2_min_slope_degrees;
+  /** Gradual transition below the threshold, in degrees. */
+  //@inspect slider min=0 max=90
+  float surface_2_slope_blend_degrees;
   //@end_group
   //@begin_group "Surface 3"
   XSmallstr surface_3_name;
@@ -202,6 +226,14 @@ typedef struct LDKTerrainSystem
   Vec2 surface_3_uv_scale;
   //@inspect slider min=0 max=1
   float surface_3_texture_weight;
+  /** Select this surface by steepness instead of elevation. */
+  bool surface_3_use_slope;
+  /** Slope threshold in degrees from horizontal. */
+  //@inspect slider min=0 max=90
+  float surface_3_min_slope_degrees;
+  /** Gradual transition below the threshold, in degrees. */
+  //@inspect slider min=0 max=90
+  float surface_3_slope_blend_degrees;
   //@end_group
   //@begin_group "Surface 4"
   XSmallstr surface_4_name;
@@ -223,6 +255,14 @@ typedef struct LDKTerrainSystem
   Vec2 surface_4_uv_scale;
   //@inspect slider min=0 max=1
   float surface_4_texture_weight;
+  /** Select this surface by steepness instead of elevation. */
+  bool surface_4_use_slope;
+  /** Slope threshold in degrees from horizontal. */
+  //@inspect slider min=0 max=90
+  float surface_4_min_slope_degrees;
+  /** Gradual transition below the threshold, in degrees. */
+  //@inspect slider min=0 max=90
+  float surface_4_slope_blend_degrees;
   //@end_group
   //@begin_group "Surface 5"
   XSmallstr surface_5_name;
@@ -244,6 +284,14 @@ typedef struct LDKTerrainSystem
   Vec2 surface_5_uv_scale;
   //@inspect slider min=0 max=1
   float surface_5_texture_weight;
+  /** Select this surface by steepness instead of elevation. */
+  bool surface_5_use_slope;
+  /** Slope threshold in degrees from horizontal. */
+  //@inspect slider min=0 max=90
+  float surface_5_min_slope_degrees;
+  /** Gradual transition below the threshold, in degrees. */
+  //@inspect slider min=0 max=90
+  float surface_5_slope_blend_degrees;
   //@end_group
   //@begin_group "Surface 6"
   XSmallstr surface_6_name;
@@ -265,6 +313,14 @@ typedef struct LDKTerrainSystem
   Vec2 surface_6_uv_scale;
   //@inspect slider min=0 max=1
   float surface_6_texture_weight;
+  /** Select this surface by steepness instead of elevation. */
+  bool surface_6_use_slope;
+  /** Slope threshold in degrees from horizontal. */
+  //@inspect slider min=0 max=90
+  float surface_6_min_slope_degrees;
+  /** Gradual transition below the threshold, in degrees. */
+  //@inspect slider min=0 max=90
+  float surface_6_slope_blend_degrees;
   //@end_group
   //@begin_group "Surface 7"
   XSmallstr surface_7_name;
@@ -286,9 +342,19 @@ typedef struct LDKTerrainSystem
   Vec2 surface_7_uv_scale;
   //@inspect slider min=0 max=1
   float surface_7_texture_weight;
+  /** Select this surface by steepness instead of elevation. */
+  bool surface_7_use_slope;
+  /** Slope threshold in degrees from horizontal. */
+  //@inspect slider min=0 max=90
+  float surface_7_min_slope_degrees;
+  /** Gradual transition below the threshold, in degrees. */
+  //@inspect slider min=0 max=90
+  float surface_7_slope_blend_degrees;
   //@end_group
 
   //@begin_group "Rendering"
+  /** Submit only terrain chunks visible to the game view when enabled. */
+  bool cull;
   bool casts_shadows;
   //@end_group
 

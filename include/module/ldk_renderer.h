@@ -841,6 +841,10 @@ extern "C" {
     Vec4 atlas_rect;
     Vec2 uv_scale;
     float texture_weight;
+    /* A slope layer overlays the elevation-selected surfaces. */
+    bool use_slope;
+    float min_slope_degrees;
+    float slope_blend_degrees;
   } LDKRendererTerrainSurfaceDesc;
 
   /** @group ldk.module.renderer */

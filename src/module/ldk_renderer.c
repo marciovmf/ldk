@@ -3722,7 +3722,13 @@ static bool s_renderer_material_desc_is_valid(
           !isfinite(surface->blend_width) || surface->blend_width < 0.0f ||
           !isfinite(surface->texture_weight) ||
           surface->texture_weight < 0.0f || surface->texture_weight > 1.0f ||
-          surface->min_height < previous ||
+          !isfinite(surface->min_slope_degrees) ||
+          surface->min_slope_degrees < 0.0f ||
+          surface->min_slope_degrees > 90.0f ||
+          !isfinite(surface->slope_blend_degrees) ||
+          surface->slope_blend_degrees < 0.0f ||
+          surface->slope_blend_degrees > 90.0f ||
+          (!surface->use_slope && surface->min_height < previous) ||
           !isfinite(surface->atlas_rect.x) ||
           !isfinite(surface->atlas_rect.y) ||
           !isfinite(surface->atlas_rect.z) ||
@@ -3732,7 +3738,8 @@ static bool s_renderer_material_desc_is_valid(
       {
         return false;
       }
-      previous = surface->min_height;
+      if (!surface->use_slope)
+        previous = surface->min_height;
     }
   }
   if (desc == NULL || !ldk_material_type_is_valid(desc->type))
