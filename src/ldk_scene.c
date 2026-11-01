@@ -1271,6 +1271,32 @@ static bool s_apply_field_value(const TMLDocument *doc,
     return false;
   }
 
+  case LDK_FIELD_ASSET_PREFAB:
+  {
+    i64 empty;
+    TMLString reference;
+    char path[LDK_ASSET_PATH_MAX_LENGTH + 1u];
+    LDKAssetManager *assets;
+    LDKAssetPrefab prefab;
+    if (tml_entry_get_i64(entry, &empty))
+    {
+      if (empty != -1) return false;
+      *(LDKAssetPrefab *)ptr = ldk_asset_prefab_null();
+      break;
+    }
+    if (!tml_entry_get_string(entry, &reference) || !reference.size ||
+        reference.size > LDK_ASSET_PATH_MAX_LENGTH ||
+        memchr(reference.data, 0, reference.size)) return false;
+    memcpy(path, reference.data, reference.size);
+    path[reference.size] = 0;
+    assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    if (!assets) return false;
+    prefab = ldk_asset_manager_prefab_load_shared(assets, path);
+    if (x_handle_is_null(prefab.h)) return false;
+    *(LDKAssetPrefab *)ptr = prefab;
+  }
+  break;
+
   case LDK_FIELD_ASSET_MATERIAL:
   {
     if (entry->type == TML_VALUE_I64)
@@ -2470,6 +2496,10 @@ static bool s_system_meta_validate(const LDKSystemMeta *meta, u32 size)
       field_size = sizeof(LDKAssetImage);
       alignment = _Alignof(LDKAssetImage);
       break;
+    case LDK_FIELD_ASSET_PREFAB:
+      field_size = sizeof(LDKAssetPrefab);
+      alignment = _Alignof(LDKAssetPrefab);
+      break;
     case LDK_FIELD_ASSET_MATERIAL:
       field_size = sizeof(LDKAssetMaterial);
       alignment = _Alignof(LDKAssetMaterial);
@@ -2524,14 +2554,24 @@ static bool s_apply_system_fields(const TMLDocument *doc,
       }
       continue;
     }
-    if (!s_system_meta_validate(meta, systems->data_sizes[i]))
-    {
-      s_result_error(result, "missing or incompatible system field metadata");
-      return false;
-    }
+    /* An older scene may list a system that has since become stateful,
+     * without containing any authored data for it. In that case the
+     * prepared system defaults are sufficient; there are no scene fields
+     * to validate or deserialize. */
     if (!data)
     {
       continue;
+    }
+    if (!s_system_meta_validate(meta, systems->data_sizes[i]))
+    {
+      char error[256];
+      snprintf(error, sizeof(error),
+          "missing or incompatible system field metadata for 0x%016" PRIx64
+          " (%s; registered size=%u, metadata size=%u)",
+          systems->ids[i], meta && meta->name ? meta->name : "unregistered",
+          systems->data_sizes[i], meta ? meta->size : 0u);
+      ldk_scene_result_set_error(result, error);
+      return false;
     }
     LDKComponentMeta field_meta = {0};
     field_meta.name = meta->name;
@@ -3312,6 +3352,32 @@ static bool s_write_field_value(XStrBuilder *out,
         !ldk_asset_path_set(&asset_path, info->asset_path.buf))
       return false;
     s_append_escaped_string(out, asset_path.buf);
+  }
+  break;
+
+  case LDK_FIELD_ASSET_PREFAB:
+  {
+    const LDKAssetPrefab *value = (const LDKAssetPrefab *)ptr;
+    LDKAssetManager *assets;
+    LDKAssetHandle handle;
+    const LDKAssetInfo *info;
+    if (x_handle_is_null(value->h))
+    {
+      x_strbuilder_append(out, "-1");
+      break;
+    }
+    assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    handle.h = value->h;
+    info = assets ? ldk_asset_get_info_const(assets, handle) : NULL;
+    if (!info || info->type != LDK_ASSET_TYPE_PREFAB ||
+        !assets->source || info->source_revision != assets->source->revision ||
+        !info->asset_path.length ||
+        info->asset_path.length > LDK_ASSET_PATH_MAX_LENGTH ||
+        info->asset_path.buf[info->asset_path.length] != 0)
+    {
+      return false;
+    }
+    s_append_escaped_string(out, info->asset_path.buf);
   }
   break;
 

@@ -76,6 +76,10 @@ static bool s_scene_system_data_initialize_handles(
       field_size = sizeof(LDKAssetImage);
       alignment = _Alignof(LDKAssetImage);
       break;
+    case LDK_FIELD_ASSET_PREFAB:
+      field_size = sizeof(LDKAssetPrefab);
+      alignment = _Alignof(LDKAssetPrefab);
+      break;
     case LDK_FIELD_ASSET_MATERIAL:
       field_size = sizeof(LDKAssetMaterial);
       alignment = _Alignof(LDKAssetMaterial);
@@ -111,6 +115,9 @@ static bool s_scene_system_data_initialize_handles(
       break;
     case LDK_FIELD_ASSET_IMAGE:
       *(LDKAssetImage *)(base + field->offset) = ldk_asset_image_null();
+      break;
+    case LDK_FIELD_ASSET_PREFAB:
+      *(LDKAssetPrefab *)(base + field->offset) = ldk_asset_prefab_null();
       break;
     case LDK_FIELD_ASSET_MATERIAL:
       *(LDKAssetMaterial *)(base + field->offset) =

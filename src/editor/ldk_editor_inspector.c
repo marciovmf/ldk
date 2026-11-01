@@ -1118,6 +1118,9 @@ static void s_editor_inspector_field_value_format(char *out, size_t out_size,
   case LDK_FIELD_RESOURCE_MESH:
     snprintf(out, out_size, "<resource mesh>");
     break;
+  case LDK_FIELD_ASSET_PREFAB:
+    snprintf(out, out_size, "<asset prefab>");
+    break;
   case LDK_FIELD_ASSET_MATERIAL:
     snprintf(out, out_size, "<asset material>");
     break;
@@ -1849,6 +1852,69 @@ static bool s_editor_inspector_font_asset_field(LDKEditorContext *editor,
   }
 
   *value = asset;
+  return true;
+}
+
+static bool s_editor_inspector_prefab_asset_field(LDKEditorContext *editor,
+    const char *label, LDKAssetPrefab *value, bool readonly)
+{
+  if (!editor || !value)
+  {
+    return false;
+  }
+
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  LDKAssetHandle handle = {value->h};
+  const LDKAssetInfo *info = assets && !x_handle_is_null(value->h)
+      ? ldk_asset_get_info_const(assets, handle) : NULL;
+  XFSPath path = {0};
+  LDKEditorUIRowSlotAction action = ldk_editor_ui_row_slot_prefab(
+      editor, label, s_editor_inspector_row_group_depth, info, readonly,
+      true, !x_handle_is_null(value->h), &path, NULL);
+
+  if (action == LDK_EDITOR_UI_ROW_SLOT_CLEAR)
+  {
+    *value = ldk_asset_prefab_null();
+    ldki_editor_scene_dirty_set(editor, true);
+    return true;
+  }
+  if (action != LDK_EDITOR_UI_ROW_SLOT_ASSIGN)
+  {
+    return false;
+  }
+
+  LDKAssetPath asset_path;
+  if (!s_editor_inspector_asset_path_validate(editor, &path, "Prefab",
+          "Choose a prefab inside the project's runtree folder.",
+          &asset_path))
+  {
+    return false;
+  }
+  const char *extension = strrchr(asset_path.buf, '.');
+  if (!extension || strcmp(extension, ".prefab") != 0)
+  {
+    ldki_editor_log_error(editor, "Choose a .prefab asset.");
+    return false;
+  }
+  if (!assets)
+  {
+    ldki_editor_log_error(editor, "Asset manager is unavailable.");
+    return false;
+  }
+  LDKAssetPrefab asset = ldk_asset_manager_prefab_load_shared(
+      assets, asset_path.buf);
+  if (x_handle_is_null(asset.h))
+  {
+    ldki_editor_log_error(editor, "Failed to load prefab asset.");
+    return false;
+  }
+  if (asset.h.index == value->h.index &&
+      asset.h.version == value->h.version)
+  {
+    return false;
+  }
+  *value = asset;
+  ldki_editor_scene_dirty_set(editor, true);
   return true;
 }
 
@@ -3085,6 +3151,14 @@ static void s_editor_inspector_field_draw(
     return;
   }
 
+  if (field->type == LDK_FIELD_ASSET_PREFAB)
+  {
+    (void)s_editor_inspector_prefab_asset_field(editor, display_name,
+        (LDKAssetPrefab *)field_value, readonly);
+    ldk_ui_pop_id(ui);
+    return;
+  }
+
   if (field->type == LDK_FIELD_ASSET_AUDIO)
   {
     LDKAssetAudio *value = (LDKAssetAudio *)field_value;
@@ -3461,6 +3535,7 @@ static void s_editor_inspector_field_draw(
   case LDK_FIELD_ASSET_SKYBOX:
   case LDK_FIELD_ASSET_AUDIO:
   case LDK_FIELD_ASSET_KEYFRAME_ANIMATION:
+  case LDK_FIELD_ASSET_PREFAB:
   default:
     s_editor_inspector_field_value_format(
         value_text, sizeof(value_text), field, field_value);
