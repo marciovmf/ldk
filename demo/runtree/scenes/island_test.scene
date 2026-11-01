@@ -841,6 +841,9 @@ scene:
         foam_speed: 0.0199999996
         foam_cutoff: 0.797750235
         surface_foam_strength: 0.333723933
+        silhouette_edge_fade_distance: 10.0000000
+        foam_shallow_depth: 0.100000001
+        debug_lake_mask: true
         shore_range: 1.00000000
         shore_wave_length: 0.500000000
         shore_wave_speed: 0.0299999993

@@ -981,7 +981,7 @@ typedef struct TestRendererInstancingBackend
   u32 water_bindings_count;
   LDKRHIBindingsDesc water_bindings[3];
   u32 water_params_count;
-  float water_texture_flags[4][LDK_RENDERER_WATER_TEXTURE_COUNT];
+  float water_texture_flags[4][LDK_RENDERER_WATER_TEXTURE_SILHOUETTE];
   u32 shadow_cutout_bindings_count;
   LDKRHIBindingsDesc shadow_cutout_bindings;
   u32 shadow_material_update_count;
@@ -1392,8 +1392,10 @@ static int test_renderer_water_texture_bindings_and_optional_maps(void)
   renderer.water_pass.fallback_texture = 607u;
   renderer.water_pass.ldr_pipeline = 608u;
   renderer.water_pass.hdr_pipeline = 609u;
-  renderer.texture_count = renderer.texture_capacity = 4u;
-  renderer.textures = calloc(4u, sizeof(*renderer.textures));
+  renderer.texture_count = renderer.texture_capacity =
+      LDK_RENDERER_WATER_TEXTURE_SILHOUETTE;
+  renderer.textures = calloc(
+      renderer.texture_capacity, sizeof(*renderer.textures));
   ASSERT_TRUE(renderer.textures != NULL);
   LDKRendererWaterDesc desc;
   ldk_renderer_water_desc_defaults(&desc);
@@ -1402,7 +1404,7 @@ static int test_renderer_water_texture_bindings_and_optional_maps(void)
   ASSERT_FALSE(
       ldk_renderer_submit_water(&renderer, LDK_RENDERER_VIEW_ALL, mesh, &desc));
   ASSERT_EQ(renderer.submitted_water_count, 0u);
-  for (u32 i = 0u; i < LDK_RENDERER_WATER_TEXTURE_COUNT; ++i)
+  for (u32 i = 0u; i < LDK_RENDERER_WATER_TEXTURE_SILHOUETTE; ++i)
   {
     renderer.textures[i].alive = true;
     renderer.textures[i].texture = 801u + i;
@@ -1427,30 +1429,34 @@ static int test_renderer_water_texture_bindings_and_optional_maps(void)
    * bind every slot again, including neutral maps for cleared textures. */
   ASSERT_EQ(backend.water_bindings_count, 3u);
   ASSERT_EQ(backend.water_params_count, 4u);
-  const u32 slots[4] = {6u, 9u, 10u, 11u};
+  const u32 slots[LDK_RENDERER_WATER_TEXTURE_COUNT] = {
+      6u, 9u, 10u, 11u, 12u};
   for (u32 b = 0u; b < 3u; ++b)
   {
     const LDKRHIBindingsDesc *bindings = &backend.water_bindings[b];
-    ASSERT_EQ(bindings->binding_count, 6u);
+    ASSERT_EQ(bindings->binding_count,
+        2u + LDK_RENDERER_WATER_TEXTURE_COUNT);
     ASSERT_EQ(bindings->bindings[1].texture, 502u);
     ASSERT_EQ(bindings->bindings[1].sampler, 605u);
-    for (u32 t = 0u; t < 4u; ++t)
+    for (u32 t = 0u; t < LDK_RENDERER_WATER_TEXTURE_COUNT; ++t)
     {
       ASSERT_EQ(bindings->bindings[2u + t].slot, slots[t]);
       ASSERT_EQ(bindings->bindings[2u + t].sampler, 606u);
-      bool present = b == 0u || (b == 1u && t != 1u);
+      bool present = t < LDK_RENDERER_WATER_TEXTURE_SILHOUETTE &&
+          (b == 0u || (b == 1u && t != LDK_RENDERER_WATER_TEXTURE_FOAM));
       ASSERT_EQ(bindings->bindings[2u + t].texture, present ? 801u + t : 607u);
     }
   }
   for (u32 draw = 0u; draw < 4u; ++draw)
   {
-    for (u32 t = 0u; t < 4u; ++t)
+    for (u32 t = 0u; t < LDK_RENDERER_WATER_TEXTURE_SILHOUETTE; ++t)
     {
-      bool present = draw < 2u || (draw == 2u && t != 1u);
+      bool present = draw < 2u ||
+          (draw == 2u && t != LDK_RENDERER_WATER_TEXTURE_FOAM);
       ASSERT_EQ(backend.water_texture_flags[draw][t], present ? 1.0f : 0.0f);
     }
   }
-  for (u32 t = 0u; t < 4u; ++t)
+  for (u32 t = 0u; t < LDK_RENDERER_WATER_TEXTURE_SILHOUETTE; ++t)
   {
     LDKResourceTexture texture = {1u + t};
     ASSERT_TRUE(ldk_renderer_texture_is_valid(&renderer, texture));

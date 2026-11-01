@@ -1024,6 +1024,10 @@ if (OPTION_BUILD_TESTS AND TARGET ldk)
   ldk_test_build(TARGET test_module_entity SOURCES src/tests/test_ldk_entity.c)
   ldk_test_build(TARGET test_module_component SOURCES src/tests/test_ldk_component.c)
   ldk_test_build(TARGET test_module_system SOURCES src/tests/test_ldk_system.c)
+  ldk_test_build(TARGET test_ldk_comet SOURCES src/tests/test_ldk_comet.c)
+  target_compile_definitions(test_ldk_comet PRIVATE
+    LDK_COMET_TEST_FIXTURE=\"${CMAKE_CURRENT_SOURCE_DIR}/src/tests/comet_fixture.h\"
+    LDK_COMET_TEST_OUTPUT=\"${CMAKE_CURRENT_BINARY_DIR}/comet_test_generated_$<CONFIG>.h\")
   ldk_test_build(TARGET test_module_transform SOURCES src/tests/test_ldk_transform.c)
   ldk_test_build(TARGET test_module_rhi SOURCES src/tests/test_ldk_rhi.c)
   ldk_test_build(TARGET test_material SOURCES src/tests/test_ldk_material.c)

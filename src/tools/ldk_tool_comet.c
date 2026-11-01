@@ -10,6 +10,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <errno.h>
+#include <float.h>
 
 typedef uint32_t u32;
 typedef uint64_t u64;
@@ -35,6 +37,8 @@ typedef struct LDKMetaField
   i32 group_index;
   bool has_min;
   bool has_max;
+  const char *source_path;
+  u32 source_line;
 } LDKMetaField;
 
 typedef struct LDKMetaGroup
@@ -53,6 +57,8 @@ typedef struct LDKMetaComponent
   u32 first_group;
   u32 group_count;
   bool scalar;
+  const char *source_path;
+  u32 source_line;
 } LDKMetaComponent;
 
 typedef struct LDKMetaSystem
@@ -75,6 +81,8 @@ typedef struct LDKMetaSystem
   u32 first_group;
   u32 group_count;
   bool stateful;
+  const char *metadata_path;
+  u32 metadata_line;
 } LDKMetaSystem;
 
 typedef struct LDKMetaEditorCallback
@@ -84,6 +92,8 @@ typedef struct LDKMetaEditorCallback
   char component[128];
   char system[128];
   u32 flags;
+  const char *source_path;
+  u32 source_line;
 } LDKMetaEditorCallback;
 
 typedef struct LDKMetaEnum
@@ -122,6 +132,10 @@ typedef struct LDKMetaState
   u32 enum_count;
 
   char error[512];
+  const char *source_path;
+  const char *source_text;
+  const char *error_path;
+  u32 error_line;
 } LDKMetaState;
 
 #define LDK_META_FLAG_READONLY 1u
@@ -170,6 +184,46 @@ static void ldk_meta_set_error(LDKMetaState* state, const char* msg)
   }
 
   snprintf(state->error, sizeof(state->error), "%s", msg);
+}
+
+/* Diagnostics refer to source declarations, not the generated header. */
+static u32 ldk_meta_line_at(const char *text, const char *at)
+{
+  u32 line = 1u;
+  if (!text || !at)
+  {
+    return 0u;
+  }
+  while (text < at)
+  {
+    if (*text++ == '\n')
+    {
+      ++line;
+    }
+  }
+  return line;
+}
+
+static void ldk_meta_error_location(LDKMetaState *state,
+    const char *path, u32 line)
+{
+  state->error_path = path;
+  state->error_line = line;
+}
+
+static void ldk_meta_error_at(LDKMetaState *state, const char *at,
+    const char *message)
+{
+  ldk_meta_error_location(state, state->source_path,
+      ldk_meta_line_at(state->source_text, at));
+  ldk_meta_set_error(state, message);
+}
+
+static void ldk_meta_error_field(LDKMetaState *state,
+    const LDKMetaField *field, const char *message)
+{
+  ldk_meta_error_location(state, field->source_path, field->source_line);
+  ldk_meta_set_error(state, message);
 }
 
 static bool ldk_meta_read_file(const char* path, char** out_text, size_t* out_size)
@@ -528,19 +582,76 @@ static bool ldk_meta_kind_from_type(const char* type_name, char* out_kind, size_
   return false;
 }
 
-static void ldk_meta_apply_inspect_annotation(LDKMetaField* field, const char* annotation)
+static bool ldk_meta_copy_option(LDKMetaState *state, char *dst,
+    size_t capacity, const char *value, const char *name)
+{
+  if (!*value || strlen(value) >= capacity)
+  {
+    snprintf(state->error, sizeof(state->error),
+        "invalid or oversized //@inspect %s value", name);
+    return false;
+  }
+  snprintf(dst, capacity, "%s", value);
+  return true;
+}
+
+static bool ldk_meta_float_option(LDKMetaState *state, const char *value,
+    float *out, const char *name)
+{
+  char *end = NULL;
+  errno = 0;
+  float parsed = strtof(value, &end);
+  if (end == value || *end || errno == ERANGE || !(parsed >= -FLT_MAX && parsed <= FLT_MAX))
+  {
+    snprintf(state->error, sizeof(state->error),
+        "invalid //@inspect %s value '%s'", name, value);
+    return false;
+  }
+  *out = parsed;
+  return true;
+}
+
+static bool ldk_meta_inspect_widget_known(const char *name)
+{
+  static const char *widgets[] = {
+    "DEFAULT", "CHECKBOX", "I32", "U32", "FLOAT", "SLIDER", "VEC2",
+    "VEC3", "VEC4", "QUAT", "MAT4", "ENUM", "ENTITY", "ASSET_MESH",
+    "ASSET_FONT", "ASSET_IMAGE", "RESOURCE_MESH", "EULER", "COLOR",
+    "ASSET_MATERIAL", "ASSET_SKYBOX", "STRING", "ASSET_AUDIO",
+    "ASSET_KEYFRAME_ANIMATION", "ASSET_TEXTURE_ATLAS", "ATLAS_REGION"
+  };
+  for (size_t i = 0u; i < sizeof(widgets) / sizeof(widgets[0]); ++i)
+  {
+    if (strcmp(name, widgets[i]) == 0)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool ldk_meta_apply_inspect_annotation(LDKMetaState *state,
+    LDKMetaField *field, const char *annotation)
 {
   char buffer[512];
-  char* token = NULL;
-
-  if (!field || !annotation)
+  char *token = NULL;
+  if (!annotation || !*annotation)
   {
-    return;
+    ldk_meta_set_error(state, "empty //@inspect annotation");
+    return false;
   }
-
+  if (strlen(annotation) >= sizeof(buffer))
+  {
+    ldk_meta_set_error(state, "//@inspect annotation is too long");
+    return false;
+  }
   snprintf(buffer, sizeof(buffer), "%s", annotation);
   token = strtok(buffer, " \t\r\n");
-
+  if (!token)
+  {
+    ldk_meta_set_error(state, "empty //@inspect annotation");
+    return false;
+  }
   while (token)
   {
     if (strcmp(token, "readonly") == 0)
@@ -570,37 +681,54 @@ static void ldk_meta_apply_inspect_annotation(LDKMetaField* field, const char* a
     }
     else if (strncmp(token, "min=", 4) == 0)
     {
-      field->min_value = (float)atof(token + 4);
+      if (!ldk_meta_float_option(state, token + 4, &field->min_value, "min"))
+      {
+        return false;
+      }
       field->has_min = true;
     }
     else if (strncmp(token, "max=", 4) == 0)
     {
-      field->max_value = (float)atof(token + 4);
+      if (!ldk_meta_float_option(state, token + 4, &field->max_value, "max"))
+      {
+        return false;
+      }
       field->has_max = true;
     }
     else if (strncmp(token, "widget=", 7) == 0)
     {
+      if (!ldk_meta_inspect_widget_known(token + 7))
+      {
+        snprintf(state->error, sizeof(state->error),
+            "unknown //@inspect widget '%s'", token + 7);
+        return false;
+      }
       snprintf(field->widget, sizeof(field->widget), "LDK_FIELD_WIDGET_%s", token + 7);
     }
     else if (strncmp(token, "source=", 7) == 0)
     {
-      snprintf(field->widget_source, sizeof(field->widget_source), "%s", token + 7);
+      if (!ldk_meta_copy_option(state, field->widget_source,
+              sizeof(field->widget_source), token + 7, "source")) return false;
     }
     else if (strncmp(token, "label=", 6) == 0)
     {
-      snprintf(field->display_name, sizeof(field->display_name), "%s", token + 6);
+      if (!ldk_meta_copy_option(state, field->display_name,
+              sizeof(field->display_name), token + 6, "label")) return false;
     }
     else if (strncmp(token, "element_type=", 13) == 0)
     {
-      snprintf(field->element_type, sizeof(field->element_type), "%s", token + 13);
+      if (!ldk_meta_copy_option(state, field->element_type,
+              sizeof(field->element_type), token + 13, "element_type")) return false;
     }
     else if (strncmp(token, "on_change=", 10) == 0)
     {
-      snprintf(field->array_changed, sizeof(field->array_changed), "%s", token + 10);
+      if (!ldk_meta_copy_option(state, field->array_changed,
+              sizeof(field->array_changed), token + 10, "on_change")) return false;
     }
     else if (strncmp(token, "initializer=", 12) == 0)
     {
-      snprintf(field->array_initializer, sizeof(field->array_initializer), "%s", token + 12);
+      if (!ldk_meta_copy_option(state, field->array_initializer,
+              sizeof(field->array_initializer), token + 12, "initializer")) return false;
     }
     else if (strcmp(token, "stable") == 0)
     {
@@ -608,15 +736,32 @@ static void ldk_meta_apply_inspect_annotation(LDKMetaField* field, const char* a
     }
     else if (strncmp(token, "max_count=", 10) == 0)
     {
-      field->array_max_count = (u32)strtoul(token + 10, NULL, 10);
+      char *end = NULL;
+      const char *value = token + 10;
+      errno = 0;
+      unsigned long count = strtoul(value, &end, 10);
+      if (!*value || value[0] == '-' || *end || errno == ERANGE || count > UINT32_MAX)
+      {
+        snprintf(state->error, sizeof(state->error),
+            "invalid //@inspect max_count value '%s'", value);
+        return false;
+      }
+      field->array_max_count = (u32)count;
     }
     else if (strncmp(token, "limit_field=", 12) == 0)
     {
-      snprintf(field->array_limit, sizeof(field->array_limit), "%s", token + 12);
+      if (!ldk_meta_copy_option(state, field->array_limit,
+              sizeof(field->array_limit), token + 12, "limit_field")) return false;
     }
-
+    else
+    {
+      snprintf(state->error, sizeof(state->error),
+          "unknown //@inspect option '%s'", token);
+      return false;
+    }
     token = strtok(NULL, " \t\r\n");
   }
+  return true;
 }
 
 /* Reflected enums use C identifiers as persistent names. Initializer
@@ -711,12 +856,17 @@ static bool ldk_meta_parse_enums(LDKMetaState *state, const char *path)
   size_t size;
   if (!ldk_meta_read_file(path, &text, &size))
   {
+    ldk_meta_error_location(state, path, 0u);
+    ldk_meta_set_error(state, "failed to read input file");
     return false;
   }
+  state->source_path = path;
+  state->source_text = text;
   const char *marker = text;
   bool ok = true;
   while ((marker = strstr(marker, "//@enum")) != NULL)
   {
+    ldk_meta_error_location(state, path, ldk_meta_line_at(text, marker));
     marker += strlen("//@enum");
     if (ldk_meta_is_ident_char(*marker))
     {
@@ -939,7 +1089,9 @@ static bool ldk_meta_parse_field_line(
     const char* component_name,
     char* line,
     const char* pending_annotation,
-    i32 group_index)
+    i32 group_index,
+    const char *declaration_at,
+    const char *annotation_at)
 {
   LDKMetaField field;
   char* semi = NULL;
@@ -948,18 +1100,22 @@ static bool ldk_meta_parse_field_line(
   char* last_space = NULL;
   char* name = NULL;
   char* type = NULL;
+  const bool inspected = pending_annotation != NULL;
+  char requested_widget[64] = {0};
+  bool requested_enum = false;
 
   memset(&field, 0, sizeof(field));
   field.group_index = group_index;
-
+  field.source_path = state->source_path;
+  field.source_line = ldk_meta_line_at(state->source_text,
+      inspected ? annotation_at : declaration_at);
   comment = strstr(line, "//");
   if (comment)
   {
     *comment = 0;
   }
-
   text = ldk_meta_trim(line);
-  if (*text == 0)
+  if (!*text)
   {
     return true;
   }
@@ -969,17 +1125,30 @@ static bool ldk_meta_parse_field_line(
   {
     return true;
   }
-
   *semi = 0;
 
   if (strchr(text, '[') || strchr(text, '('))
   {
+    if (inspected)
+    {
+      ldk_meta_error_at(state, annotation_at,
+          "//@inspect does not support C arrays or function declarations");
+      return false;
+    }
     return true;
   }
 
   last_space = strrchr(text, ' ');
+  char *last_tab = strrchr(text, '\t');
+  if (last_tab && (!last_space || last_tab > last_space)) last_space = last_tab;
   if (!last_space)
   {
+    if (inspected)
+    {
+      ldk_meta_error_at(state, annotation_at,
+          "//@inspect requires a supported 'type field;' declaration");
+      return false;
+    }
     return true;
   }
 
@@ -988,12 +1157,15 @@ static bool ldk_meta_parse_field_line(
   *last_space = 0;
   type = ldk_meta_trim(text);
   name = ldk_meta_trim(last_space + 1);
-  /* Strip the pointer from the declared name, but recognize only STDX
-   * arrays when an explicit element_type is supplied. */
   while (*name == '*') name++;
-
-  if (*type == 0 || *name == 0)
+  if (!*type || !*name)
   {
+    if (inspected)
+    {
+      ldk_meta_error_at(state, annotation_at,
+          "//@inspect requires a supported 'type field;' declaration");
+      return false;
+    }
     return true;
   }
 
@@ -1003,11 +1175,22 @@ static bool ldk_meta_parse_field_line(
   ldk_meta_display_name_from_field_name(
       field.display_name, sizeof(field.display_name), name);
 
-  if (pending_annotation)
+  if (inspected && !ldk_meta_apply_inspect_annotation(state, &field, pending_annotation))
   {
-    ldk_meta_apply_inspect_annotation(&field, pending_annotation);
+    char detail[sizeof(state->error)];
+    snprintf(detail, sizeof(detail), "%s", state->error);
+    snprintf(state->error, sizeof(state->error), "%s.%s: %.350s",
+        component_name, name, detail);
+    ldk_meta_error_location(state, state->source_path, field.source_line);
+    return false;
   }
-
+  requested_enum = strcmp(field.field_kind, "LDK_FIELD_ENUM") == 0;
+  snprintf(requested_widget, sizeof(requested_widget), "%s", field.widget);
+  if (field.flags & LDK_META_FLAG_HIDDEN)
+  {
+    /* Hidden fields can hold private pointers or opaque internal types. */
+    return true;
+  }
   if (field.element_type[0])
   {
     if (!(strcmp(type, "XArray") == 0 || strncmp(type, "XArray_", 7) == 0) ||
@@ -1015,6 +1198,7 @@ static bool ldk_meta_parse_field_line(
     {
       snprintf(state->error, sizeof(state->error),
           "%s.%s: element_type requires an XArray pointer", component_name, name);
+      ldk_meta_error_location(state, field.source_path, field.source_line);
       return false;
     }
     snprintf(field.field_kind, sizeof(field.field_kind), "LDK_FIELD_ARRAY");
@@ -1022,47 +1206,66 @@ static bool ldk_meta_parse_field_line(
   }
   else if (pointer_field)
   {
-    if ((strcmp(type, "XArray") == 0 || strncmp(type, "XArray_", 7) == 0) &&
-        pending_annotation && *pending_annotation &&
-        !(field.flags & LDK_META_FLAG_HIDDEN))
+    if (inspected)
     {
       snprintf(state->error, sizeof(state->error),
-          "%s.%s: inspected XArray requires element_type=<known type>",
+          "%s.%s: unsupported pointer; inspected XArray requires element_type=<known type>",
           component_name, name);
+      ldk_meta_error_location(state, field.source_path, field.source_line);
       return false;
     }
     return true;
   }
-  else if (!ldk_meta_kind_from_type(type, field.field_kind, sizeof(field.field_kind), field.widget, sizeof(field.widget)))
+  else if (!ldk_meta_kind_from_type(type, field.field_kind,
+          sizeof(field.field_kind), field.widget, sizeof(field.widget)))
   {
-    if (ldk_meta_enum_find(state, type) ||
-        (pending_annotation && strstr(pending_annotation, "enum")))
+    if (ldk_meta_enum_find(state, type))
     {
       snprintf(field.field_kind, sizeof(field.field_kind), "LDK_FIELD_ENUM");
       snprintf(field.widget, sizeof(field.widget), "LDK_FIELD_WIDGET_ENUM");
     }
     else
     {
+      if (inspected)
+      {
+        snprintf(state->error, sizeof(state->error),
+            "%s.%s: unsupported reflected type '%s'", component_name, name, type);
+        ldk_meta_error_location(state, field.source_path, field.source_line);
+        return false;
+      }
       return true;
     }
   }
 
-  if (pending_annotation)
+  /* Preserve an explicitly requested widget after resolving the C type. */
+  if (requested_widget[0])
   {
-    ldk_meta_apply_inspect_annotation(&field, pending_annotation);
+    snprintf(field.widget, sizeof(field.widget), "%s", requested_widget);
   }
-
-  if ((field.flags & LDK_META_FLAG_HIDDEN) != 0u)
+  if (requested_enum)
   {
-    return true;
+    snprintf(field.field_kind, sizeof(field.field_kind), "LDK_FIELD_ENUM");
   }
-
-  if (!ldk_meta_push_field(state, &field))
+  if (inspected && !field.element_type[0] &&
+      (field.array_initializer[0] || field.array_changed[0] ||
+          field.array_limit[0] || field.array_stable || field.array_max_count))
   {
-    ldk_meta_set_error(state, "failed to push metadata field");
+    ldk_meta_error_field(state, &field,
+        "array-only //@inspect option requires element_type=<known type>");
     return false;
   }
-
+  if (inspected && strcmp(field.field_kind, "LDK_FIELD_ENUM") == 0 &&
+      !ldk_meta_enum_find(state, type))
+  {
+    ldk_meta_error_field(state, &field,
+        "//@inspect enum requires a reflected //@enum type");
+    return false;
+  }
+  if (!ldk_meta_push_field(state, &field))
+  {
+    ldk_meta_error_field(state, &field, "failed to push metadata field");
+    return false;
+  }
   return true;
 }
 
@@ -1142,6 +1345,7 @@ static bool ldk_meta_parse_struct_body(
     u32 first_group)
 {
   char pending_annotation[512];
+  const char *pending_at = NULL;
   const char* cursor = body_begin;
   i32 *group_stack = NULL;
   u32 group_stack_count = 0u;
@@ -1149,7 +1353,6 @@ static bool ldk_meta_parse_struct_body(
   bool ok = true;
 
   pending_annotation[0] = 0;
-
   while (cursor < body_end)
   {
     char line[1024];
@@ -1162,100 +1365,141 @@ static bool ldk_meta_parse_struct_body(
 
     while (next < body_end && *next != '\n')
     {
-      next += 1;
+      ++next;
     }
-
     len = (size_t)(next - cursor);
     if (len >= sizeof(line))
     {
-      len = sizeof(line) - 1u;
+      ldk_meta_error_at(state, cursor, "reflected declaration line is too long");
+      ok = false;
+      break;
     }
-
     memcpy(line, cursor, len);
     line[len] = 0;
     field_ended = strchr(line, ';') != NULL;
-
     begin_group = strstr(line, "//@begin_group");
     end_group = strstr(line, "//@end_group");
     inspect = strstr(line, "//@inspect");
 
-    if (begin_group)
+    if (begin_group || end_group)
     {
-      LDKMetaGroup group;
-      i32 local_index = (i32)(state->group_count - first_group);
-
-      memset(&group, 0, sizeof(group));
-      group.parent_index = group_stack_count > 0u
-          ? group_stack[group_stack_count - 1u]
-          : -1;
-      if (!ldk_meta_parse_group_name(state,
-              begin_group + strlen("//@begin_group"),
-              group.name, sizeof(group.name)))
+      if (pending_at)
       {
+        ldk_meta_error_at(state, pending_at,
+            "//@inspect is not followed by a field declaration");
         ok = false;
         break;
       }
-      if (!ldk_meta_push_group(state, &group))
+      if (begin_group)
       {
-        ldk_meta_set_error(state, "failed to push metadata group");
+        LDKMetaGroup group;
+        i32 local_index = (i32)(state->group_count - first_group);
+        memset(&group, 0, sizeof(group));
+        group.parent_index = group_stack_count > 0u
+            ? group_stack[group_stack_count - 1u] : -1;
+        if (!ldk_meta_parse_group_name(state,
+                begin_group + strlen("//@begin_group"), group.name, sizeof(group.name)) ||
+            !ldk_meta_push_group(state, &group) ||
+            !ldk_meta_group_stack_push(&group_stack, &group_stack_count,
+                &group_stack_capacity, local_index))
+        {
+          if (!state->error[0])
+          {
+            ldk_meta_set_error(state, "failed to allocate metadata group");
+          }
+          ldk_meta_error_location(state, state->source_path,
+              ldk_meta_line_at(state->source_text, cursor));
+          ok = false;
+          break;
+        }
+      }
+      else if (group_stack_count == 0u)
+      {
+        ldk_meta_error_at(state, cursor,
+            "//@end_group without matching //@begin_group");
         ok = false;
         break;
       }
-      if (!ldk_meta_group_stack_push(&group_stack, &group_stack_count,
-              &group_stack_capacity, local_index))
+      else
       {
-        ldk_meta_set_error(state, "failed to grow metadata group stack");
-        ok = false;
-        break;
+        group_stack_count -= 1u;
       }
-    }
-    else if (end_group)
-    {
-      if (group_stack_count == 0u)
-      {
-        ldk_meta_set_error(state, "//@end_group without matching //@begin_group");
-        ok = false;
-        break;
-      }
-      group_stack_count -= 1u;
     }
     else if (inspect)
     {
-      snprintf(pending_annotation, sizeof(pending_annotation), "%s",
-          inspect + strlen("//@inspect"));
-    }
-    else
-    {
-      i32 group_index = group_stack_count > 0u
-          ? group_stack[group_stack_count - 1u]
-          : -1;
-      if (!ldk_meta_parse_field_line(state, component_name, line,
-              pending_annotation[0] ? pending_annotation : NULL,
-              group_index))
+      if (pending_at)
       {
+        ldk_meta_error_at(state, pending_at,
+            "consecutive //@inspect annotations without a field");
         ok = false;
         break;
       }
-
-      if (field_ended)
+      if (strlen(inspect + strlen("//@inspect")) >= sizeof(pending_annotation))
       {
-        pending_annotation[0] = 0;
+        ldk_meta_error_at(state, cursor, "//@inspect annotation is too long");
+        ok = false;
+        break;
+      }
+      snprintf(pending_annotation, sizeof(pending_annotation), "%s",
+          inspect + strlen("//@inspect"));
+      pending_at = cursor + (inspect - line);
+    }
+    else
+    {
+      char *trimmed = ldk_meta_trim(line);
+      /* Comments between an annotation and a field are harmless. */
+      if (*trimmed && strncmp(trimmed, "//", 2) != 0 &&
+          strncmp(trimmed, "/*", 2) != 0 &&
+          *trimmed != '*' && strncmp(trimmed, "*/", 2) != 0)
+      {
+        i32 group_index = group_stack_count > 0u
+            ? group_stack[group_stack_count - 1u] : -1;
+        if (pending_at && !field_ended && *trimmed != '#')
+        {
+          ldk_meta_error_at(state, pending_at,
+              "//@inspect requires a single-line field declaration");
+          ok = false;
+          break;
+        }
+        if (pending_at && *trimmed == '#')
+        {
+          ldk_meta_error_at(state, pending_at,
+              "preprocessor directives between //@inspect and field are unsupported");
+          ok = false;
+          break;
+        }
+        if (!ldk_meta_parse_field_line(state, component_name, line,
+                pending_at ? pending_annotation : NULL, group_index,
+                cursor, pending_at))
+        {
+          ok = false;
+          break;
+        }
+        if (field_ended)
+        {
+          pending_annotation[0] = 0;
+          pending_at = NULL;
+        }
       }
     }
-
     cursor = next;
     if (cursor < body_end && *cursor == '\n')
     {
-      cursor += 1;
+      ++cursor;
     }
   }
-
-  if (ok && group_stack_count != 0u)
+  if (ok && pending_at)
   {
-    ldk_meta_set_error(state, "unclosed //@begin_group in reflected struct");
+    ldk_meta_error_at(state, pending_at,
+        "//@inspect is not followed by a field declaration");
     ok = false;
   }
-
+  if (ok && group_stack_count != 0u)
+  {
+    ldk_meta_error_at(state, body_end,
+        "unclosed //@begin_group in reflected struct");
+    ok = false;
+  }
   free(group_stack);
   return ok;
 }
@@ -1297,6 +1541,8 @@ static bool ldk_meta_parse_component_at(LDKMetaState* state, const char* marker)
   u32 first_field = 0;
 
   memset(&component, 0, sizeof(component));
+  component.source_path = state->source_path;
+  component.source_line = ldk_meta_line_at(state->source_text, marker);
 
   typedef_struct = strstr(marker, "typedef");
   if (!typedef_struct)
@@ -1626,6 +1872,7 @@ static bool ldk_meta_push_system(LDKMetaState *state, LDKMetaSystem *system)
     if (strcmp(state->systems[i].symbol_name, system->symbol_name) == 0 ||
         state->systems[i].id == system->id)
     {
+      ldk_meta_error_location(state, system->metadata_path, system->metadata_line);
       ldk_meta_set_error(state, "duplicate system name or system id");
       return false;
     }
@@ -1839,6 +2086,8 @@ static bool ldk_meta_parse_system_at(
   LDKMetaSystem system;
 
   memset(&system, 0, sizeof(system));
+  system.metadata_path = state->source_path;
+  system.metadata_line = ldk_meta_line_at(state->source_text, marker);
   snprintf(system.flags, sizeof(system.flags), "LDK_SYSTEM_FLAG_ENABLED");
   snprintf(system.bucket, sizeof(system.bucket), "LDK_SYSTEM_BUCKET_UPDATE");
   snprintf(system.order, sizeof(system.order), "0");
@@ -1964,6 +2213,8 @@ static bool ldk_meta_parse_editor_callback_at(
     LDKMetaState *state, const char *marker)
 {
   LDKMetaEditorCallback desc = {0};
+  desc.source_path = state->source_path;
+  desc.source_line = ldk_meta_line_at(state->source_text, marker);
   const char *begin = marker + strlen("//@editor_callback");
   const char *end = strchr(begin, '\n');
   char options[512];
@@ -2141,6 +2392,7 @@ static bool ldk_meta_validate_editor_callbacks(LDKMetaState *state)
     }
     if (!exists)
     {
+      ldk_meta_error_location(state, cb->source_path, cb->source_line);
       snprintf(state->error, sizeof(state->error),
           "editor callback '%s': unknown %s '%s'", cb->symbol,
           cb->component[0] ? "component" : "system",
@@ -2159,10 +2411,13 @@ static bool ldk_meta_parse_file(LDKMetaState* state, const char* path)
 
   if (!ldk_meta_read_file(path, &text, &size))
   {
+    ldk_meta_error_location(state, path, 0u);
     ldk_meta_set_error(state, "failed to read input file");
     return false;
   }
 
+  state->source_path = path;
+  state->source_text = text;
   cursor = text;
   while (true)
   {
@@ -2173,6 +2428,7 @@ static bool ldk_meta_parse_file(LDKMetaState* state, const char* path)
       break;
     }
 
+    ldk_meta_error_location(state, path, ldk_meta_line_at(text, marker));
     if (!ldk_meta_parse_component_at(state, marker))
     {
       free(text);
@@ -2185,6 +2441,7 @@ static bool ldk_meta_parse_file(LDKMetaState* state, const char* path)
   cursor = text;
   while ((cursor = strstr(cursor, "//@system")) != NULL)
   {
+    ldk_meta_error_location(state, path, ldk_meta_line_at(text, cursor));
     if (!ldk_meta_parse_system_at(state, cursor, path))
     {
       free(text);
@@ -2196,6 +2453,7 @@ static bool ldk_meta_parse_file(LDKMetaState* state, const char* path)
   cursor = text;
   while ((cursor = strstr(cursor, "//@editor_callback")) != NULL)
   {
+    ldk_meta_error_location(state, path, ldk_meta_line_at(text, cursor));
     if (!ldk_meta_parse_editor_callback_at(state, cursor))
     {
       free(text);
@@ -2245,6 +2503,8 @@ static bool ldk_meta_parse_element_struct(LDKMetaState *state,
       char *source = NULL;
       size_t size = 0;
       if (!ldk_meta_read_file(files[j], &source, &size)) return false;
+      state->source_path = files[j];
+      state->source_text = source;
       const char *cursor = source;
       while ((cursor = strstr(cursor, "typedef struct")) != NULL)
       {
@@ -2299,8 +2559,12 @@ static bool ldk_meta_resolve_array_structs(LDKMetaState *state,
     for (u32 j = 0; j < state->structure_count; ++j)
       if (strcmp(state->structures[j].type_name, field->element_type) == 0)
         found = true;
-    if (!found && !ldk_meta_parse_element_struct(state, files, file_count,
-        field->element_type)) return false;
+    if (!found)
+    {
+      ldk_meta_error_location(state, field->source_path, field->source_line);
+      if (!ldk_meta_parse_element_struct(state, files, file_count,
+              field->element_type)) return false;
+    }
   }
   for (u32 n = 0; n < state->structure_count; ++n)
   {
@@ -2312,6 +2576,9 @@ static bool ldk_meta_resolve_array_structs(LDKMetaState *state,
         snprintf(state->error, sizeof(state->error),
             "nested reflected XArray fields are not yet supported (%s)",
             element->type_name);
+        ldk_meta_error_location(state,
+            state->fields[element->first_field + f].source_path,
+            state->fields[element->first_field + f].source_line);
         return false;
       }
     }
@@ -2353,6 +2620,8 @@ static bool ldk_meta_check_collisions(LDKMetaState* state)
     {
       if (state->components[i].type_id == state->components[j].type_id)
       {
+        ldk_meta_error_location(state,
+            state->components[j].source_path, state->components[j].source_line);
         snprintf(
             state->error,
             sizeof(state->error),
@@ -2894,6 +3163,19 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
 
 /* A region picker reads another reflected field in the same object. Enforce
  * that both fields have the required types before generating C metadata. */
+static void ldk_meta_print_error(const LDKMetaState *state, const char *fallback)
+{
+  const char *path = state->error_path ? state->error_path : fallback;
+  if (path && state->error_line)
+  {
+    fprintf(stderr, "%s:%u: error: %s\n", path, state->error_line, state->error);
+  }
+  else
+  {
+    fprintf(stderr, "%s: error: %s\n", path ? path : "comet", state->error);
+  }
+}
+
 static bool ldk_meta_validate_atlas_region_fields(LDKMetaState *state)
 {
   u32 owner_count = state->component_count + state->system_count;
@@ -2932,6 +3214,7 @@ static bool ldk_meta_validate_atlas_region_fields(LDKMetaState *state)
         snprintf(state->error, sizeof(state->error),
             "%s.%s: ATLAS_REGION requires a u64 field with source=<atlas field>",
             owner_name, field->field_name);
+        ldk_meta_error_location(state, field->source_path, field->source_line);
         return false;
       }
       bool found = false;
@@ -2950,6 +3233,7 @@ static bool ldk_meta_validate_atlas_region_fields(LDKMetaState *state)
         snprintf(state->error, sizeof(state->error),
             "%s.%s: atlas source '%s' must be a reflected LDKAssetTextureAtlas field",
             owner_name, field->field_name, field->widget_source);
+        ldk_meta_error_location(state, field->source_path, field->source_line);
         return false;
       }
     }
@@ -2976,7 +3260,7 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
   {
     if (!ldk_meta_parse_enums(&state, input_files[i]))
     {
-      fprintf(stderr, "ldk_meta_gen: %s: %s\n", input_files[i], state.error);
+      ldk_meta_print_error(&state, input_files[i]);
       ok = false;
       break;
     }
@@ -2986,7 +3270,7 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
   {
     if (!ldk_meta_parse_file(&state, input_files[i]))
     {
-      fprintf(stderr, "ldk_meta_gen: %s: %s\n", input_files[i], state.error);
+      ldk_meta_print_error(&state, input_files[i]);
       ok = false;
       break;
     }
@@ -2994,19 +3278,19 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
 
   if (ok && !ldk_meta_resolve_array_structs(&state, input_files, input_file_count))
   {
-    fprintf(stderr, "ldk_meta_gen: %s\n", state.error);
+    ldk_meta_print_error(&state, NULL);
     ok = false;
   }
 
   if (ok && !ldk_meta_check_collisions(&state))
   {
-    fprintf(stderr, "ldk_meta_gen: %s\n", state.error);
+    ldk_meta_print_error(&state, NULL);
     ok = false;
   }
 
   if (ok && !ldk_meta_validate_editor_callbacks(&state))
   {
-    fprintf(stderr, "ldk_meta_gen: %s\n", state.error);
+    ldk_meta_print_error(&state, NULL);
     ok = false;
   }
 
@@ -3033,16 +3317,17 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
         snprintf(state.error, sizeof(state.error),
             "%s.%s: limit_field must reference a reflected u32 field (%s)",
             field->component_name, field->field_name, field->array_limit);
+        ldk_meta_error_location(&state, field->source_path, field->source_line);
         ok = false;
         break;
       }
     }
-    if (!ok) fprintf(stderr, "ldk_meta_gen: %s\n", state.error);
+    if (!ok) ldk_meta_print_error(&state, NULL);
   }
 
   if (ok && !ldk_meta_validate_atlas_region_fields(&state))
   {
-    fprintf(stderr, "ldk_meta_gen: %s\n", state.error);
+    ldk_meta_print_error(&state, NULL);
     ok = false;
   }
 
@@ -3065,7 +3350,7 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
 
   if (ok && !ldk_meta_write_header(&state, output_header_path))
   {
-    fprintf(stderr, "ldk_meta_gen: %s\n", state.error);
+    ldk_meta_print_error(&state, NULL);
     ok = false;
   }
 
@@ -3081,6 +3366,7 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
 }
 
 
+#ifndef LDK_COMET_NO_MAIN
 void show_usage()
 {
   printf("usage\ncmg output_file <files>\n");
@@ -3113,3 +3399,5 @@ int main(i32 argc, const char** argv)
   fprintf(stderr, "Metadata extraction failed.\n");
   return 1;
 }
+
+#endif // LDK_COMET_NO_MAIN
