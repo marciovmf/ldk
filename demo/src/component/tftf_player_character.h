@@ -17,6 +17,12 @@ typedef struct TFTFPlayerCharacterComponent
   float inertia;
   //@end_group
 
+  //@begin_group "Camera"
+  /* Camera orbit angular speed in degrees per second (Q/E). */
+  //@inspect min=0
+  float camera_orbit_speed;
+  //@end_group
+
   //@begin_group "High Grass"
   //@inspect min=0
   float high_grass_height;
@@ -24,8 +30,27 @@ typedef struct TFTFPlayerCharacterComponent
   float high_grass_density_min;
   //@inspect slider min=0 max=1
   float high_grass_speed_scale;
+  /* Fraction of tall grass removed per cut: 0 = none, 1 = all. */
   //@inspect slider min=0 max=1
   float grass_cut_density_scale;
+  //@end_group
+
+  //@begin_group "Thorns"
+  /* Movement multiplier while standing in uncleared thorns. */
+  //@inspect slider min=0 max=1
+  float thorns_speed_scale;
+  /* Thorn density below this value no longer slows movement. */
+  //@inspect min=0
+  float thorns_density_min;
+  /* Fraction of thorns removed per cut: 0 = none, 1 = all. */
+  //@inspect slider min=0 max=1
+  float thorns_cut_density_scale;
+  //@end_group
+
+  //@begin_group "Cutting"
+  /* Distance in front of the character sampled when cutting (metres). */
+  //@inspect min=0
+  float cut_distance;
   //@end_group
 
   //@begin_group "Tile Movement"
@@ -48,6 +73,18 @@ typedef struct TFTFPlayerCharacterComponent
   //@begin_group "Runtime"
   //@inspect runtime
   Vec3 velocity;
+  //@inspect runtime
+  Vec3 aim_direction;
+  //@inspect runtime
+  float camera_yaw;
+  //@inspect hidden runtime
+  Vec3 camera_initial_position;
+  //@inspect hidden runtime
+  Quat camera_initial_rotation;
+  //@inspect hidden runtime
+  Quat player_initial_rotation;
+  //@inspect hidden runtime
+  bool camera_initialized;
   //@end_group
 } TFTFPlayerCharacterComponent;
 
