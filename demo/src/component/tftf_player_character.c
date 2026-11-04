@@ -13,11 +13,16 @@ static TFTFPlayerCharacterComponent s_tftf_player_character_default(void)
   player.acceleration = 18.0f;
   player.inertia = 0.15f;
   player.max_slope_degrees = 45.0f;
+  player.camera_orbit_speed = 120.0f;
 
   player.high_grass_height = 0.6f;
   player.high_grass_density_min = 90.0f;
   player.high_grass_speed_scale = 0.8f;
   player.grass_cut_density_scale = 0.75f;
+  player.thorns_speed_scale = 0.5f;
+  player.thorns_density_min = 5.0f;
+  player.thorns_cut_density_scale = 0.75f;
+  player.cut_distance = 1.0f;
 
   player.deep_water_speed_scale = 1.0f;
   player.shallow_water_speed_scale = 1.0f;
@@ -28,6 +33,9 @@ static TFTFPlayerCharacterComponent s_tftf_player_character_default(void)
   player.mountain_speed_scale = 1.0f;
 
   player.velocity = vec3_make(0.0f, 0.0f, 0.0f);
+  player.aim_direction = vec3_make(0.0f, 0.0f, -1.0f);
+  player.camera_initial_rotation = quat_id();
+  player.player_initial_rotation = quat_id();
   return player;
 }
 
@@ -55,7 +63,19 @@ static bool s_tftf_player_character_attach(
     *player = s_tftf_player_character_default();
   }
 
+  /* Existing scene files will not contain the new camera setting. */
+  if (player->camera_orbit_speed <= 0.0f)
+  {
+    player->camera_orbit_speed = 120.0f;
+  }
+
   player->velocity = vec3_make(0.0f, 0.0f, 0.0f);
+  player->aim_direction = vec3_make(0.0f, 0.0f, -1.0f);
+  player->camera_yaw = 0.0f;
+  player->camera_initial_position = vec3_make(0.0f, 0.0f, 0.0f);
+  player->camera_initial_rotation = quat_id();
+  player->player_initial_rotation = quat_id();
+  player->camera_initialized = false;
   return true;
 }
 

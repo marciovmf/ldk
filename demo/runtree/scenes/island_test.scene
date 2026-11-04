@@ -132,13 +132,18 @@ scene:
             acceleration: 18.0000000
             inertia: 0.150000006
             max_slope_degrees: 25.0000000
+            camera_orbit_speed: 120.000000
             high_grass_height: 0.600000024
-            high_grass_density_min: 15.0000000
-            high_grass_speed_scale: 0.307344615
-            grass_cut_density_scale: 0.750000000
-            deep_water_speed_scale: 0.319774002
-            shallow_water_speed_scale: 0.717514157
-            shore_speed_scale: 0.816949129
+            high_grass_density_min: 20.0000000
+            high_grass_speed_scale: 0.699999988
+            grass_cut_density_scale: 0.857142866
+            thorns_speed_scale: 0.200000003
+            thorns_density_min: 5.00000000
+            thorns_cut_density_scale: 0.750000000
+            cut_distance: 1.00000000
+            deep_water_speed_scale: 1.00000000
+            shallow_water_speed_scale: 1.00000000
+            shore_speed_scale: 1.00000000
             dry_speed_scale: 1.00000000
             grass_speed_scale: 1.00000000
             forest_speed_scale: 1.00000000
@@ -308,6 +313,28 @@ scene:
             billboard: false
             material_type: 4
             material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+    - entity: 10
+      parent: 2
+      flags: 0
+      name: "Cone"
+      name_hash: "0x3657fc9d1acde46a"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -0.0396633148, 0.905480862, 0.110360146
+            local_scale: 1.60865593, 0.682360709, 1.60865593
+            local_rotation: 0.0979011878, 0.581737399, 0.152661175, 0.792900681
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cone"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffe300ff
             material_specular: 0
             material_shininess: 32
             material_emission: 0
@@ -613,6 +640,8 @@ scene:
         forward_offset: 4.00000000
         material: "assets/tftf_island.material"
     - id: "0x05047ea6f003fb8f"
+      data:
+        aim_marker_prefab: "prefab/crosshair.prefab"
     - id: "0xea9d0015f4bf0348"
       data:
         projectile_mesh: -1
