@@ -91,6 +91,10 @@ LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_material(LDKEditorContext *edito
 LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_animation(LDKEditorContext *editor,
     const char *label, u32 group_depth, const LDKAssetInfo *info,
     bool readonly, XFSPath *path, const LDKEditorUIUndoProperty *undo_property);
+LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_prefab(LDKEditorContext *editor,
+    const char *label, u32 group_depth, const LDKAssetInfo *info,
+    bool readonly, bool optional, bool has_value, XFSPath *path,
+    const LDKEditorUIUndoProperty *undo_property);
 LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_audio(LDKEditorContext *editor,
     const char *label, u32 group_depth, const LDKAssetInfo *info,
     bool readonly, XFSPath *path, const LDKEditorUIUndoProperty *undo_property);

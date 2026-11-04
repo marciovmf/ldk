@@ -388,6 +388,9 @@ static bool s_editor_play_scene_field_size(
   case LDK_FIELD_ASSET_IMAGE:
     *out_size = sizeof(LDKAssetImage);
     return true;
+  case LDK_FIELD_ASSET_PREFAB:
+    *out_size = sizeof(LDKAssetPrefab);
+    return true;
   case LDK_FIELD_ASSET_MATERIAL:
     *out_size = sizeof(LDKAssetMaterial);
     return true;
@@ -445,6 +448,10 @@ static bool s_editor_play_scene_asset_reference_is_persistent(
   case LDK_FIELD_ASSET_IMAGE:
     asset.h = ((const LDKAssetImage *)(base + field->offset))->h;
     expected_type = LDK_ASSET_TYPE_IMAGE;
+    break;
+  case LDK_FIELD_ASSET_PREFAB:
+    asset.h = ((const LDKAssetPrefab *)(base + field->offset))->h;
+    expected_type = LDK_ASSET_TYPE_PREFAB;
     break;
   case LDK_FIELD_ASSET_MATERIAL:
     asset.h = ((const LDKAssetMaterial *)(base + field->offset))->h;

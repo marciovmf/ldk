@@ -2084,6 +2084,16 @@ S_EDITOR_SLOT_ROW(animation, "Choose animation", "Animation\0*.anim\0\0")
 
 #undef S_EDITOR_SLOT_ROW
 
+LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_prefab(LDKEditorContext *editor,
+    const char *label, u32 group_depth, const LDKAssetInfo *info,
+    bool readonly, bool optional, bool has_value, XFSPath *path,
+    const LDKEditorUIUndoProperty *undo_property)
+{
+  (void)undo_property;
+  return s_editor_ui_row_slot_asset(editor, label, group_depth, info, readonly,
+      optional, has_value, "Choose prefab", "Prefabs\0*.prefab\0\0", path);
+}
+
 LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_material(LDKEditorContext *editor,
     const char *label, u32 group_depth, const LDKAssetInfo *info,
     bool readonly, bool optional, bool has_value, XFSPath *path, const LDKEditorUIUndoProperty *undo_property)

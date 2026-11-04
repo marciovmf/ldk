@@ -544,6 +544,13 @@ static bool ldk_meta_kind_from_type(const char* type_name, char* out_kind, size_
     return true;
   }
 
+  if (strcmp(type_name, "LDKAssetPrefab") == 0)
+  {
+    snprintf(out_kind, out_size, "LDK_FIELD_ASSET_PREFAB");
+    snprintf(out_widget, out_widget_size, "LDK_FIELD_WIDGET_ASSET_PREFAB");
+    return true;
+  }
+
   if (strcmp(type_name, "LDKAssetMaterial") == 0)
   {
     snprintf(out_kind, out_size, "LDK_FIELD_ASSET_MATERIAL");
@@ -618,7 +625,8 @@ static bool ldk_meta_inspect_widget_known(const char *name)
     "VEC3", "VEC4", "QUAT", "MAT4", "ENUM", "ENTITY", "ASSET_MESH",
     "ASSET_FONT", "ASSET_IMAGE", "RESOURCE_MESH", "EULER", "COLOR",
     "ASSET_MATERIAL", "ASSET_SKYBOX", "STRING", "ASSET_AUDIO",
-    "ASSET_KEYFRAME_ANIMATION", "ASSET_TEXTURE_ATLAS", "ATLAS_REGION"
+    "ASSET_KEYFRAME_ANIMATION", "ASSET_TEXTURE_ATLAS", "ATLAS_REGION",
+    "ASSET_PREFAB"
   };
   for (size_t i = 0u; i < sizeof(widgets) / sizeof(widgets[0]); ++i)
   {
