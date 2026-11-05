@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 /* Standalone C11 island generation API. No LDK or STDX headers. */
-#define TFTF_ISLAND_GENERATOR_VERSION 13u
+#define TFTF_ISLAND_GENERATOR_VERSION 15u
 
 typedef enum TFTFIslandGeneratorSurface
 {
@@ -49,7 +49,7 @@ typedef struct TFTFIslandGeneratorMap
   uint32_t seed;
   uint32_t satellite_count;
   uint32_t formation_count;
-  uint32_t unreachable_land_cells; /* Internal 600x600 validation */
+  uint32_t unreachable_land_cells; /* Inaccessible on foot, at internal 600x600 */
   float meters_per_world_unit;
   float sampled_world_span;
 } TFTFIslandGeneratorMap;

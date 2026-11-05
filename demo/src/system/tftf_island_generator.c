@@ -46,7 +46,12 @@
 /* Natural inland escarpments: elongated, noise-warped steep terrain
  * with a gradual backside, not necessarily an elevated plateau.
  * Height units remain the standalone tester's provisional world units. */
-#define ISLAND_FORMATION_MAX_COUNT 3u
+/* Inland formations can block traversal; access may require gameplay tools. */
+#define ISLAND_FORMATION_MIN_COUNT 2u
+#define ISLAND_FORMATION_MAX_COUNT 4u
+/* Minimum matches v14; maximum is twice as high as v14. */
+#define ISLAND_FORMATION_MIN_RISE_SCALE 1.75f
+#define ISLAND_FORMATION_MAX_RISE_SCALE 3.50f
 #define ISLAND_FORMATION_MAX_TRIALS 44u
 #define ISLAND_FORMATION_MIN_INTERIOR_DISTANCE 0.056f
 #define ISLAND_FORMATION_COAST_GUARD_START 0.024f
@@ -57,15 +62,6 @@
 #define ISLAND_FORMATION_MIN_FACE_LENGTH 0.075f
 #define ISLAND_FORMATION_RAMP_MIN_WIDTH 0.19f
 #define ISLAND_FORMATION_CLIFF_WIDTH 0.0055f
-/* A short, walkable corridor is carved only when a ridge isolates land.
- * These are RASTER sample widths; they are not LDK terrain tile meters. */
-#define ISLAND_FORMATION_CORRIDOR_MAX_COUNT 4u
-#define ISLAND_FORMATION_CORRIDOR_REPAIR_TRIALS 24u
-#define ISLAND_FORMATION_CORRIDOR_MAX_TRIES 18u
-#define ISLAND_FORMATION_CORRIDOR_RUNUP 22u
-#define ISLAND_FORMATION_CORRIDOR_RUNOUT 44u
-#define ISLAND_FORMATION_CORRIDOR_CORE 1.5f
-#define ISLAND_FORMATION_CORRIDOR_FEATHER 3.5f
 /* Safety bound for the optional, local post-process access carving. */
 #define ISLAND_ACCESS_REPAIR_MAX_STEPS 128u
 /* Optional satellite islands. The image raster is for visualization only:
@@ -920,15 +916,9 @@ typedef struct IslandEcology
   float *reference_height;
   u8 *reachable;
   u8 *formation_mask;
-  u8 *formation_corridor_mask;
-  u8 *formation_local_fix_mask;
   u8 *access_repair_mask;
   IslandFormation formations[ISLAND_FORMATION_MAX_COUNT];
   u32 formation_count;
-  u32 formation_corridors;
-  u32 formation_corridor_cells;
-  u32 formation_local_fix_events;
-  u32 formation_local_fix_cells;
   u32 attempts;
   u32 unreachable_land;
   u32 access_repair_steps;
@@ -978,17 +968,13 @@ static bool s_ecology_allocate(IslandEcology *e)
   e->reference_height = (float *)malloc(count * sizeof(*e->reference_height));
   e->reachable = (u8 *)calloc(count, sizeof(*e->reachable));
   e->formation_mask = (u8 *)calloc(count, sizeof(*e->formation_mask));
-  e->formation_corridor_mask = (u8 *)calloc(count, sizeof(*e->formation_corridor_mask));
-  e->formation_local_fix_mask = (u8 *)calloc(count, sizeof(*e->formation_local_fix_mask));
   e->access_repair_mask = (u8 *)calloc(count,
       sizeof(*e->access_repair_mask));
   return e->land && e->land_id && e->surface && e->coast && e->coast_profile &&
       e->coast_suitability && e->height && e->shore_distance &&
       e->water_distance && e->shore_source && e->moisture &&
       e->thorn_score && e->tall_score && e->reference_height &&
-      e->reachable && e->formation_mask && e->formation_corridor_mask &&
-      e->formation_local_fix_mask &&
-      e->access_repair_mask;
+      e->reachable && e->formation_mask && e->access_repair_mask;
 }
 
 static void s_ecology_free(IslandEcology *e)
@@ -1009,8 +995,6 @@ static void s_ecology_free(IslandEcology *e)
   free(e->reference_height);
   free(e->reachable);
   free(e->formation_mask);
-  free(e->formation_corridor_mask);
-  free(e->formation_local_fix_mask);
   free(e->access_repair_mask);
   memset(e, 0, sizeof(*e));
 }
@@ -1540,266 +1524,21 @@ static bool s_ecology_formation_visible(const IslandEcology *e,
       steep >= ISLAND_FORMATION_MIN_STEEP_EDGES && highest >= ISLAND_FORMATION_MIN_MAX_UPLIFT;
 }
 
-/* An escarpment may block passage through an otherwise traversable path.
- * Instead of rejecting it, open a narrow graded corridor at the cheapest
- * blocked inland boundary, blending a walkable ramp between the two sides.
- * The ramp is rasterized exclusively on land with a shoreline safety band.
- * Its centerline is continuous; its flanks are feathered into the ridge.
- * Every candidate is tested with the same physical reachability checker
- * as the final island. Failures are rolled back byte-for-byte. */
-typedef struct IslandCorridorCandidate
-{
-  u32 from, to;
-  i32 dx, dy;
-  float score;
-} IslandCorridorCandidate;
-
-static bool s_ecology_try_formation_corridor(IslandEcology *e,
-    float world_pixel, const IslandCorridorCandidate *c,
-    float *snapshot, u8 *candidate_mask, u32 *out_unreachable)
-{
-  const u32 n = ISLAND_MAP_SIZE;
-  const u32 count = n * n;
-  const u32 id = e->land_id[c->from];
-  const i32 fx = (i32)(c->from % n), fy = (i32)(c->from / n);
-  const i32 tx = (i32)(c->to % n), ty = (i32)(c->to / n);
-  u32 before = *out_unreachable;
-  u32 pre = 0u, post = 0u;
-  const float guard = ISLAND_FORMATION_COAST_GUARD_START + 0.009f;
-
-  for (u32 k = 1u; k <= ISLAND_FORMATION_CORRIDOR_RUNUP; ++k)
-  {
-    const i32 x = fx - (i32)k * c->dx;
-    const i32 y = fy - (i32)k * c->dy;
-    if (x < 1 || y < 1 || x + 1 >= (i32)n || y + 1 >= (i32)n)
-      break;
-    const u32 at = (u32)y * n + (u32)x;
-    if (e->land_id[at] != id || !e->reachable[at] ||
-        e->shore_distance[at] * world_pixel < guard)
-      break;
-    pre = k;
-  }
-  for (u32 k = 1u; k <= ISLAND_FORMATION_CORRIDOR_RUNOUT; ++k)
-  {
-    const i32 x = tx + (i32)k * c->dx;
-    const i32 y = ty + (i32)k * c->dy;
-    if (x < 1 || y < 1 || x + 1 >= (i32)n || y + 1 >= (i32)n)
-      break;
-    const u32 at = (u32)y * n + (u32)x;
-    if (e->land_id[at] != id || e->reachable[at] ||
-        e->shore_distance[at] * world_pixel < guard)
-      break;
-    post = k;
-  }
-  if (pre < 2u || post < 2u)
-    return false;
-
-  const i32 sx = fx - (i32)pre * c->dx;
-  const i32 sy = fy - (i32)pre * c->dy;
-  const i32 ex = tx + (i32)post * c->dx;
-  const i32 ey = ty + (i32)post * c->dy;
-  const u32 steps = pre + post + 1u;
-  const float a = e->height[(u32)sy * n + (u32)sx];
-  const float b = e->height[(u32)ey * n + (u32)ex];
-  if (fabsf(b - a) > steps * world_pixel *
-      ISLAND_WALKABLE_SLOPE * 0.70f)
-    return false;
-
-  memcpy(snapshot, e->height, (size_t)count * sizeof(*snapshot));
-  memset(candidate_mask, 0, (size_t)count);
-  for (u32 k = 0u; k <= steps; ++k)
-  {
-    const i32 cx = sx + (i32)k * c->dx;
-    const i32 cy = sy + (i32)k * c->dy;
-    const float h = s_lerp_f32(a, b, (float)k / (float)steps);
-    for (i32 off = -4; off <= 4; ++off)
-    {
-      const i32 x = cx - off * c->dy;
-      const i32 y = cy + off * c->dx;
-      if (x < 0 || y < 0 || x >= (i32)n || y >= (i32)n)
-        continue;
-      const u32 at = (u32)y * n + (u32)x;
-      if (e->land_id[at] != id ||
-          e->shore_distance[at] * world_pixel < guard)
-        continue;
-      const float d = fabsf((float)off);
-      const float weight = 1.0f - s_smoothstep_f32(s_clamp01(
-          (d - ISLAND_FORMATION_CORRIDOR_CORE) /
-          (ISLAND_FORMATION_CORRIDOR_FEATHER -
-              ISLAND_FORMATION_CORRIDOR_CORE)));
-      const float new_height = s_lerp_f32(snapshot[at], h, weight);
-      if (fabsf(new_height - snapshot[at]) > 0.00001f)
-      {
-        e->height[at] = fmaxf(0.0005f, new_height);
-        candidate_mask[at] = 1u;
-      }
-    }
-  }
-  u32 after = 0u;
-  if (!s_ecology_check_access(e, world_pixel, &after) || after >= before)
-  {
-    memcpy(e->height, snapshot, (size_t)count * sizeof(*snapshot));
-    if (!s_ecology_check_access(e, world_pixel, out_unreachable))
-      return false;
-    return false;
-  }
-  *out_unreachable = after;
-  return true;
-}
-
-static bool s_ecology_repair_formation_access(IslandEcology *e,
-    const float *before, float world_pixel, u8 *pending_mask,
-    u32 *out_corridors)
-{
-  const u32 n = ISLAND_MAP_SIZE;
-  const u32 count = n * n;
-  float *snapshot = (float *)malloc((size_t)count * sizeof(*snapshot));
-  u8 *trial_mask = (u8 *)calloc((size_t)count, 1u);
-  if (!snapshot || !trial_mask)
-  {
-    free(snapshot); free(trial_mask);
-    return false;
-  }
-  bool success = false;
-  u32 missing = 0u;
-  *out_corridors = 0u;
-  if (!s_ecology_check_access(e, world_pixel, &missing))
-    goto done;
-  while (missing && *out_corridors < ISLAND_FORMATION_CORRIDOR_MAX_COUNT)
-  {
-    IslandCorridorCandidate candidates[ISLAND_FORMATION_CORRIDOR_MAX_TRIES];
-    u32 candidate_count = 0u;
-    for (u32 y = 1u; y + 1u < n; ++y)
-      for (u32 x = 1u; x + 1u < n; ++x)
-      {
-        const u32 at = y * n + x;
-        if (!e->reachable[at] || !e->land[at] ||
-            e->shore_distance[at] * world_pixel <
-                (ISLAND_FORMATION_COAST_GUARD_START + 0.018f))
-          continue;
-        const u32 neighbors[4] = {at - 1u, at + 1u, at - n, at + n};
-        const i32 dxs[4] = {-1, 1, 0, 0};
-        const i32 dys[4] = {0, 0, -1, 1};
-        for (u32 dir = 0u; dir < 4u; ++dir)
-        {
-          const u32 to = neighbors[dir];
-          if (!e->land[to] || e->land_id[to] != e->land_id[at] ||
-              e->reachable[to] ||
-              e->shore_distance[to] * world_pixel <
-                  (ISLAND_FORMATION_COAST_GUARD_START + 0.018f))
-            continue;
-          const float diff = fabsf(e->height[to] - e->height[at]);
-          if (diff <= ISLAND_WALKABLE_SLOPE * world_pixel)
-            continue;
-          const float uplift = fmaxf(e->height[at] - before[at],
-              e->height[to] - before[to]);
-          if (uplift < 0.006f)
-            continue;
-          const float score = diff + 0.0015f /
-              fmaxf(0.02f, e->shore_distance[to] * world_pixel);
-          u32 place = candidate_count;
-          while (place > 0u && score < candidates[place - 1u].score)
-            --place;
-          if (place >= ISLAND_FORMATION_CORRIDOR_MAX_TRIES)
-            continue;
-          if (candidate_count < ISLAND_FORMATION_CORRIDOR_MAX_TRIES)
-            ++candidate_count;
-          for (u32 t = candidate_count - 1u; t > place; --t)
-            candidates[t] = candidates[t - 1u];
-          candidates[place] = (IslandCorridorCandidate){
-            at, to, dxs[dir], dys[dir], score};
-        }
-      }
-    bool repaired = false;
-    for (u32 k = 0u; k < candidate_count; ++k)
-    {
-      if (!s_ecology_try_formation_corridor(e, world_pixel,
-          &candidates[k], snapshot, trial_mask, &missing))
-        continue;
-      for (u32 at = 0u; at < count; ++at)
-        pending_mask[at] |= trial_mask[at];
-      ++*out_corridors;
-      repaired = true;
-      break;
-    }
-    if (!repaired)
-      goto done;
-  }
-  success = missing == 0u;
-done:
-  free(snapshot); free(trial_mask);
-  return success;
-}
-
-/* A nearly walkable crest sometimes develops isolated raster peaks from
- * the noise. Connect ONLY such high pixels to an already reached part of
- * the same formation, never cut a ramp through the front cliff or coast.
- * A genuine disconnected land region still needs a carved path. */
-static bool s_ecology_repair_formation_crest(IslandEcology *e,
-    const float *before, float world_pixel)
-{
-  const u32 n = ISLAND_MAP_SIZE, count = n * n;
-  const float step = world_pixel * ISLAND_WALKABLE_SLOPE * 0.82f;
-  u32 missing = 0u;
-  for (u32 pass = 0u; pass < 60u; ++pass)
-  {
-    if (!s_ecology_check_access(e, world_pixel, &missing)) return false;
-    if (!missing) return true;
-    u32 adjusted = 0u;
-    for (u32 at = n + 1u; at + n + 1u < count; ++at)
-    {
-      if (e->reachable[at] || e->land_id[at] != 1u ||
-          e->height[at] - before[at] < 0.012f ||
-          e->shore_distance[at] * world_pixel <
-              ISLAND_FORMATION_MIN_INTERIOR_DISTANCE) continue;
-      const u32 x=at%n;
-      if (x==0u || x+1u==n) continue;
-      const u32 near[4]={at-1u,at+1u,at-n,at+n};
-      float best_change=INFINITY, best_height=e->height[at];
-      for (u32 dir=0u;dir<4u;++dir)
-      {
-        const u32 to=near[dir];
-        if (!e->reachable[to] || e->land_id[to]!=1u ||
-            e->height[to]-before[to] < 0.020f) continue;
-        const float original=e->height[at];
-        const float h=fmaxf(before[at], fmaxf(e->height[to]-step,
-            fminf(e->height[to]+step, original)));
-        if (fabsf(original-h)>0.00001f &&
-            fabsf(original-h)<best_change)
-        {best_height=h; best_change=fabsf(original-h);}
-      }
-      if (best_change<INFINITY)
-      {e->height[at]=best_height; ++adjusted;}
-    }
-    if(!adjusted) break;
-  }
-  if (!s_ecology_check_access(e, world_pixel, &missing)) return false;
-  return missing==0u;
-}
-
-/* Select truly inland anchors. Candidate escarpments have steep faces
- * and accessible space around their ends, rather than requiring a plateau. Any disconnected land is repaired with a traversable
- * passage; no terrain, shoreline, or biome changes outside this stage. */
+/* Select truly inland anchors for distinct, steep formations. Unlike the
+ * base terrain, their raised barriers may intentionally isolate land: future
+ * gameplay may provide a means to cross them. Do not carve corridors here. */
 static bool s_ecology_generate_formations(IslandEcology *e,
     const IslandGeographyView *view, u32 seed)
 {
   const u32 n = ISLAND_MAP_SIZE, count = n * n;
   const float pixel = view->span / (float)n;
-  const u32 target = (s_hash_u32(seed ^ 0x17C3E922u) % ISLAND_FORMATION_MAX_COUNT);
+  const u32 target = ISLAND_FORMATION_MIN_COUNT +
+      (s_hash_u32(seed ^ 0x17C3E922u) %
+          (ISLAND_FORMATION_MAX_COUNT - ISLAND_FORMATION_MIN_COUNT + 1u));
   float *original_height = (float *)malloc((size_t)count * sizeof(float));
-  u8 *pending_mask = (u8 *)calloc((size_t)count, 1u);
-  u32 unreachable = 0u;
-  if (!original_height || !pending_mask)
-  {
-    free(original_height); free(pending_mask);
+  if (!original_height)
     return false;
-  }
   memcpy(original_height, e->height, (size_t)count * sizeof(float));
-  if (!s_ecology_check_access(e, pixel, &unreachable) || unreachable)
-  {
-    free(original_height); free(pending_mask);
-    return false;
-  }
 
   for (u32 formation = 0u; formation < target; ++formation)
   {
@@ -1839,12 +1578,35 @@ static bool s_ecology_generate_formations(IslandEcology *e,
           s_ecology_random(f.seed, 0x62A56D33u);
       f.radius_y = f.radius * (0.72f + 0.18f *
           s_ecology_random(f.seed, 0x99453F0Bu));
+      bool separated = true;
+      for (u32 previous = 0u; previous < e->formation_count; ++previous)
+      {
+        const IslandFormation *other = &e->formations[previous];
+        const float dx = f.x - other->x;
+        const float dy = f.y - other->y;
+        const float min_gap = 0.55f * (f.radius + other->radius);
+        if (dx * dx + dy * dy < min_gap * min_gap)
+        {
+          separated = false;
+          break;
+        }
+      }
+      if (!separated)
+        continue;
       f.angle = 2.0f * ISLAND_PI *
           s_ecology_random(f.seed, 0x815A7C2Du);
       f.entry_angle = 2.0f * ISLAND_PI *
           s_ecology_random(f.seed, 0x27AEFF01u);
-      f.rise = 0.102f + 0.016f *
-          s_ecology_random(f.seed, 0x8B152AA9u);
+      /* Spread the rise across the requested formations, while varying it
+       * deterministically within each height band. All rises are >= v14. */
+      const float height_position = ((float)formation + 0.25f *
+          s_ecology_random(f.seed, 0x8B152AA9u)) /
+          ((float)(target - 1u) + 0.25f);
+      const float rise_scale = ISLAND_FORMATION_MIN_RISE_SCALE +
+          (ISLAND_FORMATION_MAX_RISE_SCALE -
+              ISLAND_FORMATION_MIN_RISE_SCALE) * height_position;
+      f.rise = (0.102f + 0.016f *
+          s_ecology_random(f.seed, 0xA57D2F13u)) * rise_scale;
       f.height_offset = e->height[best_at];
 
       memcpy(e->reference_height, e->height,
@@ -1853,80 +1615,16 @@ static bool s_ecology_generate_formations(IslandEcology *e,
       ++e->attempts;
       u32 raised = 0u, steep = 0u;
       float highest = 0.0f;
-      bool accepted = false;
       const bool visible = s_ecology_formation_visible(e,
           e->reference_height, pixel, &raised, &steep, &highest);
-#ifdef ISLAND_DEBUG_FORMATIONS
-      if (formation == 0u && trial < 12u)
-        fprintf(stderr, "trial %u raised %u steep %u high %.4f visible %d\n",
-            trial, raised, steep, highest, (int)visible);
-#endif
-      if (visible && s_ecology_check_access(e, pixel, &unreachable))
-      {
-        if (unreachable && s_ecology_repair_formation_crest(e,
-            e->reference_height, pixel)) unreachable=0u;
-        else if (unreachable) s_ecology_check_access(e,pixel,&unreachable);
-#ifdef ISLAND_DEBUG_FORMATIONS
-        if (formation==0u && trial<12u) fprintf(stderr,"  unreachable BEFORE = %u\n",unreachable);
-#endif
-        if (!unreachable)
-          accepted = true;
-        else
-        {
-          u32 corridors = 0u;
-          memset(pending_mask, 0, (size_t)count);
-          if (unreachable > 110u && s_ecology_repair_formation_access(e,
-              e->reference_height, pixel, pending_mask, &corridors))
-          {
-            for (u32 at = 0u; at < count; ++at)
-              e->formation_corridor_mask[at] |= pending_mask[at];
-            e->formation_corridors += corridors;
-            accepted = true;
-          }
-          /* A rare thin isolated lip may remain after crest repair. In
-           * that case grade the reachable/unreachable boundary locally,
-           * never the shore. Otherwise reject instead of destroying a
-           * whole escarpment to force an access. */
-          if (!accepted && unreachable <= 110u)
-          {
-            float *saved_heights=(float *)malloc(count*sizeof(float));
-            u8 *saved_mask=(u8 *)malloc(count);
-            if (saved_heights && saved_mask)
-            {
-              memcpy(saved_heights,e->height,count*sizeof(float));
-              memcpy(saved_mask,e->access_repair_mask,count);
-              const u32 old_steps=e->access_repair_steps;
-              const u32 old_cells=e->access_repair_cells;
-              const float old_delta=e->access_repair_max_change;
-              const u32 old_unreachable=e->access_unreachable_before;
-              if (s_ecology_repair_access(e,pixel))
-              {
-                for(u32 at=0u;at<count;++at)
-                  if(e->height[at]!=saved_heights[at])
-                  {e->formation_local_fix_mask[at]=1u;}
-                ++e->formation_local_fix_events;
-                accepted=true;
-              }
-              else
-              {
-                memcpy(e->height,saved_heights,count*sizeof(float));
-                memcpy(e->access_repair_mask,saved_mask,count);
-                e->access_repair_steps=old_steps;
-                e->access_repair_cells=old_cells;
-                e->access_repair_max_change=old_delta;
-                e->access_unreachable_before=old_unreachable;
-              }
-            }
-            free(saved_heights); free(saved_mask);
-          }
-        }
-      }
-      if (!accepted)
+      if (!visible)
       {
         memcpy(e->height, e->reference_height,
             (size_t)count * sizeof(float));
         continue;
       }
+      /* A steep, visible formation is accepted even if it blocks walking.
+       * Requiring a walkable path here would erase intended obstacles. */
       e->formations[e->formation_count++] = f;
       break;
     }
@@ -1937,13 +1635,9 @@ static bool s_ecology_generate_formations(IslandEcology *e,
     e->formation_mask[at] = (u8)(e->land[at] && uplift > 0.003f);
     if (e->land[at] && uplift > 0.014f) ++e->uplift_cells;
     if (e->land[at]) e->max_uplift = fmaxf(e->max_uplift, uplift);
-    if (e->formation_corridor_mask[at]) ++e->formation_corridor_cells;
-    if (e->formation_local_fix_mask[at]) ++e->formation_local_fix_cells;
   }
-  free(original_height); free(pending_mask);
-  if (!s_ecology_check_access(e, pixel, &e->unreachable_land))
-    return false;
-  return e->unreachable_land == 0u;
+  free(original_height);
+  return s_ecology_check_access(e, pixel, &e->unreachable_land);
 }
 
 /* Satellites must be truly separate contiguous land masses, never tiny
@@ -2347,8 +2041,8 @@ static bool s_ecology_build(IslandEcology *e,
     }
   }
 
-  /* Repair any slopes that isolate land BEFORE placing interior disks.
-   * A disk is still rejected if it would remove an existing passage. */
+  /* Make the base terrain walkable BEFORE adding escarpments. New inland
+   * barriers are allowed to isolate areas and are not automatically repaired. */
   if (!s_ecology_repair_access(e, pixel_world))
   {
     fprintf(stderr, "seed %u: access repair could not connect %u cells "
