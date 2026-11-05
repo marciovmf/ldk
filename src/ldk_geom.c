@@ -261,13 +261,13 @@ static bool s_mesh_primitive_plane_create(LDKMeshData* mesh)
 {
   static const LDKMeshVertex vertices[] = {
       {{-0.5f, 0.0f, -0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f},
-          LDK_MESH_PRIMITIVE_COLOR, {0}},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
       {{0.5f, 0.0f, -0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 0.0f},
-          LDK_MESH_PRIMITIVE_COLOR, {0}},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
       {{0.5f, 0.0f, 0.5f}, {0.0f, 1.0f, 0.0f}, {1.0f, 1.0f},
-          LDK_MESH_PRIMITIVE_COLOR, {0}},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
       {{-0.5f, 0.0f, 0.5f}, {0.0f, 1.0f, 0.0f}, {0.0f, 1.0f},
-          LDK_MESH_PRIMITIVE_COLOR, {0}},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
   };
   static const u32 indices[] = {0, 2, 1, 0, 3, 2};
 
@@ -278,6 +278,7 @@ static bool s_mesh_primitive_plane_create(LDKMeshData* mesh)
 
   memcpy(mesh->vertices, vertices, sizeof(vertices));
   memcpy(mesh->indices, indices, sizeof(indices));
+  mesh->has_tangents = true;
   return true;
 }
 
@@ -285,13 +286,13 @@ static bool s_mesh_primitive_quad_create(LDKMeshData* mesh)
 {
   static const LDKMeshVertex vertices[] = {
       {{-0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f},
-          LDK_MESH_PRIMITIVE_COLOR, {0}},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
       {{0.5f, -0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f},
-          LDK_MESH_PRIMITIVE_COLOR, {0}},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
       {{0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f},
-          LDK_MESH_PRIMITIVE_COLOR, {0}},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
       {{-0.5f, 0.5f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f},
-          LDK_MESH_PRIMITIVE_COLOR, {0}},
+          LDK_MESH_PRIMITIVE_COLOR, {1.0f, 0.0f, 0.0f, -1.0f}},
   };
   static const u32 indices[] = {0, 1, 2, 0, 2, 3};
 
@@ -302,6 +303,7 @@ static bool s_mesh_primitive_quad_create(LDKMeshData* mesh)
 
   memcpy(mesh->vertices, vertices, sizeof(vertices));
   memcpy(mesh->indices, indices, sizeof(indices));
+  mesh->has_tangents = true;
   return true;
 }
 
@@ -318,15 +320,18 @@ static void s_mesh_latitude_ring_write(LDKMeshVertex* vertices, u32 ring,
   {
     float u = (float)slice / (float)slices;
     float longitude = u * pi * 2.0f;
-    float normal_x = cosf(latitude) * cosf(longitude);
-    float normal_z = cosf(latitude) * sinf(longitude);
+    float x = cosf(longitude);
+    float z = sinf(longitude);
+    float normal_x = cosf(latitude) * x;
+    float normal_z = cosf(latitude) * z;
     LDKMeshVertex* vertex = &vertices[ring * stride + slice];
 
-    vertex->position = vec3_make(
-        ring_radius * cosf(longitude), y, ring_radius * sinf(longitude));
+    vertex->position = vec3_make(ring_radius * x, y, ring_radius * z);
     vertex->normal = vec3_make(normal_x, normal_y, normal_z);
     vertex->uv = vec2_make(u, v);
     vertex->color = LDK_MESH_PRIMITIVE_COLOR;
+    // Analytic U tangent remains valid at the poles where dP/du vanishes.
+    vertex->tangent = vec4_make(-z, 0.0f, x, -1.0f);
   }
 }
 
@@ -379,6 +384,7 @@ static bool s_mesh_primitive_sphere_create(LDKMeshData* mesh)
   }
 
   s_mesh_ring_indices_write(mesh->indices, ring_count, slices);
+  mesh->has_tangents = true;
   return true;
 }
 
@@ -422,6 +428,7 @@ static bool s_mesh_primitive_capsule_create(LDKMeshData* mesh)
   }
 
   s_mesh_ring_indices_write(mesh->indices, ring_count, slices);
+  mesh->has_tangents = true;
   return true;
 }
 
@@ -462,6 +469,7 @@ static bool s_mesh_primitive_cone_create(LDKMeshData* mesh)
         side_normal_horizontal * z);
     vertex->uv = vec2_make(u, 0.0f);
     vertex->color = LDK_MESH_PRIMITIVE_COLOR;
+    vertex->tangent = vec4_make(-z, 0.0f, x, -1.0f);
   }
 
   for (u32 slice = 0; slice < slices; ++slice)
@@ -477,6 +485,7 @@ static bool s_mesh_primitive_cone_create(LDKMeshData* mesh)
         side_normal_horizontal * z);
     vertex->uv = vec2_make(u, 1.0f);
     vertex->color = LDK_MESH_PRIMITIVE_COLOR;
+    vertex->tangent = vec4_make(-z, 0.0f, x, -1.0f);
 
     mesh->indices[index++] = side_ring_start + slice;
     mesh->indices[index++] = side_tip_start + slice;
@@ -487,6 +496,7 @@ static bool s_mesh_primitive_cone_create(LDKMeshData* mesh)
   mesh->vertices[base_center].normal = vec3_make(0.0f, -1.0f, 0.0f);
   mesh->vertices[base_center].uv = vec2_make(0.5f, 0.5f);
   mesh->vertices[base_center].color = LDK_MESH_PRIMITIVE_COLOR;
+  mesh->vertices[base_center].tangent = vec4_make(1.0f, 0.0f, 0.0f, 1.0f);
 
   for (u32 slice = 0; slice <= slices; ++slice)
   {
@@ -500,6 +510,7 @@ static bool s_mesh_primitive_cone_create(LDKMeshData* mesh)
     vertex->normal = vec3_make(0.0f, -1.0f, 0.0f);
     vertex->uv = vec2_make(0.5f + 0.5f * x, 0.5f + 0.5f * z);
     vertex->color = LDK_MESH_PRIMITIVE_COLOR;
+    vertex->tangent = vec4_make(1.0f, 0.0f, 0.0f, 1.0f);
   }
 
   for (u32 slice = 0; slice < slices; ++slice)
@@ -509,6 +520,7 @@ static bool s_mesh_primitive_cone_create(LDKMeshData* mesh)
     mesh->indices[index++] = base_ring_start + slice + 1u;
   }
 
+  mesh->has_tangents = true;
   return true;
 }
 
