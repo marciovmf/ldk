@@ -360,6 +360,9 @@ scene:
         emission: 0.0783132613
         casts_shadows: false
         unlit: false
+        lod_start_distance: 25.0000000
+        lod_end_distance: 30.0000000
+        lod_min_density: 0.300000012
         types:
           - name: "dry_grass"
             blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
@@ -638,6 +641,7 @@ scene:
         cell_size: 1.00000000
         elevation: 0.100000001
         forward_offset: 4.00000000
+        grass_stream_margin: 0.00000000
         material: "assets/tftf_island.material"
     - id: "0x05047ea6f003fb8f"
       data:
@@ -872,7 +876,7 @@ scene:
         surface_foam_strength: 0.333723933
         silhouette_edge_fade_distance: 10.0000000
         foam_shallow_depth: 0.100000001
-        debug_lake_mask: true
+        debug_lake_mask: false
         shore_range: 1.00000000
         shore_wave_length: 0.500000000
         shore_wave_speed: 0.0299999993

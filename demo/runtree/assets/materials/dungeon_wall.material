@@ -1,0 +1,25 @@
+material:
+  material_texture_slots: 3
+  material_texture_0_filter: 0
+  material_texture_0_mip_filter: 0
+  material_texture_0_wrap_u: 1
+  material_texture_0_wrap_v: 1
+  material_texture_0_uv_scale_x: 1
+  material_texture_0_uv_scale_y: 1
+  material_texture_0_uv_offset_x: 0
+  material_texture_0_uv_offset_y: 0
+  material_texture_1_filter: 0
+  material_texture_1_mip_filter: 0
+  material_texture_1_wrap_u: 1
+  material_texture_1_wrap_v: 1
+  material_texture_1_uv_scale_x: 1
+  material_texture_1_uv_scale_y: 1
+  material_texture_1_uv_offset_x: 0
+  material_texture_1_uv_offset_y: 0
+  material_type: 2
+  material_color: 0xffffffff
+  material_texture: "assets/textures/dungeon/wall2.png"
+  material_specular: 0
+  material_shininess: 32
+  material_emission: 0
+  material_normal_map: "assets/textures/dungeon/floor_normal.png"

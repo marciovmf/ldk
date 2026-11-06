@@ -1,0 +1,901 @@
+scene:
+  version: 1
+  properties:
+    ambient_sky_color: 3302817791
+    ambient_ground_color: 2020368639
+    ambient_intensity: 0.300000012
+    fog_enabled: true
+    fog_color: 3975207423
+    fog_density: 0.00999999978
+    fog_start: 10.0000000
+  entities:
+    - entity: 0
+      parent: -1
+      flags: 0
+      name: "camera"
+      name_hash: "0x6fcfdf926f11594e"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -16.5213528, 1.84469080, 18.3577271
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: -0.0149585148, -0.191095531, -0.00291252253, 0.981453180
+        - type: 4294967293 # LDKCamera
+          fields:
+            projection: 0
+            role: 1
+            fov_y: 0.699999988
+            orthographic_height: 10.0000000
+            near_plane: 0.100000001
+            far_plane: 1000.00000
+            enabled: true
+            background_mode: 1
+            background_color: 2880154623
+            skybox_asset: "assets/skybox/sky_01.skybox"
+        - type: 4294967286 # LDKPostProcessing
+          fields:
+            enabled: true
+            tonemapping_enabled: true
+            exposure: 0.00000000
+            bloom_enabled: true
+            bloom_threshold: 4.53222466
+            bloom_intensity: 0.985446990
+            bloom_radius: 0.591822565
+            bloom_soft_knee: 0.674982667
+            blur_enabled: false
+            blur_strength: 0.148302138
+            blur_focus_size: 0.250000000
+            blur_focus_feather: 0.150000006
+            blur_inverted: false
+            blur_focus_offset_x: 0.00000000
+            blur_focus_offset_y: 0.00000000
+            color_enabled: false
+            brightness: 0.00000000
+            contrast: 1.00000000
+            saturation: 1.00000000
+            vignette_enabled: false
+            vignette_intensity: 0.500000000
+            vignette_radius: 0.500000000
+            vignette_softness: 0.500000000
+            screen_distortion_enabled: false
+            screen_distortion_strength: 0.250000000
+            chromatic_aberration_enabled: false
+            chromatic_aberration_strength: 0.250000000
+            heat_enabled: false
+            heat_strength: 1.00000000
+            heat_amplitude: 4.00000000
+            heat_scale: 1.00000000
+            heat_speed: 1.00000000
+            inverse_enabled: false
+            black_and_white_enabled: false
+            retro_enabled: false
+            retro_pixel_size: 7.38253641
+            retro_color_levels: 4.00000000
+            retro_dither_strength: 1.00000000
+            retro_pattern_scale: 1.00000000
+            drunk_enabled: false
+            drunk_strength: 0.750000000
+            drunk_speed: 1.00000000
+            drunk_ghosting: 0.500000000
+            drunk_chromatic_aberration: 0.349999994
+            drunk_movement: 0.500000000
+    - entity: 1
+      parent: 45
+      flags: 0
+      name: "Courtyard__Corner_Piers"
+      name_hash: "0x7ab14b99923a5ef9"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 2
+      parent: 45
+      flags: 0
+      name: "Courtyard__EMPTY_Tree_Planter_N"
+      name_hash: "0xb3b35404e0c89224"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 1
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 3
+      parent: 45
+      flags: 0
+      name: "Courtyard__OpenSky_Paving"
+      name_hash: "0x2c90996f77a9f7e1"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 2
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 4
+      parent: 45
+      flags: 0
+      name: "East_Gallery__Angled_Buttresses"
+      name_hash: "0x8d198fcb54abc899"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 3
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 5
+      parent: 45
+      flags: 0
+      name: "East_Gallery__Concrete_Roof"
+      name_hash: "0x62c926e9963cad8b"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 4
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 6
+      parent: 45
+      flags: 0
+      name: "East_Gallery__External_Wall"
+      name_hash: "0x50ad24ebddadd7e1"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 5
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 7
+      parent: 45
+      flags: 0
+      name: "East_Gallery__Floor"
+      name_hash: "0x35322bb3861e724b"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 6
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 8
+      parent: 45
+      flags: 0
+      name: "Entrance__Door_Headers"
+      name_hash: "0x5baf12e83f68338c"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 7
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 9
+      parent: 45
+      flags: 0
+      name: "Entrance__East_Door_Floor"
+      name_hash: "0xe2a700da8a3fa8dc"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 8
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 10
+      parent: 45
+      flags: 0
+      name: "Entrance__Entry_Lintel"
+      name_hash: "0x1719982ffa9df63c"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 9
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 11
+      parent: 45
+      flags: 0
+      name: "Entrance__Floor"
+      name_hash: "0x5fe4e38ef3e34eb1"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 10
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 12
+      parent: 45
+      flags: 0
+      name: "Entrance__Roof"
+      name_hash: "0xea01796253ee2053"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 11
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 13
+      parent: 45
+      flags: 0
+      name: "Entrance__Solid_Side_Walls"
+      name_hash: "0x4d1f59d5b3ebabe4"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 12
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 14
+      parent: 45
+      flags: 0
+      name: "Entrance__West_Door_Floor"
+      name_hash: "0xa42263084ada0096"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 13
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 15
+      parent: 45
+      flags: 0
+      name: "Future_SE__Floor"
+      name_hash: "0xd7320c60d370be3d"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 14
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 16
+      parent: 45
+      flags: 0
+      name: "Future_SE__Parapet"
+      name_hash: "0xef6da19602277f48"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 15
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 17
+      parent: 45
+      flags: 0
+      name: "Future_SE__Roof_With_Real_Open_"
+      name_hash: "0x040cbab427d6466b"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 16
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 18
+      parent: 45
+      flags: 0
+      name: "Future_SE__Walls"
+      name_hash: "0xd8db460487b589d2"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 17
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 19
+      parent: 45
+      flags: 0
+      name: "North_Cross__Angled_Buttresses"
+      name_hash: "0x1032a88924d63bdb"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 18
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 20
+      parent: 45
+      flags: 0
+      name: "North_Cross__Floor"
+      name_hash: "0x9b432f7ed59db6ad"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 19
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 21
+      parent: 45
+      flags: 0
+      name: "North_Cross__Roof"
+      name_hash: "0x7cc6e01e0d2a0f9f"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 20
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 22
+      parent: 45
+      flags: 0
+      name: "North_Cross__Side_Walls"
+      name_hash: "0x768dbfb4cf31071c"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 21
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 23
+      parent: 45
+      flags: 0
+      name: "Platformer2D_NE__Floor"
+      name_hash: "0x905ab823dba35de3"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 22
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 24
+      parent: 45
+      flags: 0
+      name: "Platformer2D_NE__Parapet"
+      name_hash: "0x6c57444f756a8aba"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 23
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 25
+      parent: 45
+      flags: 0
+      name: "Platformer2D_NE__Roof_With_Real"
+      name_hash: "0xd82679f3e466a5bf"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 24
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 26
+      parent: 45
+      flags: 0
+      name: "Platformer2D_NE__Teleport_Pad_B"
+      name_hash: "0x0bd2815b03041da7"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 25
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 27
+      parent: 45
+      flags: 0
+      name: "Platformer2D_NE__Teleport_Pad_S"
+      name_hash: "0x0bd2705b030400c4"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 26
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 28
+      parent: 45
+      flags: 0
+      name: "Platformer2D_NE__Walls"
+      name_hash: "0x4bfc95cbf119b708"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 27
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 29
+      parent: 45
+      flags: 0
+      name: "Platformer3D_SW__Floor"
+      name_hash: "0xe96bba517679e193"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 28
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 30
+      parent: 45
+      flags: 0
+      name: "Platformer3D_SW__Parapet"
+      name_hash: "0x3bdf938c3d0de4ca"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 29
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 31
+      parent: 45
+      flags: 0
+      name: "Platformer3D_SW__Roof_With_Real"
+      name_hash: "0x2b9699d517120bef"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 30
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 32
+      parent: 45
+      flags: 0
+      name: "Platformer3D_SW__Teleport_Pad_B"
+      name_hash: "0xf7f4b0e8fb7345b7"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 31
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 33
+      parent: 45
+      flags: 0
+      name: "Platformer3D_SW__Teleport_Pad_S"
+      name_hash: "0xf7f4bfe8fb735f34"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 32
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 34
+      parent: 45
+      flags: 0
+      name: "Platformer3D_SW__Walls"
+      name_hash: "0xe2c0b09317afb018"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 33
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 35
+      parent: 45
+      flags: 0
+      name: "Terrain_NW__Floor"
+      name_hash: "0x6fc53d7246f716c8"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 34
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 36
+      parent: 45
+      flags: 0
+      name: "Terrain_NW__Parapet"
+      name_hash: "0x578b69862bcc48e1"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 35
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 37
+      parent: 45
+      flags: 0
+      name: "Terrain_NW__Roof_With_Real_Open"
+      name_hash: "0xb6ce17c1b6438647"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 36
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 38
+      parent: 45
+      flags: 0
+      name: "Terrain_NW__Teleport_Pad_Base"
+      name_hash: "0xe51948a18883d0d1"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 37
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 39
+      parent: 45
+      flags: 0
+      name: "Terrain_NW__Teleport_Pad_Surfac"
+      name_hash: "0xe6f4dd4076b24160"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 38
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 40
+      parent: 45
+      flags: 0
+      name: "Terrain_NW__Walls"
+      name_hash: "0x75c70b887e23f68f"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 39
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 41
+      parent: 45
+      flags: 0
+      name: "West_Gallery__Angled_Buttresses"
+      name_hash: "0x89e4641cf92aece3"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 40
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 42
+      parent: 45
+      flags: 0
+      name: "West_Gallery__Concrete_Roof"
+      name_hash: "0xc6492f14b66f073d"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 41
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 43
+      parent: 45
+      flags: 0
+      name: "West_Gallery__External_Wall"
+      name_hash: "0xd56737e2a4fc7993"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 42
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 44
+      parent: 45
+      flags: 0
+      name: "West_Gallery__Floor"
+      name_hash: "0x6674597ee6525635"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00843173265, 0.00000000, -0.000420629978
+            local_scale: 1.00000000, 1.00000012, 1.00000012
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/brutalist_hub.mesh"
+            mesh_index: 43
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/materials/concrete.material"
+    - entity: 45
+      parent: -1
+      flags: 0
+      name: "hub"
+      name_hash: "0x33140a192fb5b92c"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.00000000, 0.00000000
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+    - entity: 46
+      parent: -1
+      flags: 0
+      name: "light"
+      name_hash: "0x1f71d5a9cecc1b0f"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 20.2623577, 0.00000000
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: -0.414377362, 0.143808603, -0.294642329, 0.848997295
+        - type: 4294967289 # LDKDirectionalLight
+          fields:
+            color: 4276646911
+            intensity: 0.400000006
+            enabled: true
+            casts_shadows: true
