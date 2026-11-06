@@ -107,6 +107,7 @@ LDK_API void ldk_water_system_defaults(LDKWaterSystem *system)
   system->depth = 128.0f;
   system->cell_size = 0.5f;
   system->chunk_size = 32u;
+  system->chunks_per_draw = 4u;
   system->shallow_color = desc.shallow_color;
   system->deep_color = desc.deep_color;
   system->depth_color_distance = desc.depth_color_distance;
@@ -200,6 +201,7 @@ static bool s_config_valid(const LDKWaterSystem *system)
       !isfinite(system->cell_size) || system->width <= 0.0f ||
       system->depth <= 0.0f || system->cell_size < 0.01f ||
       system->chunk_size == 0u || system->chunk_size > 128u ||
+      system->chunks_per_draw == 0u || system->chunks_per_draw > 16u ||
       !isfinite(fabsf(system->center_x) + system->width * 0.5f) ||
       !isfinite(fabsf(system->center_z) + system->depth * 0.5f))
   {
@@ -227,7 +229,8 @@ static u64 s_geometry_hash(const LDKWaterSystem *system)
   {
     hash = (hash ^ bytes[i]) * UINT64_C(1099511628211);
   }
-  return (hash ^ system->chunk_size) * UINT64_C(1099511628211);
+  hash = (hash ^ system->chunk_size) * UINT64_C(1099511628211);
+  return (hash ^ system->chunks_per_draw) * UINT64_C(1099511628211);
 }
 
 static void s_chunks_destroy(
@@ -563,6 +566,16 @@ static void s_silhouette_update(LDKWaterSystem *system, LDKRenderer *renderer)
   s_runtime.silhouette_ready = true;
 }
 
+/* Merge logical chunks into persistent, independently culled draw meshes.
+ * The vertex spacing is unchanged: only the number of draw submissions is
+ * reduced. Keep each mesh to at most 256x256 cells so coarse frustum bounds
+ * cannot force excessively large vertex workloads. */
+static u32 s_draw_chunk_size(const LDKWaterSystem *system)
+{
+  u64 cells = (u64)system->chunk_size * system->chunks_per_draw;
+  return (u32)(cells > 256u ? 256u : cells);
+}
+
 static bool s_chunks_rebuild(LDKWaterSystem *system, LDKRenderer *renderer)
 {
   u32 cells_x = (u32)ceil((double)system->width / system->cell_size);
@@ -571,10 +584,11 @@ static bool s_chunks_rebuild(LDKWaterSystem *system, LDKRenderer *renderer)
   {
     return false;
   }
+  const u32 draw_chunk_size = s_draw_chunk_size(system);
   u32 chunks_x =
-      (u32)(((u64)cells_x + system->chunk_size - 1u) / system->chunk_size);
+      (u32)(((u64)cells_x + draw_chunk_size - 1u) / draw_chunk_size);
   u32 chunks_z =
-      (u32)(((u64)cells_z + system->chunk_size - 1u) / system->chunk_size);
+      (u32)(((u64)cells_z + draw_chunk_size - 1u) / draw_chunk_size);
   u64 count64 = (u64)chunks_x * chunks_z;
   if (!count64 || count64 > UINT32_MAX ||
       count64 > SIZE_MAX / sizeof(LDKWaterChunk))
@@ -595,17 +609,17 @@ static bool s_chunks_rebuild(LDKWaterSystem *system, LDKRenderer *renderer)
   {
     for (u32 x = 0u; x < chunks_x; ++x)
     {
-      u32 start_x = x * system->chunk_size;
-      u32 start_z = z * system->chunk_size;
+      u32 start_x = x * draw_chunk_size;
+      u32 start_z = z * draw_chunk_size;
       u32 nx = cells_x - start_x;
       u32 nz = cells_z - start_z;
-      if (nx > system->chunk_size)
+      if (nx > draw_chunk_size)
       {
-        nx = system->chunk_size;
+        nx = draw_chunk_size;
       }
-      if (nz > system->chunk_size)
+      if (nz > draw_chunk_size)
       {
-        nz = system->chunk_size;
+        nz = draw_chunk_size;
       }
 
       u32 row = nx + 1u;
@@ -766,6 +780,10 @@ LDK_API int ldk_water_system_initialize(void *data)
   {
     system->chunk_size = defaults.chunk_size;
   }
+  if (system->chunks_per_draw == 0u)
+  {
+    system->chunks_per_draw = defaults.chunks_per_draw;
+  }
   if (system->depth_color_distance == 0.0f)
   {
     system->depth_color_distance = defaults.depth_color_distance;
@@ -868,19 +886,32 @@ LDK_API void ldk_water_system_update(
   LDKRendererWaterDesc desc = s_water_desc(system);
   float amplitude =
       system->wave_0_height + system->wave_1_height + system->wave_2_height;
-  for (u32 i = 0u; i < s_runtime.chunk_count; ++i)
+
+  /* VIEW_ALL would cull against the union of cameras, then draw each
+   * accepted chunk in every view. Submit to the specific view whose frustum
+   * actually intersects the chunk instead. This also preserves water in
+   * editor and render-target cameras without leaking game-view visibility. */
+  for (u32 view_index = 0u; view_index < renderer->view_count; ++view_index)
   {
-    LDKWaterChunk *chunk = &s_runtime.chunks[i];
-    Vec3 bounds_min = chunk->bounds_min;
-    Vec3 bounds_max = chunk->bounds_max;
-    bounds_min.y = system->water_level - amplitude;
-    bounds_max.y = system->water_level + amplitude;
-    if (ldk_renderer_view_bounds_visible(
-            renderer, LDK_RENDERER_VIEW_ALL, bounds_min, bounds_max) &&
-        ldk_renderer_submit_water(
-            renderer, LDK_RENDERER_VIEW_ALL, chunk->mesh, &desc))
+    const LDKRendererView *view = &renderer->views[view_index];
+    if (!view->submitted)
     {
-      system->visible_chunk_count += 1u;
+      continue;
+    }
+
+    for (u32 i = 0u; i < s_runtime.chunk_count; ++i)
+    {
+      LDKWaterChunk *chunk = &s_runtime.chunks[i];
+      Vec3 bounds_min = chunk->bounds_min;
+      Vec3 bounds_max = chunk->bounds_max;
+      bounds_min.y = system->water_level - amplitude;
+      bounds_max.y = system->water_level + amplitude;
+      if (ldk_renderer_view_bounds_visible(
+              renderer, view->id, bounds_min, bounds_max) &&
+          ldk_renderer_submit_water(renderer, view->id, chunk->mesh, &desc))
+      {
+        system->visible_chunk_count += 1u;
+      }
     }
   }
 }

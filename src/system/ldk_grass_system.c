@@ -93,6 +93,7 @@ typedef struct LDKGrassPatchEntry
   Mat4 *instances;
   u32 instance_count;
   u32 instance_offset;
+  u32 lod_selected_count;
   u32 batch_index;
   u32 version;
   Vec3 bounds_min;
@@ -128,11 +129,22 @@ typedef struct LDKGrassBatch
   u32 instance_capacity;
   u32 index_count;
   LDKResourceMesh mesh;
+  LDKResourceMesh lod_mesh;
+  u32 lod_index_count;
   LDKResourceMaterial material;
   LDKResourceInstanceSet instance_set;
+  LDKResourceInstanceSet lod_instance_set;
+  Mat4 *lod_instances;
+  u32 *lod_instance_colors;
+  u32 lod_instance_count;
+  u32 lod_instance_capacity;
+  u32 lod_required_count;
+  u64 lod_selection_hash;
+  u64 lod_frame_hash;
   u32 submit_offset;
   u32 submit_count;
   bool submit_ready;
+  bool lod_dirty;
   bool dirty;
 } LDKGrassBatch;
 
@@ -1676,8 +1688,11 @@ static u32 s_batch_find_or_add(const LDKGrassResolvedDesc *desc)
   batch->casts_shadows = desc->casts_shadows;
   batch->unlit = desc->unlit;
   batch->mesh = ldk_renderer_mesh_null();
+  batch->lod_mesh = ldk_renderer_mesh_null();
   batch->material = ldk_renderer_material_null();
   batch->instance_set = ldk_renderer_instance_set_null();
+  batch->lod_instance_set = ldk_renderer_instance_set_null();
+  batch->lod_dirty = true;
   batch->dirty = true;
   return s_grass.batch_count++;
 }
@@ -2050,6 +2065,7 @@ static bool s_batch_rebuild(u32 batch_index)
       return false;
     }
   }
+  batch->lod_dirty = true;
   batch->dirty = false;
   return true;
 }
@@ -2095,17 +2111,21 @@ static float s_profile_slope(
 }
 
 static void s_ribbon_mesh_write(const LDKGrassBatch *batch,
-    float angle, LDKMeshVertex *vertices, u32 *vertex_count,
-    u32 *indices, u32 *index_count)
+    LDKGrassBladeLOD lod, float angle, LDKMeshVertex *vertices,
+    u32 *vertex_count, u32 *indices, u32 *index_count)
 {
   Vec3 right = vec3_make(cosf(angle), 0.0f, sinf(angle));
   Vec3 front_normal = vec3_make(-sinf(angle), 0.0f, cosf(angle));
   u32 first_vertex = *vertex_count;
+  u32 level_count = lod == LDK_GRASS_BLADE_LOD_SIMPLIFIED
+      ? 3u : LDK_GRASS_PROFILE_POINT_COUNT;
 
-  for (u32 level = 0u; level < LDK_GRASS_PROFILE_POINT_COUNT; ++level)
+  for (u32 level = 0u; level < level_count; ++level)
   {
-    float height = batch->shape.profile[level].height;
-    float half_width = batch->shape.profile[level].width * 0.5f;
+    u32 profile = lod == LDK_GRASS_BLADE_LOD_SIMPLIFIED && level > 0u
+        ? level + 1u : level;
+    float height = batch->shape.profile[profile].height;
+    float half_width = batch->shape.profile[profile].width * 0.5f;
     u32 color = LDK_RGBA32(s_color_lerp(
         batch->bottom_color, batch->top_color, height));
     LDKMeshVertex *left = &vertices[(*vertex_count)++];
@@ -2128,8 +2148,7 @@ static void s_ribbon_mesh_write(const LDKGrassBatch *batch,
         front_normal.x, front_normal.y, front_normal.z, 1.0f);
   }
 
-  for (u32 level = 0u; level + 1u < LDK_GRASS_PROFILE_POINT_COUNT;
-       ++level)
+  for (u32 level = 0u; level + 1u < level_count; ++level)
   {
     u32 lower_left = first_vertex + level * 2u;
     u32 lower_right = lower_left + 1u;
@@ -2146,21 +2165,33 @@ static void s_ribbon_mesh_write(const LDKGrassBatch *batch,
 }
 
 static void s_radial_mesh_write(const LDKGrassBatch *batch,
-    LDKMeshVertex *vertices, u32 *vertex_count, u32 *indices,
-    u32 *index_count)
+    LDKGrassBladeLOD lod, LDKMeshVertex *vertices,
+    u32 *vertex_count, u32 *indices, u32 *index_count)
 {
   u32 sides = batch->shape.side_count;
+  u32 level_count = lod == LDK_GRASS_BLADE_LOD_SIMPLIFIED
+      ? 3u : LDK_GRASS_PROFILE_POINT_COUNT;
   bool pointed =
       batch->shape.profile[LDK_GRASS_PROFILE_POINT_COUNT - 1u].width <=
       STDXM_EPS;
-  u32 ring_count = pointed ? LDK_GRASS_PROFILE_POINT_COUNT - 1u
-                           : LDK_GRASS_PROFILE_POINT_COUNT;
+  u32 ring_count = pointed ? level_count - 1u : level_count;
+
+  if (lod == LDK_GRASS_BLADE_LOD_SIMPLIFIED && sides > 3u)
+  {
+    sides = (sides + 1u) / 2u;
+    if (sides < 3u)
+    {
+      sides = 3u;
+    }
+  }
 
   for (u32 level = 0u; level < ring_count; ++level)
   {
-    float height = batch->shape.profile[level].height;
-    float radius = batch->shape.profile[level].width * 0.5f;
-    float slope = s_profile_slope(&batch->shape, level);
+    u32 profile = lod == LDK_GRASS_BLADE_LOD_SIMPLIFIED && level > 0u
+        ? level + 1u : level;
+    float height = batch->shape.profile[profile].height;
+    float radius = batch->shape.profile[profile].width * 0.5f;
+    float slope = s_profile_slope(&batch->shape, profile);
     u32 color = LDK_RGBA32(s_color_lerp(
         batch->bottom_color, batch->top_color, height));
 
@@ -2281,23 +2312,35 @@ static Vec3 s_thorny_stem_center(float height, float base_width)
 }
 
 static void s_thorny_stem_mesh_write(const LDKGrassBatch *batch,
-    LDKMeshVertex *vertices, u32 *vertex_count,
-    u32 *indices, u32 *index_count)
+    LDKGrassBladeLOD lod, LDKMeshVertex *vertices,
+    u32 *vertex_count, u32 *indices, u32 *index_count)
 {
   const LDKGrassBladeShape *shape = &batch->shape;
   float base_width = shape->profile[0].width;
   u32 sides = shape->side_count;
+  u32 level_count = lod == LDK_GRASS_BLADE_LOD_SIMPLIFIED
+      ? 3u : LDK_GRASS_PROFILE_POINT_COUNT;
   bool pointed =
       shape->profile[LDK_GRASS_PROFILE_POINT_COUNT - 1u].width <=
       STDXM_EPS;
-  u32 ring_count = pointed ? LDK_GRASS_PROFILE_POINT_COUNT - 1u
-                           : LDK_GRASS_PROFILE_POINT_COUNT;
+  u32 ring_count = pointed ? level_count - 1u : level_count;
   u32 stem_first = *vertex_count;
+
+  if (lod == LDK_GRASS_BLADE_LOD_SIMPLIFIED && sides > 3u)
+  {
+    sides = (sides + 1u) / 2u;
+    if (sides < 3u)
+    {
+      sides = 3u;
+    }
+  }
 
   for (u32 level = 0u; level < ring_count; ++level)
   {
-    float height = shape->profile[level].height;
-    float radius = shape->profile[level].width * 0.5f;
+    u32 profile = lod == LDK_GRASS_BLADE_LOD_SIMPLIFIED && level > 0u
+        ? level + 1u : level;
+    float height = shape->profile[profile].height;
+    float radius = shape->profile[profile].width * 0.5f;
     Vec3 center = s_thorny_stem_center(height, base_width);
     u32 color = LDK_RGBA32(s_color_lerp(
         batch->bottom_color, batch->top_color, height));
@@ -2381,6 +2424,13 @@ static void s_thorny_stem_mesh_write(const LDKGrassBatch *batch,
     }
   }
 
+  /* Distant thorny grass keeps only its simplified stem. Individual spikes
+   * become disconnected screen-space fragments and add no readable detail. */
+  if (lod != LDK_GRASS_BLADE_LOD_FULL)
+  {
+    return;
+  }
+
   for (u32 thorn = 0u; thorn < LDK_GRASS_THORN_COUNT; ++thorn)
   {
     float thorn_t = (float)thorn / (float)(LDK_GRASS_THORN_COUNT - 1u);
@@ -2441,8 +2491,8 @@ static void s_thorny_stem_mesh_write(const LDKGrassBatch *batch,
 }
 
 static void s_plumed_stem_mesh_write(const LDKGrassBatch *batch,
-    LDKMeshVertex *vertices, u32 *vertex_count,
-    u32 *indices, u32 *index_count)
+    LDKGrassBladeLOD lod, LDKMeshVertex *vertices,
+    u32 *vertex_count, u32 *indices, u32 *index_count)
 {
   static const struct
   {
@@ -2459,11 +2509,17 @@ static void s_plumed_stem_mesh_write(const LDKGrassBatch *batch,
   const Vec3 normal = vec3_make(0.0f, 0.0f, 1.0f);
   const Vec4 tangent = vec4_make(1.0f, 0.0f, 0.0f, 1.0f);
   u32 first = *vertex_count;
+  u32 stem_levels = lod == LDK_GRASS_BLADE_LOD_SIMPLIFIED
+      ? 3u : LDK_GRASS_PROFILE_POINT_COUNT;
+  u32 plume_segments = lod == LDK_GRASS_BLADE_LOD_SIMPLIFIED
+      ? 4u : LDK_GRASS_PLUME_SEGMENT_COUNT;
 
   /* A narrow ribbon forms the entire stem. */
-  for (u32 level = 0u; level < LDK_GRASS_PROFILE_POINT_COUNT; ++level)
+  for (u32 level = 0u; level < stem_levels; ++level)
   {
-    float t = (float)level / (float)(LDK_GRASS_PROFILE_POINT_COUNT - 1u);
+    u32 profile = lod == LDK_GRASS_BLADE_LOD_SIMPLIFIED && level > 0u
+        ? level + 1u : level;
+    float t = (float)profile / (float)(LDK_GRASS_PROFILE_POINT_COUNT - 1u);
     float x = width * 0.13f * t * t;
     float y = 0.75f * t;
     float half_width = width * (0.07f - 0.02f * t);
@@ -2481,8 +2537,7 @@ static void s_plumed_stem_mesh_write(const LDKGrassBatch *batch,
       vertex->tangent = tangent;
     }
   }
-  for (u32 level = 0u; level + 1u < LDK_GRASS_PROFILE_POINT_COUNT;
-       ++level)
+  for (u32 level = 0u; level + 1u < stem_levels; ++level)
   {
     u32 lower = first + level * 2u;
     indices[(*index_count)++] = lower;
@@ -2502,10 +2557,9 @@ static void s_plumed_stem_mesh_write(const LDKGrassBatch *batch,
     float rise = plumes[plume].tip_height - plumes[plume].base_height;
 
     first = *vertex_count;
-    for (u32 level = 0u; level <= LDK_GRASS_PLUME_SEGMENT_COUNT;
-         ++level)
+    for (u32 level = 0u; level <= plume_segments; ++level)
     {
-      float t = (float)level / (float)LDK_GRASS_PLUME_SEGMENT_COUNT;
+      float t = (float)level / (float)plume_segments;
       float x = base_x + reach * (0.18f * t + 0.82f * t * t);
       float y = plumes[plume].base_height + rise * t;
       float dx = reach * (0.18f + 1.64f * t);
@@ -2537,8 +2591,7 @@ static void s_plumed_stem_mesh_write(const LDKGrassBatch *batch,
       right->tangent = tangent;
     }
 
-    for (u32 level = 0u; level < LDK_GRASS_PLUME_SEGMENT_COUNT;
-         ++level)
+    for (u32 level = 0u; level < plume_segments; ++level)
     {
       u32 lower = first + level * 2u;
       indices[(*index_count)++] = lower;
@@ -2551,7 +2604,7 @@ static void s_plumed_stem_mesh_write(const LDKGrassBatch *batch,
   }
 }
 
-static bool s_batch_mesh_create(LDKGrassBatch *batch)
+static bool s_batch_mesh_create(LDKGrassBatch *batch, LDKGrassBladeLOD lod)
 {
   LDKMeshVertex vertices[LDK_GRASS_MAX_MESH_VERTEX_COUNT];
   u32 indices[LDK_GRASS_MAX_MESH_INDEX_COUNT];
@@ -2559,7 +2612,9 @@ static bool s_batch_mesh_create(LDKGrassBatch *batch)
   u32 vertex_count = 0u;
   u32 index_count = 0u;
 
-  if (!batch || !s_shape_is_valid(&batch->shape) || !s_grass.renderer)
+  if (!batch || !s_shape_is_valid(&batch->shape) || !s_grass.renderer ||
+      (lod != LDK_GRASS_BLADE_LOD_FULL &&
+          lod != LDK_GRASS_BLADE_LOD_SIMPLIFIED))
   {
     return false;
   }
@@ -2584,7 +2639,7 @@ static bool s_batch_mesh_create(LDKGrassBatch *batch)
     }
 
     if (!generator(&batch->shape, batch->bottom_color, batch->top_color,
-            &custom_mesh))
+            lod, &custom_mesh))
     {
       ldk_mesh_data_destroy(&custom_mesh);
       if (!s_custom_error_reported[slot])
@@ -2647,14 +2702,21 @@ static bool s_batch_mesh_create(LDKGrassBatch *batch)
     desc.indices = custom_mesh.indices;
     desc.index_count = custom_mesh.index_count;
     desc.has_tangents = custom_mesh.has_tangents;
-    batch->mesh = ldk_renderer_mesh_create(s_grass.renderer, &desc);
-    batch->index_count = desc.index_count;
+    LDKResourceMesh mesh = ldk_renderer_mesh_create(s_grass.renderer, &desc);
     ldk_mesh_data_destroy(&custom_mesh);
-
-    if (!ldk_renderer_mesh_is_valid(s_grass.renderer, batch->mesh))
+    if (!ldk_renderer_mesh_is_valid(s_grass.renderer, mesh))
     {
-      batch->mesh = ldk_renderer_mesh_null();
       return false;
+    }
+    if (lod == LDK_GRASS_BLADE_LOD_SIMPLIFIED)
+    {
+      batch->lod_mesh = mesh;
+      batch->lod_index_count = desc.index_count;
+    }
+    else
+    {
+      batch->mesh = mesh;
+      batch->index_count = desc.index_count;
     }
     return true;
   }
@@ -2663,34 +2725,34 @@ static bool s_batch_mesh_create(LDKGrassBatch *batch)
   switch (batch->shape.topology)
   {
   case LDK_GRASS_BLADE_TOPOLOGY_RIBBON:
-    s_ribbon_mesh_write(batch, 0.0f, vertices, &vertex_count,
+    s_ribbon_mesh_write(batch, lod, 0.0f, vertices, &vertex_count,
         indices, &index_count);
     break;
   case LDK_GRASS_BLADE_TOPOLOGY_CROSSED_RIBBONS:
-    s_ribbon_mesh_write(batch, 0.0f, vertices, &vertex_count,
+    s_ribbon_mesh_write(batch, lod, 0.0f, vertices, &vertex_count,
         indices, &index_count);
-    s_ribbon_mesh_write(batch, LDK_GRASS_PI * 0.5f, vertices,
+    s_ribbon_mesh_write(batch, lod, LDK_GRASS_PI * 0.5f, vertices,
         &vertex_count, indices, &index_count);
     break;
   case LDK_GRASS_BLADE_TOPOLOGY_TRIPLE_RIBBONS:
-    s_ribbon_mesh_write(batch, 0.0f, vertices, &vertex_count,
+    s_ribbon_mesh_write(batch, lod, 0.0f, vertices, &vertex_count,
         indices, &index_count);
-    s_ribbon_mesh_write(batch, LDK_GRASS_PI / 3.0f, vertices,
+    s_ribbon_mesh_write(batch, lod, LDK_GRASS_PI / 3.0f, vertices,
         &vertex_count, indices, &index_count);
-    s_ribbon_mesh_write(batch, LDK_GRASS_PI * 2.0f / 3.0f, vertices,
+    s_ribbon_mesh_write(batch, lod, LDK_GRASS_PI * 2.0f / 3.0f, vertices,
         &vertex_count, indices, &index_count);
     break;
   case LDK_GRASS_BLADE_TOPOLOGY_RADIAL:
     s_radial_mesh_write(
-        batch, vertices, &vertex_count, indices, &index_count);
+        batch, lod, vertices, &vertex_count, indices, &index_count);
     break;
   case LDK_GRASS_BLADE_TOPOLOGY_THORNY_STEM:
     s_thorny_stem_mesh_write(
-        batch, vertices, &vertex_count, indices, &index_count);
+        batch, lod, vertices, &vertex_count, indices, &index_count);
     break;
   case LDK_GRASS_BLADE_TOPOLOGY_PLUMED_STEM:
     s_plumed_stem_mesh_write(
-        batch, vertices, &vertex_count, indices, &index_count);
+        batch, lod, vertices, &vertex_count, indices, &index_count);
     break;
   default:
     return false;
@@ -2701,14 +2763,22 @@ static bool s_batch_mesh_create(LDKGrassBatch *batch)
   desc.indices = indices;
   desc.index_count = index_count;
   desc.has_tangents = true;
-  batch->mesh = ldk_renderer_mesh_create(s_grass.renderer, &desc);
-  if (!ldk_renderer_mesh_is_valid(s_grass.renderer, batch->mesh))
+  LDKResourceMesh mesh = ldk_renderer_mesh_create(s_grass.renderer, &desc);
+  if (!ldk_renderer_mesh_is_valid(s_grass.renderer, mesh))
   {
-    batch->mesh = ldk_renderer_mesh_null();
     return false;
   }
 
-  batch->index_count = index_count;
+  if (lod == LDK_GRASS_BLADE_LOD_SIMPLIFIED)
+  {
+    batch->lod_mesh = mesh;
+    batch->lod_index_count = index_count;
+  }
+  else
+  {
+    batch->mesh = mesh;
+    batch->index_count = index_count;
+  }
   return true;
 }
 
@@ -2856,6 +2926,11 @@ static void s_batch_release(LDKGrassBatch *batch)
     ldk_renderer_mesh_destroy(s_grass.renderer, batch->mesh);
   }
   if (s_grass.renderer &&
+      ldk_renderer_mesh_is_valid(s_grass.renderer, batch->lod_mesh))
+  {
+    ldk_renderer_mesh_destroy(s_grass.renderer, batch->lod_mesh);
+  }
+  if (s_grass.renderer &&
       ldk_renderer_material_is_valid(s_grass.renderer, batch->material))
   {
     ldk_renderer_material_destroy(s_grass.renderer, batch->material);
@@ -2865,9 +2940,18 @@ static void s_batch_release(LDKGrassBatch *batch)
   {
     ldk_renderer_instance_set_destroy(s_grass.renderer, batch->instance_set);
   }
+  if (s_grass.renderer &&
+      ldk_renderer_instance_set_is_valid(
+          s_grass.renderer, batch->lod_instance_set))
+  {
+    ldk_renderer_instance_set_destroy(s_grass.renderer,
+        batch->lod_instance_set);
+  }
 
   free(batch->instances);
   free(batch->instance_colors);
+  free(batch->lod_instances);
+  free(batch->lod_instance_colors);
   memset(batch, 0, sizeof(*batch));
 }
 
@@ -3396,9 +3480,221 @@ void ldk_grass_clear(void)
           s_grass.renderer, batch->instance_set);
     }
     batch->instance_set = ldk_renderer_instance_set_null();
+    if (ldk_renderer_instance_set_is_valid(
+            s_grass.renderer, batch->lod_instance_set))
+    {
+      ldk_renderer_instance_set_destroy(
+          s_grass.renderer, batch->lod_instance_set);
+    }
+    batch->lod_instance_set = ldk_renderer_instance_set_null();
+    batch->lod_instance_count = 0u;
     batch->instance_count = 0u;
+    batch->lod_dirty = true;
     batch->dirty = false;
   }
+}
+
+/* Use the submitted game view, which is also used by the existing grass
+ * frustum culling. Renderer views have already been submitted before the
+ * GrassSystem's render bucket runs. */
+static bool s_lod_camera_position(Vec3 *out_position)
+{
+  const LDKRenderer *renderer = s_grass.renderer;
+
+  if (!out_position || !renderer ||
+      renderer->game_view == LDK_RENDERER_VIEW_INVALID)
+  {
+    return false;
+  }
+
+  for (u32 i = 0u; i < renderer->view_count; ++i)
+  {
+    const LDKRendererView *view = &renderer->views[i];
+    Mat4 world;
+    Vec3 position;
+
+    if (!view->submitted || view->id != renderer->game_view)
+    {
+      continue;
+    }
+
+    world = mat4_inverse_affine(view->view);
+    position = vec3_make(world.m[12], world.m[13], world.m[14]);
+    if (!s_vec3_is_finite(position))
+    {
+      return false;
+    }
+
+    *out_position = position;
+    return true;
+  }
+
+  return false;
+}
+
+/* Distance to the nearest point on the patch's AABB, not to its center.
+ * Large patches therefore retain detail while any part is near the camera. */
+static float s_lod_patch_distance(
+    const LDKGrassPatchEntry *entry, Vec3 camera_position)
+{
+  float dx = fmaxf(fmaxf(entry->bounds_min.x - camera_position.x,
+      camera_position.x - entry->bounds_max.x), 0.0f);
+  float dy = fmaxf(fmaxf(entry->bounds_min.y - camera_position.y,
+      camera_position.y - entry->bounds_max.y), 0.0f);
+  float dz = fmaxf(fmaxf(entry->bounds_min.z - camera_position.z,
+      camera_position.z - entry->bounds_max.z), 0.0f);
+  return sqrtf(dx * dx + dy * dy + dz * dz);
+}
+
+static u32 s_lod_instance_count(
+    u32 instance_count, float distance, const LDKGrassSystem *system)
+{
+  float t = s_clamp01((distance - system->lod_start_distance) /
+      (system->lod_end_distance - system->lod_start_distance));
+  float density;
+  double count;
+
+  /* Smoothstep avoids abrupt changes in the density rate at either limit. */
+  t = t * t * (3.0f - 2.0f * t);
+  density = 1.0f + (system->lod_min_density - 1.0f) * t;
+  count = floor((double)instance_count * (double)density + 0.5);
+  return count >= (double)instance_count ? instance_count : (u32)count;
+}
+
+/* Keep a compact set for all distant blades of one compatible batch. This
+ * preserves one draw per distant batch instead of splitting the immutable
+ * source instance set into many short per-patch ranges. GPU uploads occur only
+ * when the visible LOD selection or source instances actually change. */
+static bool s_batch_lod_instances_reserve(
+    LDKGrassBatch *batch, u32 required)
+{
+  u32 capacity;
+  Mat4 *instances;
+  u32 *colors;
+
+  if (required <= batch->lod_instance_capacity)
+  {
+    return true;
+  }
+
+  capacity = batch->lod_instance_capacity
+      ? batch->lod_instance_capacity : 256u;
+  while (capacity < required)
+  {
+    if (capacity > UINT32_MAX / 2u)
+    {
+      capacity = required;
+      break;
+    }
+    capacity *= 2u;
+  }
+  if (!s_allocation_size_is_valid(capacity, sizeof(Mat4)) ||
+      !s_allocation_size_is_valid(capacity, sizeof(u32)))
+  {
+    return false;
+  }
+
+  instances = realloc(batch->lod_instances, (size_t)capacity * sizeof(Mat4));
+  if (!instances)
+  {
+    return false;
+  }
+  batch->lod_instances = instances;
+  colors = realloc(batch->lod_instance_colors,
+      (size_t)capacity * sizeof(u32));
+  if (!colors)
+  {
+    return false;
+  }
+  batch->lod_instance_colors = colors;
+  batch->lod_instance_capacity = capacity;
+  return true;
+}
+
+static bool s_batch_lod_instances_sync(
+    u32 batch_index, LDKGrassBatch *batch)
+{
+  u32 write_index = 0u;
+
+  if (!batch || batch->lod_required_count == 0u)
+  {
+    return true;
+  }
+
+  if (!batch->lod_dirty &&
+      batch->lod_selection_hash == batch->lod_frame_hash &&
+      batch->lod_instance_count == batch->lod_required_count &&
+      ldk_renderer_instance_set_is_valid(
+          s_grass.renderer, batch->lod_instance_set))
+  {
+    return true;
+  }
+
+  /* A failed upload can partially change an existing GPU buffer. Force a
+   * complete retry even if a later frame selects the previous instance set. */
+  batch->lod_dirty = true;
+  if (!s_batch_lod_instances_reserve(batch, batch->lod_required_count))
+  {
+    return false;
+  }
+
+  for (u32 i = 0u; i < s_grass.patch_count; ++i)
+  {
+    const LDKGrassPatchEntry *entry = &s_grass.patches[i];
+    u32 count = entry->lod_selected_count;
+
+    if (!entry->alive || entry->batch_index != batch_index || count == 0u)
+    {
+      continue;
+    }
+
+    if (entry->instance_offset > batch->instance_count ||
+        count > batch->instance_count - entry->instance_offset ||
+        count > batch->lod_required_count - write_index)
+    {
+      return false;
+    }
+
+    memcpy(batch->lod_instances + write_index,
+        batch->instances + entry->instance_offset,
+        (size_t)count * sizeof(Mat4));
+    memcpy(batch->lod_instance_colors + write_index,
+        batch->instance_colors + entry->instance_offset,
+        (size_t)count * sizeof(u32));
+    write_index += count;
+  }
+
+  if (write_index != batch->lod_required_count)
+  {
+    return false;
+  }
+
+  if (ldk_renderer_instance_set_is_valid(
+          s_grass.renderer, batch->lod_instance_set))
+  {
+    if (!ldk_renderer_instance_set_update_colored(s_grass.renderer,
+            batch->lod_instance_set, batch->lod_instances,
+            batch->lod_instance_colors, write_index))
+    {
+      return false;
+    }
+  }
+  else
+  {
+    batch->lod_instance_set = ldk_renderer_instance_set_create_colored(
+        s_grass.renderer, batch->lod_instances,
+        batch->lod_instance_colors, write_index);
+    if (!ldk_renderer_instance_set_is_valid(
+            s_grass.renderer, batch->lod_instance_set))
+    {
+      return false;
+    }
+  }
+
+  batch->lod_instance_count = write_index;
+  batch->lod_selection_hash = batch->lod_frame_hash;
+  batch->lod_dirty = false;
+  return true;
 }
 
 static void s_batch_submit_pending(LDKGrassBatch *batch)
@@ -3422,10 +3718,23 @@ static void s_batch_submit_pending(LDKGrassBatch *batch)
 
 static void s_grass_submit(void)
 {
-  if (!s_grass.initialized || !s_grass.renderer)
+  const LDKGrassSystem *system = s_grass.owner;
+  Vec3 camera_position = vec3_make(0.0f, 0.0f, 0.0f);
+  bool lod_enabled;
+
+  if (!s_grass.initialized || !s_grass.renderer || !system)
   {
     return;
   }
+
+  lod_enabled = isfinite(system->lod_start_distance) &&
+      isfinite(system->lod_end_distance) &&
+      isfinite(system->lod_min_density) &&
+      system->lod_start_distance >= 0.0f &&
+      system->lod_end_distance > system->lod_start_distance &&
+      system->lod_min_density >= 0.0f &&
+      system->lod_min_density <= 1.0f &&
+      s_lod_camera_position(&camera_position);
 
   for (u32 i = 0u; i < s_grass.batch_count; ++i)
   {
@@ -3433,6 +3742,8 @@ static void s_grass_submit(void)
 
     batch->submit_count = 0u;
     batch->submit_ready = false;
+    batch->lod_required_count = 0u;
+    batch->lod_frame_hash = UINT64_C(14695981039346656037);
     if (batch->dirty && !s_batch_rebuild(i))
     {
       continue;
@@ -3442,7 +3753,7 @@ static void s_grass_submit(void)
       continue;
     }
     if (!ldk_renderer_mesh_is_valid(s_grass.renderer, batch->mesh) &&
-        !s_batch_mesh_create(batch))
+        !s_batch_mesh_create(batch, LDK_GRASS_BLADE_LOD_FULL))
     {
       continue;
     }
@@ -3458,9 +3769,12 @@ static void s_grass_submit(void)
 
   for (u32 i = 0u; i < s_grass.patch_count; ++i)
   {
-    const LDKGrassPatchEntry *entry = &s_grass.patches[i];
+    LDKGrassPatchEntry *entry = &s_grass.patches[i];
     LDKGrassBatch *batch;
+    bool use_lod = false;
+    u32 visible_count;
 
+    entry->lod_selected_count = 0u;
     if (!entry->alive || entry->instance_count == 0u ||
         entry->batch_index >= s_grass.batch_count)
     {
@@ -3481,22 +3795,98 @@ static void s_grass_submit(void)
       continue;
     }
 
-    if (batch->submit_count != 0u &&
-        entry->instance_offset !=
-            batch->submit_offset + batch->submit_count)
+    visible_count = entry->instance_count;
+    if (lod_enabled)
+    {
+      float distance = s_lod_patch_distance(entry, camera_position);
+      if (isfinite(distance) && distance > system->lod_start_distance &&
+          (ldk_renderer_mesh_is_valid(s_grass.renderer, batch->lod_mesh) ||
+              s_batch_mesh_create(
+                  batch, LDK_GRASS_BLADE_LOD_SIMPLIFIED)))
+      {
+        use_lod = true;
+        visible_count = s_lod_instance_count(
+            entry->instance_count, distance, system);
+      }
+    }
+
+    if (use_lod)
     {
       s_batch_submit_pending(batch);
+      if (visible_count > 0u &&
+          batch->lod_required_count <= UINT32_MAX - visible_count)
+      {
+        entry->lod_selected_count = visible_count;
+        batch->lod_required_count += visible_count;
+        s_hash_bytes(&batch->lod_frame_hash, &i, sizeof(i));
+        s_hash_bytes(&batch->lod_frame_hash,
+            &entry->instance_offset, sizeof(entry->instance_offset));
+        s_hash_bytes(&batch->lod_frame_hash,
+            &visible_count, sizeof(visible_count));
+      }
+      else if (visible_count > 0u)
+      {
+        /* A size overflow falls back to unthinned near instances. */
+        use_lod = false;
+      }
     }
-    if (batch->submit_count == 0u)
+
+    if (!use_lod)
     {
-      batch->submit_offset = entry->instance_offset;
+      if (batch->submit_count != 0u &&
+          entry->instance_offset !=
+              batch->submit_offset + batch->submit_count)
+      {
+        s_batch_submit_pending(batch);
+      }
+      if (batch->submit_count == 0u)
+      {
+        batch->submit_offset = entry->instance_offset;
+      }
+      batch->submit_count += entry->instance_count;
     }
-    batch->submit_count += entry->instance_count;
   }
 
   for (u32 i = 0u; i < s_grass.batch_count; ++i)
   {
-    s_batch_submit_pending(&s_grass.batches[i]);
+    LDKGrassBatch *batch = &s_grass.batches[i];
+    u32 flags;
+
+    s_batch_submit_pending(batch);
+    if (!batch->submit_ready || batch->lod_required_count == 0u)
+    {
+      continue;
+    }
+
+    if (!s_batch_lod_instances_sync(i, batch))
+    {
+      /* Do not drop grass if the compact LOD instance set cannot be built. */
+      for (u32 j = 0u; j < s_grass.patch_count; ++j)
+      {
+        const LDKGrassPatchEntry *entry = &s_grass.patches[j];
+        if (entry->alive && entry->batch_index == i &&
+            entry->lod_selected_count != 0u)
+        {
+          (void)ldk_renderer_submit_mesh_instance_set_range(
+              s_grass.renderer, LDK_RENDERER_VIEW_ALL, batch->mesh,
+              batch->material, 0u, batch->index_count,
+              batch->instance_set, entry->instance_offset,
+              entry->instance_count,
+              batch->casts_shadows
+                  ? LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS
+                  : LDK_RENDERER_MESH_SUBMIT_FLAG_NONE);
+        }
+      }
+      continue;
+    }
+
+    flags = batch->casts_shadows
+        ? LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS
+        : LDK_RENDERER_MESH_SUBMIT_FLAG_NONE;
+    (void)ldk_renderer_submit_mesh_instance_set_range(s_grass.renderer,
+        LDK_RENDERER_VIEW_ALL, batch->lod_mesh, batch->material, 0u,
+        batch->lod_index_count, batch->lod_instance_set, 0u,
+        batch->lod_required_count, flags);
   }
 }
 

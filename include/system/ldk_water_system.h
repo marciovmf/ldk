@@ -35,6 +35,7 @@ extern "C"
     float depth;
     //@inspect min=0.01
     float cell_size;
+    /** Logical water-grid chunk size, in cells. */
     //@inspect min=1 max=128
     u32 chunk_size;
     //@end_group
@@ -156,12 +157,21 @@ extern "C"
     //@begin_group "Runtime"
     //@inspect runtime
     u32 chunk_count;
+    /** Water draw submissions across all active renderer views this frame. */
     //@inspect runtime
     u32 visible_chunk_count;
     //@inspect runtime
     u32 mesh_update_count;
     //@inspect runtime
     bool has_geometry;
+    //@end_group
+
+    //@begin_group "Draw Batching"
+    /** Number of logical chunks merged per draw, on each axis.
+     * Draw meshes are limited to 256 cells per axis to bound vertex cost.
+     * An absent/zero field in an existing scene initializes to four. */
+    //@inspect min=1 max=16
+    u32 chunks_per_draw;
     //@end_group
   } LDKWaterSystem;
 
