@@ -170,10 +170,16 @@ typedef struct TFTFIslandSystem
   //@end_group
 
   //@begin_group "Island Rendering"
+  /** Nearby tile radius for gameplay and the legacy atlas; not a view cutoff. */
   u32 radius;
   float cell_size;
   float elevation;
+  /** Camera offset used only by the legacy atlas when TerrainSystem is off. */
   float forward_offset;
+  /** Extra preload margin around the main camera frustum, in world units.
+   * Zero selects a default margin of four island cells. */
+  //@inspect min=0
+  float grass_stream_margin;
   LDKAssetMaterial material;
   //@end_group
 
@@ -192,6 +198,9 @@ typedef struct TFTFIslandSystem
   u32 map_revision;
   //@inspect runtime
   u32 active_tile_count;
+  /** Frustum-streamed grass cells outside the nearby gameplay window. */
+  //@inspect runtime
+  u32 streamed_grass_tile_count;
   //@inspect runtime
   u32 tiles_added;
   //@inspect runtime

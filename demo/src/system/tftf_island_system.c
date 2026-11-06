@@ -2,11 +2,13 @@
 #include "tftf_island_generator.h"
 #include "tftf_terrain_atlas.h"
 
+#include <component/ldk_camera.h>
 #include <component/ldk_transform.h>
 #include <ldk.h>
 #include <ldk_material_asset.h>
 #include <ldk_mesh.h>
 #include <module/ldk_asset_manager.h>
+#include <module/ldk_ecs.h>
 #include <module/ldk_renderer.h>
 #include <system/ldk_grass_system.h>
 #include <system/ldk_terrain_system.h>
@@ -127,6 +129,19 @@ typedef struct IslandTerrainRuntime
   IslandTerrainTile *tiles;
   u32 tile_count;
   u32 tile_capacity;
+  /* Additional grass patches selected by the main camera's frustum.
+   * These never participate in the legacy terrain mesh or gameplay window. */
+  IslandTerrainTile *visual_tiles;
+  u32 visual_tile_count;
+  u32 visual_tile_capacity;
+  /* One selection byte and cached terrain height interval per map cell. */
+  u8 *visual_selection;
+  u8 *visual_height_valid;
+  float *visual_min_height;
+  float *visual_max_height;
+  u64 visual_geometry_revision;
+  u32 visual_map_revision;
+  float visual_cell_size;
   float *grass_density_scales;
 
   LDKMeshVertex *vertices;
@@ -1437,6 +1452,22 @@ bool tftf_island_grass_density_multiply_at(
     return false;
   }
 
+  for (u32 i = 0u; i < s_runtime.visual_tile_count; ++i)
+  {
+    IslandTerrainTile *tile = &s_runtime.visual_tiles[i];
+    if (tile->x != x || tile->y != y)
+    {
+      continue;
+    }
+    if (s_island_terrain_tile_grass_update(system, tile))
+    {
+      return true;
+    }
+    s_runtime.grass_density_scales[scale_index] = previous_scale;
+    (void)s_island_terrain_tile_grass_update(system, tile);
+    return false;
+  }
+
   return true;
 }
 
@@ -1486,6 +1517,14 @@ static bool s_tftf_island_grass_update_all(TFTFIslandSystem *system)
   for (u32 i = 0u; i < s_runtime.tile_count; ++i)
   {
     if (!s_island_terrain_tile_grass_update(system, &s_runtime.tiles[i]))
+    {
+      return false;
+    }
+  }
+  for (u32 i = 0u; i < s_runtime.visual_tile_count; ++i)
+  {
+    if (!s_island_terrain_tile_grass_update(
+            system, &s_runtime.visual_tiles[i]))
     {
       return false;
     }
@@ -1920,6 +1959,479 @@ static bool s_island_terrain_tiles_sync(
   return true;
 }
 
+
+/* The IslandSystem runs in the UPDATE bucket, before renderer views are
+ * submitted. Build a fresh camera frustum rather than querying game_view,
+ * whose submitted flag is not valid at this point of the frame. */
+typedef struct IslandVisualFrustum
+{
+  Vec4 planes[6];
+  Vec2 footprint[16];
+  u32 footprint_count;
+  float min_x;
+  float min_z;
+  float max_x;
+  float max_z;
+} IslandVisualFrustum;
+
+static float s_island_visual_cross(Vec2 a, Vec2 b, Vec2 c)
+{
+  return (b.x - a.x) * (c.y - a.y) -
+      (b.y - a.y) * (c.x - a.x);
+}
+
+static bool s_island_visual_frustum_make(
+    const LDKRenderer *renderer, LDKEntity camera_entity,
+    IslandVisualFrustum *out)
+{
+  Mat4 view;
+  Mat4 projection;
+  Mat4 view_projection;
+  Mat4 inverse;
+  bool invertible = false;
+  Vec2 footprint_points[8];
+  u32 width = 0u;
+  u32 height = 0u;
+
+  if (!renderer || !out)
+  {
+    return false;
+  }
+
+  /* The engine associates a view with (entity.version, entity.index + 1).
+   * Query the same viewport extent used to build the render projection. */
+  LDKRendererViewId view_id =
+      ((u64)camera_entity.version << 32u) | ((u64)camera_entity.index + 1u);
+  if (!ldk_renderer_view_extent_get(renderer, view_id, &width, &height) ||
+      width == 0u || height == 0u ||
+      !ldk_camera_get_view_matrix(camera_entity, &view) ||
+      !ldk_camera_get_projection_matrix(camera_entity,
+          (float)width / (float)height, &projection))
+  {
+    return false;
+  }
+
+  view_projection = mat4_mul(projection, view);
+  inverse = mat4_inverse_full(view_projection, &invertible);
+  if (!invertible)
+  {
+    return false;
+  }
+
+  out->min_x = out->min_z = INFINITY;
+  out->max_x = out->max_z = -INFINITY;
+  for (u32 corner = 0u; corner < 8u; ++corner)
+  {
+    Vec3 ndc = vec3_make((corner & 1u) ? 1.0f : -1.0f,
+        (corner & 2u) ? 1.0f : -1.0f,
+        (corner & 4u) ? 1.0f : -1.0f);
+    Vec3 world = mat4_mul_point(inverse, ndc);
+    if (!isfinite(world.x) || !isfinite(world.y) || !isfinite(world.z))
+    {
+      return false;
+    }
+    footprint_points[corner] = vec2_make(world.x, world.z);
+    out->min_x = fminf(out->min_x, world.x);
+    out->max_x = fmaxf(out->max_x, world.x);
+    out->min_z = fminf(out->min_z, world.z);
+    out->max_z = fmaxf(out->max_z, world.z);
+  }
+
+  /* The XZ projection of a convex frustum is convex. Use its eight-point
+   * hull to reject large areas of the bounding rectangle before asking the
+   * TerrainSystem to evaluate any tile heights. */
+  for (u32 i = 1u; i < 8u; ++i)
+  {
+    Vec2 point = footprint_points[i];
+    u32 j = i;
+    while (j > 0u && (footprint_points[j - 1u].x > point.x ||
+        (footprint_points[j - 1u].x == point.x &&
+         footprint_points[j - 1u].y > point.y)))
+    {
+      footprint_points[j] = footprint_points[j - 1u];
+      --j;
+    }
+    footprint_points[j] = point;
+  }
+  u32 count = 0u;
+  for (u32 i = 0u; i < 8u; ++i)
+  {
+    while (count >= 2u && s_island_visual_cross(
+            out->footprint[count - 2u], out->footprint[count - 1u],
+            footprint_points[i]) <= 0.0f)
+    {
+      --count;
+    }
+    out->footprint[count++] = footprint_points[i];
+  }
+  u32 lower_count = count;
+  for (u32 i = 8u; i-- > 0u;)
+  {
+    while (count > lower_count && s_island_visual_cross(
+            out->footprint[count - 2u], out->footprint[count - 1u],
+            footprint_points[i]) <= 0.0f)
+    {
+      --count;
+    }
+    out->footprint[count++] = footprint_points[i];
+  }
+  out->footprint_count = count > 1u ? count - 1u : 0u;
+
+  /* Same six OpenGL (-1..1 depth) clip planes as the LDK renderer. */
+  Mat4 m = view_projection;
+  out->planes[0] = vec4_make(m.m[3] + m.m[0], m.m[7] + m.m[4],
+      m.m[11] + m.m[8], m.m[15] + m.m[12]);
+  out->planes[1] = vec4_make(m.m[3] - m.m[0], m.m[7] - m.m[4],
+      m.m[11] - m.m[8], m.m[15] - m.m[12]);
+  out->planes[2] = vec4_make(m.m[3] + m.m[1], m.m[7] + m.m[5],
+      m.m[11] + m.m[9], m.m[15] + m.m[13]);
+  out->planes[3] = vec4_make(m.m[3] - m.m[1], m.m[7] - m.m[5],
+      m.m[11] - m.m[9], m.m[15] - m.m[13]);
+  out->planes[4] = vec4_make(m.m[3] + m.m[2], m.m[7] + m.m[6],
+      m.m[11] + m.m[10], m.m[15] + m.m[14]);
+  out->planes[5] = vec4_make(m.m[3] - m.m[2], m.m[7] - m.m[6],
+      m.m[11] - m.m[10], m.m[15] - m.m[14]);
+  for (u32 i = 0u; i < 6u; ++i)
+  {
+    Vec4 p = out->planes[i];
+    float length = sqrtf(p.x * p.x + p.y * p.y + p.z * p.z);
+    if (!isfinite(length) || length <= 1e-7f || !isfinite(p.w))
+    {
+      return false;
+    }
+    out->planes[i] = vec4_make(p.x / length,
+        p.y / length, p.z / length, p.w / length);
+  }
+  return true;
+}
+
+static bool s_island_visual_tile_height_get(TFTFIslandSystem *system,
+    u32 x, u32 y, float *out_min, float *out_max)
+{
+  size_t at = (size_t)y * s_map.width + x;
+  if (!s_runtime.visual_height_valid[at])
+  {
+    float origin_x = -(float)s_map.width * system->cell_size * 0.5f;
+    float origin_z = -(float)s_map.height * system->cell_size * 0.5f;
+    float x0 = origin_x + (float)x * system->cell_size;
+    float z0 = origin_z + (float)y * system->cell_size;
+    float x1 = x0 + system->cell_size;
+    float z1 = z0 + system->cell_size;
+    float heights[4];
+
+    if (!ldk_terrain_height_at_world(x0, z0, &heights[0]) ||
+        !ldk_terrain_height_at_world(x1, z0, &heights[1]) ||
+        !ldk_terrain_height_at_world(x0, z1, &heights[2]) ||
+        !ldk_terrain_height_at_world(x1, z1, &heights[3]))
+    {
+      return false;
+    }
+
+    float low = heights[0];
+    float high = heights[0];
+    for (u32 i = 1u; i < 4u; ++i)
+    {
+      low = fminf(low, heights[i]);
+      high = fmaxf(high, heights[i]);
+    }
+    s_runtime.visual_min_height[at] = low;
+    s_runtime.visual_max_height[at] = high;
+    s_runtime.visual_height_valid[at] = 1u;
+  }
+  *out_min = s_runtime.visual_min_height[at];
+  *out_max = s_runtime.visual_max_height[at];
+  return true;
+}
+
+static bool s_island_visual_tile_in_footprint(
+    TFTFIslandSystem *system, const IslandVisualFrustum *frustum,
+    u32 x, u32 y, float margin)
+{
+  if (frustum->footprint_count < 3u)
+  {
+    return true;
+  }
+  float origin_x = -(float)s_map.width * system->cell_size * 0.5f;
+  float origin_z = -(float)s_map.height * system->cell_size * 0.5f;
+  float half = system->cell_size * 0.5f;
+  float cx = origin_x + ((float)x + 0.5f) * system->cell_size;
+  float cz = origin_z + ((float)y + 0.5f) * system->cell_size;
+  for (u32 i = 0u; i < frustum->footprint_count; ++i)
+  {
+    Vec2 a = frustum->footprint[i];
+    Vec2 b = frustum->footprint[(i + 1u) % frustum->footprint_count];
+    float dx = b.x - a.x;
+    float dz = b.y - a.y;
+    float distance = dx * (cz - a.y) - dz * (cx - a.x);
+    float extent = (fabsf(dx) + fabsf(dz)) * half +
+        sqrtf(dx * dx + dz * dz) * margin;
+    if (distance + extent < 0.0f)
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool s_island_visual_tile_visible(TFTFIslandSystem *system,
+    const IslandVisualFrustum *frustum, u32 x, u32 y,
+    float blade_height, float margin)
+{
+  float low;
+  float high;
+  if (!s_island_visual_tile_in_footprint(system, frustum, x, y, margin) ||
+      !s_island_visual_tile_height_get(system, x, y, &low, &high))
+  {
+    return false;
+  }
+
+  float origin_x = -(float)s_map.width * system->cell_size * 0.5f;
+  float origin_z = -(float)s_map.height * system->cell_size * 0.5f;
+  float x0 = origin_x + (float)x * system->cell_size;
+  float z0 = origin_z + (float)y * system->cell_size;
+  Vec3 center = vec3_make(x0 + system->cell_size * 0.5f,
+      (low + high + blade_height) * 0.5f,
+      z0 + system->cell_size * 0.5f);
+  Vec3 extents = vec3_make(system->cell_size * 0.5f,
+      (high - low + blade_height) * 0.5f,
+      system->cell_size * 0.5f);
+
+  /* A margin in world units also accounts for blade sway beyond tile edges.
+   * Unlike an XZ-only projection, this tests the actual elevated terrain. */
+  for (u32 i = 0u; i < 6u; ++i)
+  {
+    Vec4 p = frustum->planes[i];
+    float distance = p.x * center.x + p.y * center.y +
+        p.z * center.z + p.w;
+    float radius = fabsf(p.x) * extents.x +
+        fabsf(p.y) * extents.y + fabsf(p.z) * extents.z;
+    if (distance + radius + margin < 0.0f)
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool s_island_visual_tiles_reserve(u32 required)
+{
+  if (required <= s_runtime.visual_tile_capacity)
+  {
+    return true;
+  }
+  u32 capacity = s_runtime.visual_tile_capacity
+      ? s_runtime.visual_tile_capacity : 64u;
+  while (capacity < required)
+  {
+    if (capacity > UINT32_MAX / 2u)
+    {
+      capacity = required;
+      break;
+    }
+    capacity *= 2u;
+  }
+  if ((size_t)capacity > SIZE_MAX / sizeof(IslandTerrainTile))
+  {
+    return false;
+  }
+  IslandTerrainTile *tiles = (IslandTerrainTile *)realloc(
+      s_runtime.visual_tiles, (size_t)capacity * sizeof(*tiles));
+  if (!tiles)
+  {
+    return false;
+  }
+  s_runtime.visual_tiles = tiles;
+  s_runtime.visual_tile_capacity = capacity;
+  return true;
+}
+
+static void s_island_visual_tiles_clear(TFTFIslandSystem *system)
+{
+  for (u32 i = 0u; i < s_runtime.visual_tile_count; ++i)
+  {
+    s_island_terrain_tile_grass_remove(&s_runtime.visual_tiles[i]);
+  }
+  s_runtime.visual_tile_count = 0u;
+  system->streamed_grass_tile_count = 0u;
+}
+
+static bool s_island_visual_tiles_sync(TFTFIslandSystem *system,
+    const LDKRenderer *renderer, LDKEntity camera_entity,
+    const IslandTerrainBounds *near_bounds)
+{
+  IslandVisualFrustum frustum;
+  u64 revision;
+  u32 map_count;
+  bool geometry_changed;
+  float blade_heights[255] = {0};
+  bool grass_types[255] = {0};
+  bool any_grass = false;
+  float origin_x;
+  float origin_z;
+  float margin;
+  float unload_margin;
+  i32 min_x;
+  i32 min_y;
+  i32 max_x;
+  i32 max_y;
+
+  if (!ldk_terrain_system_is_active() ||
+      !s_island_visual_frustum_make(renderer, camera_entity, &frustum))
+  {
+    s_island_visual_tiles_clear(system);
+    return true;
+  }
+  revision = ldk_terrain_geometry_revision_get();
+  if (revision == 0u)
+  {
+    /* Heightmap is not queryable until TerrainSystem's first render pass. */
+    return true;
+  }
+
+  map_count = s_map.width * s_map.height;
+  geometry_changed = revision != s_runtime.visual_geometry_revision ||
+      s_runtime.visual_map_revision != s_map.revision ||
+      s_runtime.visual_cell_size != system->cell_size;
+  if (geometry_changed)
+  {
+    memset(s_runtime.visual_height_valid, 0, (size_t)map_count);
+    if (!s_tftf_island_grass_update_all(system))
+    {
+      return false;
+    }
+    s_runtime.visual_geometry_revision = revision;
+    s_runtime.visual_map_revision = s_map.revision;
+    s_runtime.visual_cell_size = system->cell_size;
+  }
+
+  for (u32 i = 0u; i < s_island_biome_count(system); ++i)
+  {
+    LDKGrassTypeDesc type;
+    LDKGrassTypeId type_id = s_tftf_island_grass_type_id(i);
+    if (ldk_grass_type_get(type_id, &type) && type.density > 0.0f)
+    {
+      grass_types[i] = true;
+      any_grass = true;
+      blade_heights[i] = fmaxf(type.min_height, type.max_height);
+    }
+  }
+  if (!any_grass)
+  {
+    s_island_visual_tiles_clear(system);
+    return true;
+  }
+
+  origin_x = -(float)s_map.width * system->cell_size * 0.5f;
+  origin_z = -(float)s_map.height * system->cell_size * 0.5f;
+  /* Zero-initialized scenes receive a useful preload margin automatically. */
+  margin = system->grass_stream_margin > 0.0f
+      ? system->grass_stream_margin : system->cell_size * 4.0f;
+  unload_margin = margin + system->cell_size * 4.0f;
+  float xmin = (frustum.min_x - unload_margin - origin_x) / system->cell_size;
+  float xmax = (frustum.max_x + unload_margin - origin_x) / system->cell_size;
+  float zmin = (frustum.min_z - unload_margin - origin_z) / system->cell_size;
+  float zmax = (frustum.max_z + unload_margin - origin_z) / system->cell_size;
+  if (!isfinite(xmin) || !isfinite(xmax) ||
+      !isfinite(zmin) || !isfinite(zmax))
+  {
+    return false;
+  }
+  if (xmax < 0.0f || zmax < 0.0f ||
+      xmin >= (float)s_map.width || zmin >= (float)s_map.height)
+  {
+    s_island_visual_tiles_clear(system);
+    return true;
+  }
+  min_x = (i32)fmaxf(0.0f, floorf(xmin));
+  min_y = (i32)fmaxf(0.0f, floorf(zmin));
+  max_x = (i32)fminf((float)s_map.width - 1.0f, floorf(xmax));
+  max_y = (i32)fminf((float)s_map.height - 1.0f, floorf(zmax));
+
+  /* Desired membership is a sparse subset of the camera's projected bounds.
+   * Only actual 3D frustum intersections become new visual patches. */
+  memset(s_runtime.visual_selection, 0, (size_t)map_count);
+  for (i32 y = min_y; y <= max_y; ++y)
+  {
+    for (i32 x = min_x; x <= max_x; ++x)
+    {
+      size_t at = (size_t)y * s_map.width + (u32)x;
+      u32 biome = s_map.cells[at].biome;
+      if (s_island_terrain_bounds_contains(near_bounds, x, y) ||
+          biome >= ARRAY_COUNT(grass_types) || !grass_types[biome] ||
+          s_runtime.grass_density_scales[at] <= 0.0f ||
+          (s_map.data[at * ISLAND_MAP_CHANNEL_COUNT +
+              ISLAND_MAP_CHANNEL_DECORATION] & ISLAND_MAP_PROP_DENSITY_MASK)
+              == 0u)
+      {
+        continue;
+      }
+      if (s_island_visual_tile_visible(system, &frustum,
+              (u32)x, (u32)y, blade_heights[biome], margin))
+      {
+        s_runtime.visual_selection[at] = 1u;
+      }
+    }
+  }
+
+  /* Retain already-created patches for a wider frustum to prevent camera
+   * rotation from repeatedly destroying and recreating the same grass. */
+  u32 write = 0u;
+  for (u32 i = 0u; i < s_runtime.visual_tile_count; ++i)
+  {
+    IslandTerrainTile tile = s_runtime.visual_tiles[i];
+    size_t at = (size_t)tile.y * s_map.width + (u32)tile.x;
+    u32 biome = s_map.cells[at].biome;
+    bool retained = biome < ARRAY_COUNT(grass_types) &&
+        !s_island_terrain_bounds_contains(
+            near_bounds, tile.x, tile.y) && grass_types[biome] &&
+        s_runtime.grass_density_scales[at] > 0.0f &&
+        (s_runtime.visual_selection[at] != 0u ||
+            s_island_visual_tile_visible(system, &frustum,
+                (u32)tile.x, (u32)tile.y,
+                blade_heights[biome], unload_margin));
+    if (retained)
+    {
+      s_runtime.visual_tiles[write++] = tile;
+      s_runtime.visual_selection[at] = 2u;
+    }
+    else
+    {
+      s_island_terrain_tile_grass_remove(&tile);
+    }
+  }
+  s_runtime.visual_tile_count = write;
+
+  for (i32 y = min_y; y <= max_y; ++y)
+  {
+    for (i32 x = min_x; x <= max_x; ++x)
+    {
+      size_t at = (size_t)y * s_map.width + (u32)x;
+      if (s_runtime.visual_selection[at] != 1u)
+      {
+        continue;
+      }
+      if (!s_island_visual_tiles_reserve(s_runtime.visual_tile_count + 1u))
+      {
+        system->streamed_grass_tile_count = s_runtime.visual_tile_count;
+        return false;
+      }
+      IslandTerrainTile *tile =
+          &s_runtime.visual_tiles[s_runtime.visual_tile_count];
+      tile->x = x;
+      tile->y = y;
+      tile->grass = ldk_grass_patch_null();
+      if (!s_island_terrain_tile_grass_update(system, tile))
+      {
+        system->streamed_grass_tile_count = s_runtime.visual_tile_count;
+        return false;
+      }
+      ++s_runtime.visual_tile_count;
+    }
+  }
+  system->streamed_grass_tile_count = s_runtime.visual_tile_count;
+  return true;
+}
+
 static bool s_island_terrain_material_asset_equal(
     LDKAssetMaterial a, LDKAssetMaterial b)
 {
@@ -2261,6 +2773,32 @@ int tftf_island_system_initialize(void *data)
     s_runtime.grass_density_scales[i] = 1.0f;
   }
 
+  s_runtime.visual_selection = (u8 *)calloc((size_t)cell_count, 1u);
+  s_runtime.visual_height_valid = (u8 *)calloc((size_t)cell_count, 1u);
+  s_runtime.visual_min_height =
+      (float *)malloc((size_t)cell_count * sizeof(float));
+  s_runtime.visual_max_height =
+      (float *)malloc((size_t)cell_count * sizeof(float));
+  if (!s_runtime.visual_selection || !s_runtime.visual_height_valid ||
+      !s_runtime.visual_min_height || !s_runtime.visual_max_height)
+  {
+    free(s_runtime.visual_selection);
+    free(s_runtime.visual_height_valid);
+    free(s_runtime.visual_min_height);
+    free(s_runtime.visual_max_height);
+    free(s_runtime.grass_density_scales);
+    ldk_terrain_heightmap_set(ldk_asset_image_null());
+    {
+      LDKAssetManager *assets =
+          (LDKAssetManager *)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+      if (assets && !x_handle_is_null(s_runtime.terrain_image.h))
+        ldk_asset_manager_image_unload(assets, s_runtime.terrain_image);
+    }
+    s_island_map_release();
+    memset(&s_runtime, 0, sizeof(s_runtime));
+    return -1;
+  }
+
   system->center_x = INT32_MIN;
   system->center_y = INT32_MIN;
   system->cached_radius = UINT32_MAX;
@@ -2268,6 +2806,7 @@ int tftf_island_system_initialize(void *data)
   system->cached_elevation = 0.0f;
   system->map_revision = 0u;
   system->active_tile_count = 0u;
+  system->streamed_grass_tile_count = 0u;
   system->tiles_added = 0u;
   system->tiles_removed = 0u;
   system->mesh_update_count = 0u;
@@ -2292,6 +2831,8 @@ void tftf_island_system_update(
   Vec3 forward;
   i32 center_x;
   i32 center_y;
+  LDKEntity main_camera = {0};
+  bool has_main_camera = false;
 
   (void)dt;
 
@@ -2303,7 +2844,25 @@ void tftf_island_system_update(
     return;
   }
 
-  if (!ldk_transform_get_world_matrix(group->entities[0], &tracked_world))
+  /* The group may also contain editor or auxiliary cameras. */
+  for (u32 i = 0u; i < group->count; ++i)
+  {
+    LDKEntity entity = group->entities[i];
+    const LDKCamera *camera = (const LDKCamera *)ldk_ecs_component_get_const(
+        entity, LDK_COMPONENT_TYPE_CAMERA);
+    if (camera && camera->enabled && camera->role == LDK_CAMERA_ROLE_MAIN &&
+        ldk_ecs_component_is_enabled(entity, LDK_COMPONENT_TYPE_CAMERA))
+    {
+      main_camera = entity;
+      has_main_camera = true;
+      break;
+    }
+  }
+
+  if (!(has_main_camera
+            ? ldk_camera_get_world_matrix(main_camera, &tracked_world)
+            : ldk_transform_get_world_matrix(
+                  group->entities[0], &tracked_world)))
   {
     return;
   }
@@ -2318,15 +2877,30 @@ void tftf_island_system_update(
   origin_x = -(float)s_map.width * system->cell_size * 0.5f;
   origin_z = -(float)s_map.height * system->cell_size * 0.5f;
 
+  /* Keep the existing offset only for the legacy atlas renderer. The near
+   * gameplay window stays centered on the camera when TerrainSystem is used. */
   forward = s_island_terrain_flat_forward(tracked_world);
-  center_world_x = tracked_world.m[12] + forward.x * system->forward_offset;
-  center_world_z = tracked_world.m[14] + forward.z * system->forward_offset;
+  float legacy_offset = ldk_terrain_system_is_active()
+      ? 0.0f : system->forward_offset;
+  center_world_x = tracked_world.m[12] + forward.x * legacy_offset;
+  center_world_z = tracked_world.m[14] + forward.z * legacy_offset;
 
   center_x = (i32)floorf((center_world_x - origin_x) / system->cell_size);
   center_y = (i32)floorf((center_world_z - origin_z) / system->cell_size);
 
   bool tiles_synced =
       s_island_terrain_tiles_sync(system, center_x, center_y);
+  if (tiles_synced && has_main_camera)
+  {
+    IslandTerrainBounds near_bounds =
+        s_island_terrain_bounds(center_x, center_y, system->radius);
+    (void)s_island_visual_tiles_sync(
+        system, renderer, main_camera, &near_bounds);
+  }
+  else if (!has_main_camera)
+  {
+    s_island_visual_tiles_clear(system);
+  }
 
   /* TerrainSystem owns the ground when present. TFTFIslandSystem still streams
    * gameplay cells and grass, but its old atlas mesh becomes a fallback only. */
@@ -2383,8 +2957,14 @@ void tftf_island_system_terminate(void *data)
   {
     s_island_terrain_tile_grass_remove(&s_runtime.tiles[i]);
   }
+  s_island_visual_tiles_clear(system);
 
   free(s_runtime.tiles);
+  free(s_runtime.visual_tiles);
+  free(s_runtime.visual_selection);
+  free(s_runtime.visual_height_valid);
+  free(s_runtime.visual_min_height);
+  free(s_runtime.visual_max_height);
   free(s_runtime.grass_density_scales);
   free(s_runtime.vertices);
   free(s_runtime.indices);
