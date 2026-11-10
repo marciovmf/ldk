@@ -54,6 +54,8 @@ static LDKPostProcessing s_post_processing_make_default(void)
   post_processing.retro_color_levels = 4.0f;
   post_processing.retro_dither_strength = 1.0f;
   post_processing.retro_pattern_scale = 1.0f;
+  post_processing.retro_dither_pattern =
+      LDK_RETRO_DITHER_PATTERN_CLUSTERED_4X4;
   post_processing.drunk_enabled = false;
   post_processing.drunk_strength = 0.75f;
   post_processing.drunk_speed = 1.0f;

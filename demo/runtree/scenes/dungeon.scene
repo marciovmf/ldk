@@ -1,12 +1,12 @@
 scene:
   version: 1
   properties:
-    ambient_sky_color: 3874421247
-    ambient_ground_color: 3874421247
-    ambient_intensity: 0.100000001
-    fog_enabled: false
-    fog_color: 1903260159
-    fog_density: 1.00000000
+    ambient_sky_color: 4294967295
+    ambient_ground_color: 255
+    ambient_intensity: 0.449999988
+    fog_enabled: true
+    fog_color: 255
+    fog_density: 0.200000003
     fog_start: 1.00000000
   entities:
     - entity: 0
@@ -17,15 +17,15 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: -0.367113769, 0.571829796, 0.00000000
+            local_position: -0.568626165, 1.24706507, 0.451815963
             local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.0157952085, -0.697292447, -0.0162287131, 0.716428936
+            local_rotation: -0.272497386, 0.373768508, 0.115163870, 0.879078805
         - type: 4294967293 # LDKCamera
           fields:
             projection: 0
             role: 1
-            fov_y: 14.0000000
-            orthographic_height: 2.00000000
+            fov_y: 1.00000000
+            orthographic_height: 1.00000000
             near_plane: 0.100000001
             far_plane: 1000.00000
             enabled: true
@@ -35,7 +35,7 @@ scene:
         - type: 4294967286 # LDKPostProcessing
           fields:
             enabled: true
-            tonemapping_enabled: true
+            tonemapping_enabled: false
             exposure: -0.361196518
             bloom_enabled: false
             bloom_threshold: 3.06501532
@@ -68,11 +68,12 @@ scene:
             heat_speed: 1.00000000
             inverse_enabled: false
             black_and_white_enabled: false
-            retro_enabled: false
-            retro_pixel_size: 7.38253641
-            retro_color_levels: 4.00000000
+            retro_enabled: true
+            retro_pixel_size: 1.00000000
+            retro_color_levels: 2.00000000
             retro_dither_strength: 1.00000000
             retro_pattern_scale: 1.00000000
+            retro_dither_pattern: 2
             drunk_enabled: false
             drunk_strength: 0.750000000
             drunk_speed: 1.00000000
@@ -80,247 +81,58 @@ scene:
             drunk_chromatic_aberration: 0.349999994
             drunk_movement: 0.500000000
     - entity: 1
-      parent: 8
-      flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.538114130, 0.549703717, -0.00314745307
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.500000000, -0.500000000, 0.500000000, 0.500000000
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/plane"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/materials/dungeon_passage.material"
-    - entity: 2
-      parent: 8
-      flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 0.557901978, 0.565526545
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.707106590, -1.68587377e-07, 1.06770216e-07, 0.707107067
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/plane"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/materials/dungeon_wall.material"
-    - entity: 3
-      parent: 8
-      flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 1.03855717, 0.00000000
-            local_scale: 1.00000012, 1.00000024, 1.00000012
-            local_rotation: 0.707106829, 1.22189545e-06, 0.707106829, -1.22189533e-06
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/plane"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/materials/dungeon_wall.material"
-    - entity: 4
-      parent: 8
-      flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.0347838402, 0.0549193621, 0.00000000
-            local_scale: 1.00000012, 1.00000000, 1.00000012
-            local_rotation: 0.00000000, 0.707106829, 0.00000000, 0.707106709
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/plane"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_texture_slots: 3
-            material_texture_0_filter: 0
-            material_texture_0_mip_filter: 0
-            material_texture_0_wrap_u: 1
-            material_texture_0_wrap_v: 1
-            material_texture_0_uv_scale_x: 1
-            material_texture_0_uv_scale_y: 1
-            material_texture_0_uv_offset_x: 0
-            material_texture_0_uv_offset_y: 0
-            material_texture_1_filter: 0
-            material_texture_1_mip_filter: 0
-            material_texture_1_wrap_u: 1
-            material_texture_1_wrap_v: 1
-            material_texture_1_uv_scale_x: 1
-            material_texture_1_uv_scale_y: 1
-            material_texture_1_uv_offset_x: 0
-            material_texture_1_uv_offset_y: 0
-            material_type: 2
-            material_color: 0xffffffff
-            material_texture: "assets/textures/dungeon/wall2.png"
-            material_specular: 0
-            material_shininess: 32
-            material_emission: 0
-            material_normal_map: "assets/textures/dungeon/floor_normal.png"
-    - entity: 5
-      parent: 8
-      flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 0.557901978, 0.565526545
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.707106590, -1.68587377e-07, 1.06770216e-07, 0.707107067
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/plane"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/materials/dungeon_wall.material"
-    - entity: 6
-      parent: 8
-      flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 0.557901978, 0.565526545
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.707106590, -1.68587377e-07, 1.06770216e-07, 0.707107067
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/plane"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/materials/dungeon_wall.material"
-    - entity: 7
-      parent: 8
-      flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 0.557901978, -0.579458714
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -3.09086339e-08, 0.707107067, 0.707106590, -3.09086126e-08
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/plane"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/materials/dungeon_wall.material"
-    - entity: 8
       parent: -1
-      flags: 0
-      name: "node"
-      name_hash: "0x3c2f1bbad18642ad"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 0.00000000, 0.00000000
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-    - entity: 9
-      parent: -1
-      flags: 0
-      name: "node"
-      name_hash: "0x3c2f1bbad18642ad"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 1.27451706, 0.00000000, 0.00000000
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-    - entity: 10
-      parent: 0
       flags: 0
       name: "light"
       name_hash: "0x1f71d5a9cecc1b0f"
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: -0.0257920511, -0.00887542870, -0.619301617
-            local_scale: 1.00000000, 1.00000012, 1.00000012
-            local_rotation: 0.0157952085, 0.697292447, 0.0162287150, 0.716428936
+            local_position: -2.43271422, 0.456630766, -0.141609997
+            local_scale: 1.00000000, 1.00000012, 1.00000000
+            local_rotation: -0.258827120, 0.899219275, -0.0903163478, 0.340963781
         - type: 4294967291 # LDKPointLight
           fields:
             color: 4140461055
             intensity: 0.100000001
             range: 0.649999976
             enabled: true
-    - entity: 11
-      parent: 9
+    - entity: 2
+      parent: -1
       flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
+      name: "Floor"
+      name_hash: "0xb67f5c0accf1eb1d"
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 0.557901978, 0.565526545
+            local_position: -2.10498619, 0.00000000, 0.00000000
             local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.707106590, -1.68587377e-07, 1.06770216e-07, 0.707107067
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/plane"
             mesh_index: 0
             casts_shadows: true
             billboard: false
-            material_asset: "assets/materials/dungeon_wall.material"
-    - entity: 12
-      parent: 9
+            material_asset: "assets/dungeon/material/floor.material"
+    - entity: 3
+      parent: -1
       flags: 0
       name: "Plane"
       name_hash: "0x13a2f9afa077c0b5"
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 0.557901978, 0.565526545
+            local_position: -2.60321784, 0.486955345, -5.17666340e-05
             local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.707106590, -1.68587377e-07, 1.06770216e-07, 0.707107067
+            local_rotation: 0.500000060, 0.499999970, -0.500000060, 0.499999970
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/plane"
             mesh_index: 0
             casts_shadows: true
             billboard: false
-            material_asset: "assets/materials/dungeon_wall.material"
-    - entity: 13
-      parent: 9
-      flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.0347838402, 0.0549193621, 0.00000000
-            local_scale: 1.00000012, 1.00000000, 1.00000012
-            local_rotation: 0.00000000, 0.707106829, 0.00000000, 0.707106709
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/plane"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_texture_slots: 3
+            material_texture_slots: 1
             material_texture_0_filter: 0
             material_texture_0_mip_filter: 0
             material_texture_0_wrap_u: 1
@@ -329,158 +141,67 @@ scene:
             material_texture_0_uv_scale_y: 1
             material_texture_0_uv_offset_x: 0
             material_texture_0_uv_offset_y: 0
-            material_texture_1_filter: 0
-            material_texture_1_mip_filter: 0
-            material_texture_1_wrap_u: 1
-            material_texture_1_wrap_v: 1
-            material_texture_1_uv_scale_x: 1
-            material_texture_1_uv_scale_y: 1
-            material_texture_1_uv_offset_x: 0
-            material_texture_1_uv_offset_y: 0
             material_type: 2
             material_color: 0xffffffff
-            material_texture: "assets/textures/dungeon/wall2.png"
+            material_texture: "assets/dungeon/textures/wall_brick_alpha.png"
+            material_alpha_mode: 2
             material_specular: 0
             material_shininess: 32
             material_emission: 0
-            material_normal_map: "assets/textures/dungeon/floor_normal.png"
-    - entity: 14
-      parent: 9
-      flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 1.03855717, 0.00000000
-            local_scale: 1.00000012, 1.00000024, 1.00000012
-            local_rotation: 0.707106829, 1.22189545e-06, 0.707106829, -1.22189533e-06
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/plane"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/materials/dungeon_wall.material"
-    - entity: 15
-      parent: 9
-      flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 0.557901978, 0.565526545
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.707106590, -1.68587377e-07, 1.06770216e-07, 0.707107067
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/plane"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/materials/dungeon_wall.material"
-    - entity: 16
-      parent: 9
-      flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.670455933, 0.549703717, -0.00314745307
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.500000000, -0.500000000, 0.500000000, 0.500000000
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/plane"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/materials/dungeon_passage.material"
-    - entity: 17
+    - entity: 4
       parent: -1
       flags: 0
-      name: "node"
-      name_hash: "0x3c2f1bbad18642ad"
+      name: "Plane"
+      name_hash: "0x13a2f9afa077c0b5"
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 2.54007339, 0.00000000, 0.00000000
+            local_position: -2.61140442, 0.486955345, -0.996554136
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.500000060, 0.499999970, -0.500000060, 0.499999970
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/plane"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/dungeon/material/passage.material"
+    - entity: 5
+      parent: -1
+      flags: 0
+      name: "Floor"
+      name_hash: "0xb67f5c0accf1eb1d"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -2.10498619, 0.00000000, -0.999391675
             local_scale: 1.00000000, 1.00000000, 1.00000000
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-    - entity: 18
-      parent: 17
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/plane"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/dungeon/material/floor.material"
+    - entity: 6
+      parent: -1
       flags: 0
       name: "Plane"
       name_hash: "0x13a2f9afa077c0b5"
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 0.557901978, -0.579458714
+            local_position: -2.12941790, 0.486955345, -1.52203655
             local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -3.09086339e-08, 0.707107067, 0.707106590, -3.09086126e-08
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/plane"
             mesh_index: 0
             casts_shadows: true
             billboard: false
-            material_asset: "assets/materials/dungeon_wall.material"
-    - entity: 19
-      parent: 17
-      flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 0.557901978, 0.565526545
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.707106590, -1.68587377e-07, 1.06770216e-07, 0.707107067
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/plane"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/materials/dungeon_wall.material"
-    - entity: 20
-      parent: 17
-      flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 0.557901978, 0.565526545
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.707106590, -1.68587377e-07, 1.06770216e-07, 0.707107067
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/plane"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/materials/dungeon_wall.material"
-    - entity: 21
-      parent: 17
-      flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.0347838402, 0.0549193621, 0.00000000
-            local_scale: 1.00000012, 1.00000000, 1.00000012
-            local_rotation: 0.00000000, 0.707106829, 0.00000000, 0.707106709
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/plane"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_texture_slots: 3
+            material_texture_slots: 1
             material_texture_0_filter: 0
             material_texture_0_mip_filter: 0
             material_texture_0_wrap_u: 1
@@ -489,101 +210,79 @@ scene:
             material_texture_0_uv_scale_y: 1
             material_texture_0_uv_offset_x: 0
             material_texture_0_uv_offset_y: 0
-            material_texture_1_filter: 0
-            material_texture_1_mip_filter: 0
-            material_texture_1_wrap_u: 1
-            material_texture_1_wrap_v: 1
-            material_texture_1_uv_scale_x: 1
-            material_texture_1_uv_scale_y: 1
-            material_texture_1_uv_offset_x: 0
-            material_texture_1_uv_offset_y: 0
             material_type: 2
             material_color: 0xffffffff
-            material_texture: "assets/textures/dungeon/wall2.png"
+            material_texture: "assets/dungeon/textures/wall_brick_alpha.png"
+            material_alpha_mode: 2
             material_specular: 0
             material_shininess: 32
             material_emission: 0
-            material_normal_map: "assets/textures/dungeon/floor_normal.png"
-    - entity: 22
-      parent: 17
-      flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 1.03855717, 0.00000000
-            local_scale: 1.00000012, 1.00000024, 1.00000012
-            local_rotation: 0.707106829, 1.22189545e-06, 0.707106829, -1.22189533e-06
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/plane"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/materials/dungeon_wall.material"
-    - entity: 23
-      parent: 17
-      flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 0.557901978, 0.565526545
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.707106590, -1.68587377e-07, 1.06770216e-07, 0.707107067
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/plane"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/materials/dungeon_wall.material"
-    - entity: 24
-      parent: 17
-      flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.549928665, 0.549703717, -0.00314745307
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.500000000, -0.500000000, 0.500000000, 0.500000000
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/plane"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/materials/dungeon_passage.material"
-    - entity: 25
+    - entity: 7
       parent: -1
       flags: 0
-      name: "Entity"
-      name_hash: "0x757a4c2248c0b9da"
+      name: "Floor"
+      name_hash: "0xb67f5c0accf1eb1d"
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 0.00000000, 0.00000000, 0.00000000
+            local_position: -1.11056602, 0.00000000, 0.00000000
             local_scale: 1.00000000, 1.00000000, 1.00000000
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-    - entity: 26
-      parent: 9
-      flags: 0
-      name: "Plane"
-      name_hash: "0x13a2f9afa077c0b5"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.0632593632, 0.549703717, -0.562031388
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.707106709, 3.55271368e-15, -6.18172322e-08, -0.707106829
         - type: 4294967292 # LDKMeshSource
           fields:
             source_asset: "builtin:mesh/plane"
             mesh_index: 0
             casts_shadows: true
             billboard: false
-            material_asset: "assets/materials/dungeon_passage.material"
+            material_asset: "assets/dungeon/material/floor.material"
+    - entity: 8
+      parent: -1
+      flags: 0
+      name: "Floor"
+      name_hash: "0xb67f5c0accf1eb1d"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -1.11056602, 0.00000000, -0.994362950
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/plane"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            material_asset: "assets/dungeon/material/floor.material"
+    - entity: 9
+      parent: -1
+      flags: 0
+      name: "Plane"
+      name_hash: "0x13a2f9afa077c0b5"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -1.12430894, 0.486955345, -1.52203655
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.707106829, 0.00000000, 0.00000000, 0.707106709
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/plane"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            material_texture_slots: 1
+            material_texture_0_filter: 0
+            material_texture_0_mip_filter: 0
+            material_texture_0_wrap_u: 1
+            material_texture_0_wrap_v: 1
+            material_texture_0_uv_scale_x: 1
+            material_texture_0_uv_scale_y: 1
+            material_texture_0_uv_offset_x: 0
+            material_texture_0_uv_offset_y: 0
+            material_type: 2
+            material_color: 0xffffffff
+            material_texture: "assets/dungeon/textures/wall_brick_alpha.png"
+            material_alpha_mode: 2
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0

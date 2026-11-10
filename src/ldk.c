@@ -1965,6 +1965,8 @@ void ldk_engine_frame(void)
             post_processing->retro_dither_strength;
         renderer_post_processing.retro_pattern_scale =
             post_processing->retro_pattern_scale;
+        renderer_post_processing.retro_dither_pattern =
+            (u32)post_processing->retro_dither_pattern;
         renderer_post_processing.drunk_enabled =
             post_processing->drunk_enabled;
         renderer_post_processing.drunk_strength =

@@ -1200,6 +1200,7 @@
   "  vec4 u_heat;\n" \
   "  vec4 u_stylization_options;\n" \
   "  vec4 u_retro;\n" \
+  "  vec4 u_retro_options;\n" \
   "  vec4 u_drunk_primary;\n" \
   "  vec4 u_drunk_secondary;\n" \
   "  vec4 u_animation;\n" \
@@ -1208,11 +1209,25 @@
   "uniform sampler2D LDK_TEXTURE_1;\n" \
   "uniform sampler2D LDK_TEXTURE_2;\n" \
   "uniform sampler2D LDK_TEXTURE_3;\n" \
-  "const float LDK_RETRO_PATTERN[16] = float[16](\n" \
+  "const float LDK_RETRO_CLUSTERED_4X4[16] = float[16](\n" \
   "    12.0, 5.0, 6.0, 13.0,\n" \
   "    4.0, 0.0, 1.0, 7.0,\n" \
   "    11.0, 3.0, 2.0, 8.0,\n" \
   "    15.0, 10.0, 9.0, 14.0);\n" \
+  "const float LDK_RETRO_BAYER_4X4[16] = float[16](\n" \
+  "    0.0, 8.0, 2.0, 10.0,\n" \
+  "    12.0, 4.0, 14.0, 6.0,\n" \
+  "    3.0, 11.0, 1.0, 9.0,\n" \
+  "    15.0, 7.0, 13.0, 5.0);\n" \
+  "const float LDK_RETRO_BAYER_8X8[64] = float[64](\n" \
+  "    0.0, 48.0, 12.0, 60.0, 3.0, 51.0, 15.0, 63.0,\n" \
+  "    32.0, 16.0, 44.0, 28.0, 35.0, 19.0, 47.0, 31.0,\n" \
+  "    8.0, 56.0, 4.0, 52.0, 11.0, 59.0, 7.0, 55.0,\n" \
+  "    40.0, 24.0, 36.0, 20.0, 43.0, 27.0, 39.0, 23.0,\n" \
+  "    2.0, 50.0, 14.0, 62.0, 1.0, 49.0, 13.0, 61.0,\n" \
+  "    34.0, 18.0, 46.0, 30.0, 33.0, 17.0, 45.0, 29.0,\n" \
+  "    10.0, 58.0, 6.0, 54.0, 9.0, 57.0, 5.0, 53.0,\n" \
+  "    42.0, 26.0, 38.0, 22.0, 41.0, 25.0, 37.0, 21.0);\n" \
   "vec3 ldk_aces_tonemap(vec3 color)\n" \
   "{\n" \
   "  const float a = 2.51;\n" \
@@ -1402,9 +1417,18 @@
   "{\n" \
   "  float pattern_scale = max(floor(u_retro.w + 0.5), 1.0);\n" \
   "  vec2 cell = floor(gl_FragCoord.xy / pattern_scale);\n" \
-  "  ivec2 pattern_coord = ivec2(mod(cell, 4.0));\n" \
-  "  int index = pattern_coord.y * 4 + pattern_coord.x;\n" \
-  "  return (LDK_RETRO_PATTERN[index] + 0.5) / 16.0;\n" \
+  "  int pattern = int(u_retro_options.x + 0.5);\n" \
+  "  if (pattern == 2)\n" \
+  "  {\n" \
+  "    ivec2 coord = ivec2(mod(cell, 8.0));\n" \
+  "    int index = coord.y * 8 + coord.x;\n" \
+  "    return (LDK_RETRO_BAYER_8X8[index] + 0.5) / 64.0;\n" \
+  "  }\n" \
+  "  ivec2 coord = ivec2(mod(cell, 4.0));\n" \
+  "  int index = coord.y * 4 + coord.x;\n" \
+  "  float value = pattern == 1 ? LDK_RETRO_BAYER_4X4[index] :\n" \
+  "      LDK_RETRO_CLUSTERED_4X4[index];\n" \
+  "  return (value + 0.5) / 16.0;\n" \
   "}\n" \
   "vec3 ldk_retro_dither(vec3 color)\n" \
   "{\n" \

@@ -18,6 +18,15 @@ extern "C" {
 #endif
 
   /** @group ldk.component.post_processing */
+  //@enum
+  typedef enum LDKRetroDitherPattern
+  {
+    LDK_RETRO_DITHER_PATTERN_CLUSTERED_4X4 = 0,
+    LDK_RETRO_DITHER_PATTERN_BAYER_4X4,
+    LDK_RETRO_DITHER_PATTERN_BAYER_8X8
+  } LDKRetroDitherPattern;
+
+  /** @group ldk.component.post_processing */
   //@component
   typedef struct LDKPostProcessing
   {
@@ -115,6 +124,7 @@ extern "C" {
     float retro_dither_strength;
     //@inspect slider min=1.0 max=8.0
     float retro_pattern_scale;
+    LDKRetroDitherPattern retro_dither_pattern;
     //@end_group
 
     //@begin_group "Drunk"

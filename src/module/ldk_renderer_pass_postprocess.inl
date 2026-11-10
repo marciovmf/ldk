@@ -21,6 +21,7 @@ typedef struct LDKRendererPostProcessParams
   float heat[4];
   float stylization_options[4];
   float retro[4];
+  float retro_options[4];
   float drunk_primary[4];
   float drunk_secondary[4];
   float animation[4];
@@ -1295,6 +1296,10 @@ static bool s_renderer_post_process_draw(
       s_renderer_saturate(post_processing->retro_dither_strength);
   params.retro[3] = s_renderer_clamp_finite(
       post_processing->retro_pattern_scale, 1.0f, 8.0f, 1.0f);
+  params.retro_options[0] =
+      post_processing->retro_dither_pattern <= 2u
+      ? (float)post_processing->retro_dither_pattern
+      : 0.0f;
   params.drunk_primary[0] =
       s_renderer_saturate(post_processing->drunk_strength);
   params.drunk_primary[1] = s_renderer_clamp_finite(

@@ -665,6 +665,7 @@ extern "C" {
     float retro_color_levels;
     float retro_dither_strength;
     float retro_pattern_scale;
+    u32 retro_dither_pattern; // LDKRetroDitherPattern values.
     bool drunk_enabled;
     float drunk_strength;
     float drunk_speed;
