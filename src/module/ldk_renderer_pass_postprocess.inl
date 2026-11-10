@@ -1,5 +1,20 @@
 // ---------------------------------------------------------------------------
 // Internal pass: post processing
+//
+// Blur order is a renderer stage boundary, not a second implementation of
+// blur or dithering:
+//
+// BEFORE_DITHER (legacy):
+//   scene -> separable blur -> scene/blur focus mix -> tone/color/retro -> LDR
+// AFTER_DITHER:
+//   scene -> tone/color/retro -> LDR staging -> SAME separable blur ->
+//   focused LDR composition -> LDR display
+//
+// Only AFTER_DITHER with an active blur allocates the LDR staging target and
+// executes one additional fullscreen composition draw. Bloom still runs on
+// scene HDR in both orders. The main post-process shader and color conversion
+// always execute once, and the two orders share the exact focus mask formula.
+// The final post_process_texture handle remains stable for editor/UI clients.
 // ---------------------------------------------------------------------------
 
 typedef struct LDKRendererPostProcessVertex
@@ -27,6 +42,13 @@ typedef struct LDKRendererPostProcessParams
   float animation[4];
   float bloom_options[4];
 } LDKRendererPostProcessParams;
+
+/* Minimal UBO for the LDR compositor, not a second post-processing UBO. */
+typedef struct LDKRendererPostProcessCompositeParams
+{
+  float blur_focus[4];
+  float blur_options[4];
+} LDKRendererPostProcessCompositeParams;
 
 typedef struct LDKRendererBlurParams
 {
@@ -77,6 +99,15 @@ static bool s_renderer_blur_active(
       post_processing->blur_strength > 0.0f;
 }
 
+static bool s_renderer_blur_after_dither(
+    LDKRendererPostProcessing const* post_processing)
+{
+  // LDK_BLUR_ORDER_AFTER_DITHER has value 1; renderer stores the public
+  // component enum as a u32 to keep the renderer API component-independent.
+  return s_renderer_blur_active(post_processing) &&
+      post_processing->blur_order == 1u;
+}
+
 static bool s_renderer_bloom_active(
     LDKRendererPostProcessing const* post_processing)
 {
@@ -103,6 +134,24 @@ static void s_renderer_post_process_bindings_destroy(
   view->post_process_input_texture = LDK_RHI_INVALID_RESOURCE;
   view->post_process_blurred_texture = LDK_RHI_INVALID_RESOURCE;
   view->post_process_bloom_texture = LDK_RHI_INVALID_RESOURCE;
+}
+
+static void s_renderer_post_process_composite_bindings_destroy(
+    LDKRenderer* renderer, LDKRendererView* view)
+{
+  if (renderer == NULL || renderer->rhi == NULL || view == NULL)
+  {
+    return;
+  }
+
+  if (view->post_process_composite_bindings != LDK_RHI_INVALID_RESOURCE)
+  {
+    ldk_rhi_bindings_destroy(renderer->rhi,
+        view->post_process_composite_bindings);
+  }
+  view->post_process_composite_bindings = LDK_RHI_INVALID_RESOURCE;
+  view->post_process_composite_input_texture = LDK_RHI_INVALID_RESOURCE;
+  view->post_process_composite_blurred_texture = LDK_RHI_INVALID_RESOURCE;
 }
 
 static void s_renderer_post_process_blur_bindings_destroy(
@@ -178,6 +227,8 @@ static void s_renderer_post_process_blur_textures_destroy(
 
   s_renderer_post_process_bindings_destroy(renderer, view);
   s_renderer_post_process_blur_bindings_destroy(renderer, view);
+  // The compositor may be sampling the old blur texture pair.
+  s_renderer_post_process_composite_bindings_destroy(renderer, view);
 
   for (u32 i = 0; i < 2; i++)
   {
@@ -210,6 +261,15 @@ static void s_renderer_post_process_view_destroy(
   }
 
   view->post_process_texture = LDK_RHI_INVALID_RESOURCE;
+
+  /* Destroy the cached bindings before freeing their sampled input. */
+  s_renderer_post_process_composite_bindings_destroy(renderer, view);
+  if (view->post_process_staging_texture != LDK_RHI_INVALID_RESOURCE)
+  {
+    ldk_rhi_texture_destroy(renderer->rhi,
+        view->post_process_staging_texture);
+  }
+  view->post_process_staging_texture = LDK_RHI_INVALID_RESOURCE;
 
   if (view->overlay_display_bindings != LDK_RHI_INVALID_RESOURCE)
   {
@@ -328,16 +388,17 @@ static bool s_renderer_overlay_display_draw(
   return true;
 }
 
-static bool s_renderer_post_process_texture_ensure(
-    LDKRenderer* renderer, LDKRendererView* view)
+/* Both post-process output targets have the same LDR format and extent.
+ * The staging target is lazy; the output target stays editor-visible. */
+static bool s_renderer_post_process_color_texture_ensure(
+    LDKRenderer* renderer, LDKRendererView* view, LDKRHITexture* texture)
 {
   if (renderer == NULL || renderer->rhi == NULL || view == NULL ||
-      view->width == 0 || view->height == 0)
+      texture == NULL || view->width == 0 || view->height == 0)
   {
     return false;
   }
-
-  if (view->post_process_texture != LDK_RHI_INVALID_RESOURCE)
+  if (*texture != LDK_RHI_INVALID_RESOURCE)
   {
     return true;
   }
@@ -354,8 +415,22 @@ static bool s_renderer_post_process_texture_ensure(
   desc.usage =
       LDK_RHI_TEXTURE_USAGE_RENDER_TARGET | LDK_RHI_TEXTURE_USAGE_SAMPLED;
 
-  view->post_process_texture = ldk_rhi_texture_create(renderer->rhi, &desc);
-  return view->post_process_texture != LDK_RHI_INVALID_RESOURCE;
+  *texture = ldk_rhi_texture_create(renderer->rhi, &desc);
+  return *texture != LDK_RHI_INVALID_RESOURCE;
+}
+
+static bool s_renderer_post_process_texture_ensure(
+    LDKRenderer* renderer, LDKRendererView* view)
+{
+  return view != NULL && s_renderer_post_process_color_texture_ensure(
+      renderer, view, &view->post_process_texture);
+}
+
+static bool s_renderer_post_process_staging_texture_ensure(
+    LDKRenderer* renderer, LDKRendererView* view)
+{
+  return view != NULL && s_renderer_post_process_color_texture_ensure(
+      renderer, view, &view->post_process_staging_texture);
 }
 
 static bool s_renderer_post_process_blur_textures_ensure(
@@ -557,6 +632,52 @@ static bool s_renderer_post_process_bindings_ensure(
   view->post_process_input_texture = input_texture;
   view->post_process_blurred_texture = blurred_texture;
   view->post_process_bloom_texture = bloom_texture;
+  return true;
+}
+
+static bool s_renderer_post_process_composite_bindings_ensure(
+    LDKRenderer* renderer, LDKRendererView* view,
+    LDKRHITexture input_texture, LDKRHITexture blurred_texture)
+{
+  if (renderer == NULL || renderer->rhi == NULL || view == NULL ||
+      input_texture == LDK_RHI_INVALID_RESOURCE ||
+      blurred_texture == LDK_RHI_INVALID_RESOURCE ||
+      !renderer->post_process_pass.is_initialized)
+  {
+    return false;
+  }
+
+  if (view->post_process_composite_bindings != LDK_RHI_INVALID_RESOURCE &&
+      view->post_process_composite_input_texture == input_texture &&
+      view->post_process_composite_blurred_texture == blurred_texture)
+  {
+    return true;
+  }
+
+  s_renderer_post_process_composite_bindings_destroy(renderer, view);
+
+  LDKRHIBindingsDesc desc = {0};
+  ldk_rhi_bindings_desc_defaults(&desc);
+  desc.layout = renderer->post_process_pass.composite_bindings_layout;
+  desc.binding_count = 3;
+  desc.bindings[0].slot = 0;
+  desc.bindings[0].buffer = renderer->post_process_pass.composite_params_buffer;
+  desc.bindings[0].buffer_size = sizeof(LDKRendererPostProcessCompositeParams);
+  desc.bindings[1].slot = 1;
+  desc.bindings[1].texture = input_texture;
+  desc.bindings[1].sampler = renderer->post_process_pass.sampler;
+  desc.bindings[2].slot = 2;
+  desc.bindings[2].texture = blurred_texture;
+  desc.bindings[2].sampler = renderer->post_process_pass.sampler;
+  view->post_process_composite_bindings =
+      ldk_rhi_bindings_create(renderer->rhi, &desc);
+  if (view->post_process_composite_bindings == LDK_RHI_INVALID_RESOURCE)
+  {
+    return false;
+  }
+
+  view->post_process_composite_input_texture = input_texture;
+  view->post_process_composite_blurred_texture = blurred_texture;
   return true;
 }
 
@@ -832,8 +953,12 @@ static bool s_renderer_post_process_pass_initialize(
   pass->fragment_shader_module = ldk_rhi_create_builtin_shader_module(
       pass->rhi, LDK_SHADER_POST_PROCESS_PASS,
       LDK_RHI_SHADER_STAGE_FRAGMENT);
+  pass->composite_fragment_shader_module = ldk_rhi_create_builtin_shader_module(
+      pass->rhi, LDK_SHADER_POST_PROCESS_COMPOSITE_PASS,
+      LDK_RHI_SHADER_STAGE_FRAGMENT);
   if (pass->vertex_shader_module == LDK_RHI_INVALID_RESOURCE ||
-      pass->fragment_shader_module == LDK_RHI_INVALID_RESOURCE)
+      pass->fragment_shader_module == LDK_RHI_INVALID_RESOURCE ||
+      pass->composite_fragment_shader_module == LDK_RHI_INVALID_RESOURCE)
   {
     s_renderer_post_process_pass_terminate(pass);
     return false;
@@ -857,6 +982,28 @@ static bool s_renderer_post_process_pass_initialize(
   pass->bindings_layout =
       ldk_rhi_bindings_layout_create(pass->rhi, &bindings_layout);
   if (pass->bindings_layout == LDK_RHI_INVALID_RESOURCE)
+  {
+    s_renderer_post_process_pass_terminate(pass);
+    return false;
+  }
+
+  /* The compositor reads an LDR original and its LDR blurred copy. It uses
+   * a separate small UBO, not the full color/dithering parameter block. */
+  LDKRHIBindingsLayoutDesc composite_layout = {0};
+  ldk_rhi_bindings_layout_desc_defaults(&composite_layout);
+  composite_layout.entry_count = 3;
+  composite_layout.entries[0].slot = 0;
+  composite_layout.entries[0].type = LDK_RHI_BINDING_TYPE_UNIFORM_BUFFER;
+  composite_layout.entries[0].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+  composite_layout.entries[1].slot = 1;
+  composite_layout.entries[1].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
+  composite_layout.entries[1].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+  composite_layout.entries[2].slot = 2;
+  composite_layout.entries[2].type = LDK_RHI_BINDING_TYPE_TEXTURE_SAMPLER;
+  composite_layout.entries[2].stages = LDK_RHI_SHADER_STAGE_FRAGMENT;
+  pass->composite_bindings_layout =
+      ldk_rhi_bindings_layout_create(pass->rhi, &composite_layout);
+  if (pass->composite_bindings_layout == LDK_RHI_INVALID_RESOURCE)
   {
     s_renderer_post_process_pass_terminate(pass);
     return false;
@@ -893,6 +1040,16 @@ static bool s_renderer_post_process_pass_initialize(
     return false;
   }
 
+  /* Reuse precisely the same fullscreen vertex layout and raster state. */
+  pipeline.fragment_shader_module = pass->composite_fragment_shader_module;
+  pipeline.bindings_layout = pass->composite_bindings_layout;
+  pass->composite_pipeline = ldk_rhi_pipeline_create(pass->rhi, &pipeline);
+  if (pass->composite_pipeline == LDK_RHI_INVALID_RESOURCE)
+  {
+    s_renderer_post_process_pass_terminate(pass);
+    return false;
+  }
+
   LDKRHIBufferDesc vertex_buffer = {0};
   ldk_rhi_buffer_desc_defaults(&vertex_buffer);
   vertex_buffer.size = (u32)sizeof(vertices);
@@ -915,6 +1072,15 @@ static bool s_renderer_post_process_pass_initialize(
   params_buffer.memory_usage = LDK_RHI_MEMORY_USAGE_CPU_TO_GPU;
   pass->params_buffer = ldk_rhi_buffer_create(pass->rhi, &params_buffer);
   if (pass->params_buffer == LDK_RHI_INVALID_RESOURCE)
+  {
+    s_renderer_post_process_pass_terminate(pass);
+    return false;
+  }
+
+  params_buffer.size = sizeof(LDKRendererPostProcessCompositeParams);
+  pass->composite_params_buffer =
+      ldk_rhi_buffer_create(pass->rhi, &params_buffer);
+  if (pass->composite_params_buffer == LDK_RHI_INVALID_RESOURCE)
   {
     s_renderer_post_process_pass_terminate(pass);
     return false;
@@ -947,6 +1113,10 @@ static void s_renderer_post_process_pass_terminate(
     {
       ldk_rhi_sampler_destroy(pass->rhi, pass->sampler);
     }
+    if (pass->composite_params_buffer != LDK_RHI_INVALID_RESOURCE)
+    {
+      ldk_rhi_buffer_destroy(pass->rhi, pass->composite_params_buffer);
+    }
     if (pass->params_buffer != LDK_RHI_INVALID_RESOURCE)
     {
       ldk_rhi_buffer_destroy(pass->rhi, pass->params_buffer);
@@ -955,13 +1125,27 @@ static void s_renderer_post_process_pass_terminate(
     {
       ldk_rhi_buffer_destroy(pass->rhi, pass->vertex_buffer);
     }
+    if (pass->composite_pipeline != LDK_RHI_INVALID_RESOURCE)
+    {
+      ldk_rhi_pipeline_destroy(pass->rhi, pass->composite_pipeline);
+    }
     if (pass->pipeline != LDK_RHI_INVALID_RESOURCE)
     {
       ldk_rhi_pipeline_destroy(pass->rhi, pass->pipeline);
     }
+    if (pass->composite_bindings_layout != LDK_RHI_INVALID_RESOURCE)
+    {
+      ldk_rhi_bindings_layout_destroy(pass->rhi,
+          pass->composite_bindings_layout);
+    }
     if (pass->bindings_layout != LDK_RHI_INVALID_RESOURCE)
     {
       ldk_rhi_bindings_layout_destroy(pass->rhi, pass->bindings_layout);
+    }
+    if (pass->composite_fragment_shader_module != LDK_RHI_INVALID_RESOURCE)
+    {
+      ldk_rhi_shader_module_destroy(pass->rhi,
+          pass->composite_fragment_shader_module);
     }
     if (pass->fragment_shader_module != LDK_RHI_INVALID_RESOURCE)
     {
@@ -994,24 +1178,27 @@ static LDKRHITexture s_renderer_view_output_texture(
   return view->target.color_texture;
 }
 
+/* Shared separable blur: works on scene-linear LDR/HDR (before) and on the
+ * already encoded LDR post-process texture (after) without resampling scene. */
 static bool s_renderer_blur_draw(LDKRenderer* renderer,
-    LDKRendererView* view, LDKRHITexture* out_texture)
+    LDKRendererView* view, LDKRHITexture input_texture,
+    LDKRHIFormat input_format, LDKRHITexture* out_texture)
 {
   if (renderer == NULL || view == NULL || out_texture == NULL)
   {
     return false;
   }
 
-  *out_texture = view->target.color_texture;
+  *out_texture = input_texture;
   if (!s_renderer_blur_active(&view->post_processing))
   {
     return true;
   }
 
   if (!s_renderer_post_process_blur_textures_ensure(
-          renderer, view, view->target.color_format) ||
+          renderer, view, input_format) ||
       !s_renderer_post_process_blur_bindings_ensure(
-          renderer, view, 0, view->target.color_texture) ||
+          renderer, view, 0, input_texture) ||
       !s_renderer_post_process_blur_bindings_ensure(
           renderer, view, 1, view->post_process_blur_textures[0]))
   {
@@ -1019,11 +1206,11 @@ static bool s_renderer_blur_draw(LDKRenderer* renderer,
   }
 
   LDKRHIPipeline pipeline = LDK_RHI_INVALID_RESOURCE;
-  if (view->target.color_format == LDK_RHI_FORMAT_RGBA16_FLOAT)
+  if (input_format == LDK_RHI_FORMAT_RGBA16_FLOAT)
   {
     pipeline = renderer->blur_pass.hdr_pipeline;
   }
-  else if (view->target.color_format == LDK_RHI_FORMAT_RGBA8_UNORM)
+  else if (input_format == LDK_RHI_FORMAT_RGBA8_UNORM)
   {
     pipeline = renderer->blur_pass.ldr_pipeline;
   }
@@ -1180,50 +1367,71 @@ static bool s_renderer_bloom_draw(LDKRenderer* renderer,
   return true;
 }
 
-static bool s_renderer_post_process_draw(
-    LDKRenderer* renderer, LDKRendererView* view)
+/* Identical focus parameters drive either shader. The (optional) blur
+ * mixture is done on linear scene color in BEFORE or LDR color in AFTER. */
+static void s_renderer_blur_focus_params_get(
+    LDKRendererPostProcessing const* post_processing,
+    LDKRendererView const* view, float focus[4], float options[4])
 {
-  if (renderer == NULL || view == NULL ||
-      !renderer->post_process_pass.is_initialized)
-  {
-    return false;
-  }
+  focus[0] = isfinite(post_processing->blur_focus_x)
+      ? post_processing->blur_focus_x : 0.5f;
+  focus[1] = isfinite(post_processing->blur_focus_y)
+      ? post_processing->blur_focus_y : 0.5f;
+  focus[2] = s_renderer_saturate(post_processing->blur_focus_size);
+  focus[3] = s_renderer_saturate(post_processing->blur_focus_feather);
+  options[1] = post_processing->blur_inverted ? 1.0f : 0.0f;
+  options[2] = (float)view->width / (float)view->height;
+}
 
-  LDKRHITexture blurred_texture = view->target.color_texture;
-  LDKRHITexture bloom_texture = view->target.color_texture;
-  if (!s_renderer_post_process_texture_ensure(renderer, view) ||
-      !s_renderer_blur_draw(renderer, view, &blurred_texture) ||
-      !s_renderer_bloom_draw(renderer, view, &bloom_texture) ||
-      !s_renderer_post_process_bindings_ensure(
+/* All fullscreen post-process draws use the same quad and output extent. */
+static void s_renderer_post_process_fullscreen_draw(LDKRenderer* renderer,
+    LDKRendererView* view, LDKRHITexture output_texture,
+    LDKRHIPipeline pipeline, LDKRHIBindings bindings)
+{
+  LDKRHIPassDesc pass_desc = {0};
+  ldk_rhi_pass_desc_defaults(&pass_desc);
+  pass_desc.color_attachment_count = 1;
+  pass_desc.color_attachments[0].texture = output_texture;
+  pass_desc.color_attachments[0].load_op = LDK_RHI_LOAD_OP_CLEAR;
+  pass_desc.color_attachments[0].store_op = LDK_RHI_STORE_OP_STORE;
+  pass_desc.has_viewport = true;
+  pass_desc.viewport.width = (float)view->width;
+  pass_desc.viewport.height = (float)view->height;
+  pass_desc.viewport.max_depth = 1.0f;
+
+  ldk_rhi_pass_begin(renderer->rhi, &pass_desc);
+  ldk_rhi_pipeline_bind(renderer->rhi, pipeline);
+  ldk_rhi_bindings_bind(renderer->rhi, bindings);
+  ldk_rhi_vertex_buffer_bind(renderer->rhi,
+      renderer->post_process_pass.vertex_buffer, 0);
+  LDKRHIDrawDesc draw_desc = {0};
+  draw_desc.vertex_count = 6;
+  ldk_rhi_draw(renderer->rhi, &draw_desc);
+  ldk_rhi_pass_end(renderer->rhi);
+
+  LDKRendererFrameDomainStats* stats =
+      s_renderer_frame_stats_for_view(renderer, view);
+  if (stats != NULL)
+  {
+    stats->draw_call_count += 1;
+  }
+}
+
+static bool s_renderer_post_process_color_draw(LDKRenderer* renderer,
+    LDKRendererView* view, LDKRHITexture output_texture,
+    LDKRHITexture blurred_texture, LDKRHITexture bloom_texture,
+    bool apply_blur)
+{
+  if (!s_renderer_post_process_bindings_ensure(
           renderer, view, blurred_texture, bloom_texture))
   {
     return false;
   }
 
-  LDKRHIPassDesc pass_desc = {0};
-  ldk_rhi_pass_desc_defaults(&pass_desc);
-  pass_desc.color_attachment_count = 1;
-  pass_desc.color_attachments[0].texture = view->post_process_texture;
-  pass_desc.color_attachments[0].load_op = LDK_RHI_LOAD_OP_CLEAR;
-  pass_desc.color_attachments[0].store_op = LDK_RHI_STORE_OP_STORE;
-  pass_desc.has_viewport = true;
-  pass_desc.viewport.x = 0.0f;
-  pass_desc.viewport.y = 0.0f;
-  pass_desc.viewport.width = (float)view->width;
-  pass_desc.viewport.height = (float)view->height;
-  pass_desc.viewport.min_depth = 0.0f;
-  pass_desc.viewport.max_depth = 1.0f;
-
   LDKRendererPostProcessing disabled = {0};
   const LDKRendererPostProcessing *post_processing =
       view->post_processing.enabled ? &view->post_processing : &disabled;
-  bool blur_active = s_renderer_blur_active(post_processing);
-  float focus_x = isfinite(post_processing->blur_focus_x)
-      ? post_processing->blur_focus_x
-      : 0.5f;
-  float focus_y = isfinite(post_processing->blur_focus_y)
-      ? post_processing->blur_focus_y
-      : 0.5f;
+  bool blur_active = apply_blur && s_renderer_blur_active(post_processing);
 
   LDKRendererPostProcessParams params = {0};
   params.tonemapping[0] = post_processing->exposure;
@@ -1234,17 +1442,9 @@ static bool s_renderer_post_process_draw(
   params.color_adjustments[2] = post_processing->saturation;
   params.color_adjustments[3] =
       post_processing->color_enabled ? 1.0f : 0.0f;
-  params.blur_focus[0] = focus_x;
-  params.blur_focus[1] = focus_y;
-  params.blur_focus[2] =
-      s_renderer_saturate(post_processing->blur_focus_size);
-  params.blur_focus[3] =
-      s_renderer_saturate(post_processing->blur_focus_feather);
+  s_renderer_blur_focus_params_get(post_processing, view,
+      params.blur_focus, params.blur_options);
   params.blur_options[0] = blur_active ? 1.0f : 0.0f;
-  params.blur_options[1] =
-      post_processing->blur_inverted ? 1.0f : 0.0f;
-  params.blur_options[2] =
-      (float)view->width / (float)view->height;
   params.vignette[0] =
       s_renderer_saturate(post_processing->vignette_intensity);
   params.vignette[1] =
@@ -1299,7 +1499,9 @@ static bool s_renderer_post_process_draw(
   params.retro_options[0] =
       post_processing->retro_dither_pattern <= 2u
       ? (float)post_processing->retro_dither_pattern
-      : 0.0f;
+      : 2.0f;
+  params.retro_options[1] =
+      s_renderer_saturate(post_processing->retro_dither_contrast);
   params.drunk_primary[0] =
       s_renderer_saturate(post_processing->drunk_strength);
   params.drunk_primary[1] = s_renderer_clamp_finite(
@@ -1324,23 +1526,88 @@ static bool s_renderer_post_process_draw(
     return false;
   }
 
-  ldk_rhi_pass_begin(renderer->rhi, &pass_desc);
-  ldk_rhi_pipeline_bind(renderer->rhi, renderer->post_process_pass.pipeline);
-  ldk_rhi_bindings_bind(renderer->rhi, view->post_process_bindings);
-  ldk_rhi_vertex_buffer_bind(
-      renderer->rhi, renderer->post_process_pass.vertex_buffer, 0);
+  s_renderer_post_process_fullscreen_draw(renderer, view, output_texture,
+      renderer->post_process_pass.pipeline, view->post_process_bindings);
+  return true;
+}
 
-  LDKRHIDrawDesc draw_desc = {0};
-  draw_desc.vertex_count = 6;
-  draw_desc.first_vertex = 0;
-  ldk_rhi_draw(renderer->rhi, &draw_desc);
-  ldk_rhi_pass_end(renderer->rhi);
-
-  LDKRendererFrameDomainStats* stats =
-      s_renderer_frame_stats_for_view(renderer, view);
-  if (stats != NULL)
+/* The compositor samples encoded LDR directly. No exposure, tonemapping,
+ * color adjustment, vignette or retro pass is executed twice. */
+static bool s_renderer_post_process_composite_draw(LDKRenderer* renderer,
+    LDKRendererView* view, LDKRHITexture input_texture,
+    LDKRHITexture blurred_texture)
+{
+  if (!s_renderer_post_process_composite_bindings_ensure(
+          renderer, view, input_texture, blurred_texture))
   {
-    stats->draw_call_count += 1;
+    return false;
+  }
+
+  LDKRendererPostProcessCompositeParams params = {0};
+  s_renderer_blur_focus_params_get(&view->post_processing, view,
+      params.blur_focus, params.blur_options);
+  if (!ldk_rhi_buffer_update(renderer->rhi,
+          renderer->post_process_pass.composite_params_buffer,
+          0, sizeof(params), &params))
+  {
+    return false;
+  }
+
+  s_renderer_post_process_fullscreen_draw(renderer, view,
+      view->post_process_texture,
+      renderer->post_process_pass.composite_pipeline,
+      view->post_process_composite_bindings);
+  return true;
+}
+
+static bool s_renderer_post_process_draw(
+    LDKRenderer* renderer, LDKRendererView* view)
+{
+  if (renderer == NULL || view == NULL ||
+      !renderer->post_process_pass.is_initialized ||
+      !s_renderer_post_process_texture_ensure(renderer, view))
+  {
+    return false;
+  }
+
+  /* Bloom remains attached to the HDR scene before tonemapping, regardless
+   * of blur order. It must not be extracted from dithered LDR pixels. */
+  LDKRHITexture bloom_texture = view->target.color_texture;
+  if (!s_renderer_bloom_draw(renderer, view, &bloom_texture))
+  {
+    return false;
+  }
+
+  LDKRHITexture blurred_texture = view->target.color_texture;
+  if (s_renderer_blur_after_dither(&view->post_processing))
+  {
+    /* Stage color+retro exactly once. No in-place sampling: the staged LDR
+     * texture and final LDR display texture are separate GPU resources. */
+    if (!s_renderer_post_process_staging_texture_ensure(renderer, view) ||
+        !s_renderer_post_process_color_draw(renderer, view,
+            view->post_process_staging_texture,
+            view->target.color_texture, bloom_texture, false) ||
+        !s_renderer_blur_draw(renderer, view,
+            view->post_process_staging_texture, LDK_RHI_FORMAT_RGBA8_UNORM,
+            &blurred_texture) ||
+        !s_renderer_post_process_composite_draw(renderer, view,
+            view->post_process_staging_texture, blurred_texture))
+    {
+      return false;
+    }
+  }
+  else
+  {
+    /* Legacy order: preserve original post-process shader and blur focus
+     * composition behavior, with no extra draws or intermediate targets. */
+    if (!s_renderer_blur_draw(renderer, view, view->target.color_texture,
+            view->target.color_format, &blurred_texture) ||
+        !s_renderer_post_process_color_draw(renderer, view,
+            view->post_process_texture, blurred_texture, bloom_texture,
+            s_renderer_blur_active(&view->post_processing)))
+    {
+      return false;
+    }
   }
 
   return true;

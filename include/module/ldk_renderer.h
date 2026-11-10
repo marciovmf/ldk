@@ -72,7 +72,8 @@ extern "C" {
     LDK_SHADER_MESH_PASS_SOLID_UNLIT,
     LDK_SHADER_TERRAIN_PASS,
     LDK_SHADER_WATER_PASS,
-    LDK_SHADER_BLOOM_EXTRACT_PASS
+    LDK_SHADER_BLOOM_EXTRACT_PASS,
+    LDK_SHADER_POST_PROCESS_COMPOSITE_PASS
   } LDKShader;
 
   /** @group ldk.module.renderer */
@@ -641,6 +642,7 @@ extern "C" {
     float blur_focus_size;
     float blur_focus_feather;
     bool blur_inverted;
+    u32 blur_order; // LDKBlurOrder values, BEFORE_DITHER (zero) by default.
     bool color_enabled;
     float brightness;
     float contrast;
@@ -664,6 +666,7 @@ extern "C" {
     float retro_pixel_size;
     float retro_color_levels;
     float retro_dither_strength;
+    float retro_dither_contrast;
     float retro_pattern_scale;
     u32 retro_dither_pattern; // LDKRetroDitherPattern values.
     bool drunk_enabled;
@@ -680,10 +683,14 @@ extern "C" {
     LDKRHIContext* rhi;
     LDKRHIShaderModule vertex_shader_module;
     LDKRHIShaderModule fragment_shader_module;
+    LDKRHIShaderModule composite_fragment_shader_module;
     LDKRHIBindingsLayout bindings_layout;
+    LDKRHIBindingsLayout composite_bindings_layout;
     LDKRHIPipeline pipeline;
+    LDKRHIPipeline composite_pipeline;
     LDKRHIBuffer vertex_buffer;
     LDKRHIBuffer params_buffer;
+    LDKRHIBuffer composite_params_buffer;
     LDKRHISampler sampler;
     bool is_initialized;
   } LDKRendererPostProcessPass;
@@ -753,6 +760,12 @@ extern "C" {
     LDKRHITexture overlay_display_texture;
     LDKRHIBindings overlay_display_bindings;
     LDKRHITexture post_process_texture;
+    /* Only allocated for blur-after-dither. The finished image is written to
+     * post_process_texture, keeping the editor-facing texture stable. */
+    LDKRHITexture post_process_staging_texture;
+    LDKRHIBindings post_process_composite_bindings;
+    LDKRHITexture post_process_composite_input_texture;
+    LDKRHITexture post_process_composite_blurred_texture;
     LDKRHIBindings post_process_bindings;
     LDKRHITexture post_process_input_texture;
     LDKRHITexture post_process_blurred_texture;

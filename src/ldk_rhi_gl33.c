@@ -2025,6 +2025,12 @@ static char const* ldk_rhi_gl33_builtin_shader_source(u32 shader, u32 stage)
     return LDK_RHI_GL33_POST_PROCESS_PASS_FRAGMENT_SHADER;
   }
 
+  if (shader == LDK_SHADER_POST_PROCESS_COMPOSITE_PASS &&
+      stage == LDK_RHI_SHADER_STAGE_FRAGMENT)
+  {
+    return LDK_RHI_GL33_POST_PROCESS_COMPOSITE_PASS_FRAGMENT_SHADER;
+  }
+
   if (shader == LDK_SHADER_SKYBOX_PASS &&
       stage == LDK_RHI_SHADER_STAGE_VERTEX)
   {

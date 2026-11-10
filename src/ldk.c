@@ -1920,6 +1920,8 @@ void ldk_engine_frame(void)
             post_processing->blur_focus_feather;
         renderer_post_processing.blur_inverted =
             post_processing->blur_inverted;
+        renderer_post_processing.blur_order =
+            (u32)post_processing->blur_order;
         renderer_post_processing.color_enabled =
             post_processing->color_enabled;
         renderer_post_processing.brightness = post_processing->brightness;
@@ -1963,6 +1965,8 @@ void ldk_engine_frame(void)
             post_processing->retro_color_levels;
         renderer_post_processing.retro_dither_strength =
             post_processing->retro_dither_strength;
+        renderer_post_processing.retro_dither_contrast =
+            post_processing->retro_dither_contrast;
         renderer_post_processing.retro_pattern_scale =
             post_processing->retro_pattern_scale;
         renderer_post_processing.retro_dither_pattern =

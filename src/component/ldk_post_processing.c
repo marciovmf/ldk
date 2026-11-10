@@ -28,6 +28,7 @@ static LDKPostProcessing s_post_processing_make_default(void)
   post_processing.blur_focus_size = 0.25f;
   post_processing.blur_focus_feather = 0.15f;
   post_processing.blur_inverted = false;
+  post_processing.blur_order = LDK_BLUR_ORDER_BEFORE_DITHER;
   post_processing.blur_focus_offset_x = 0.0f;
   post_processing.blur_focus_offset_y = 0.0f;
   post_processing.color_enabled = false;
@@ -50,12 +51,13 @@ static LDKPostProcessing s_post_processing_make_default(void)
   post_processing.inverse_enabled = false;
   post_processing.black_and_white_enabled = false;
   post_processing.retro_enabled = false;
-  post_processing.retro_pixel_size = 2.0f;
+  post_processing.retro_pixel_size = 1.0f;
   post_processing.retro_color_levels = 4.0f;
   post_processing.retro_dither_strength = 1.0f;
+  post_processing.retro_dither_contrast = 0.5f;
   post_processing.retro_pattern_scale = 1.0f;
   post_processing.retro_dither_pattern =
-      LDK_RETRO_DITHER_PATTERN_CLUSTERED_4X4;
+      LDK_RETRO_DITHER_PATTERN_BAYER_8X8;
   post_processing.drunk_enabled = false;
   post_processing.drunk_strength = 0.75f;
   post_processing.drunk_speed = 1.0f;

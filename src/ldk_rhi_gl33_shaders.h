@@ -1185,6 +1185,23 @@
   "  gl_Position = vec4(a_position, 0.0, 1.0);\n" \
   "}\n"
 
+/* Shared by the main post-process and the final blur compositor. */
+#define LDK_RHI_GL33_BLUR_MASK_GLSL \
+  "float ldk_blur_mask(vec2 uv, vec4 focus, vec4 options)\n" \
+  "{\n" \
+  "  vec2 delta = uv - focus.xy;\n" \
+  "  float aspect = max(options.z, 1e-6);\n" \
+  "  delta.x *= aspect;\n" \
+  "  float half_diagonal = 0.5 * length(vec2(aspect, 1.0));\n" \
+  "  float distance_to_focus = length(delta) / max(half_diagonal, 1e-6);\n" \
+  "  float size = clamp(focus.z, 0.0, 1.0);\n" \
+  "  float feather = max(clamp(focus.w, 0.0, 1.0), 1e-5);\n" \
+  "  float mask = smoothstep(size, size + feather, distance_to_focus);\n" \
+  "  if (options.y > 0.5)\n" \
+  "    mask = 1.0 - mask;\n" \
+  "  return mask;\n" \
+  "}\n"
+
 #define LDK_RHI_GL33_POST_PROCESS_PASS_FRAGMENT_SHADER \
   "#version 330 core\n" \
   "in vec2 v_uv;\n" \
@@ -1399,20 +1416,7 @@
   "  }\n" \
   "  return color;\n" \
   "}\n" \
-  "float ldk_blur_mask(vec2 uv)\n" \
-  "{\n" \
-  "  vec2 delta = uv - u_blur_focus.xy;\n" \
-  "  float aspect = max(u_blur_options.z, 1e-6);\n" \
-  "  delta.x *= aspect;\n" \
-  "  float half_diagonal = 0.5 * length(vec2(aspect, 1.0));\n" \
-  "  float distance_to_focus = length(delta) / max(half_diagonal, 1e-6);\n" \
-  "  float size = clamp(u_blur_focus.z, 0.0, 1.0);\n" \
-  "  float feather = max(clamp(u_blur_focus.w, 0.0, 1.0), 1e-5);\n" \
-  "  float mask = smoothstep(size, size + feather, distance_to_focus);\n" \
-  "  if (u_blur_options.y > 0.5)\n" \
-  "    mask = 1.0 - mask;\n" \
-  "  return mask;\n" \
-  "}\n" \
+  LDK_RHI_GL33_BLUR_MASK_GLSL \
   "float ldk_retro_threshold()\n" \
   "{\n" \
   "  float pattern_scale = max(floor(u_retro.w + 0.5), 1.0);\n" \
@@ -1432,15 +1436,33 @@
   "}\n" \
   "vec3 ldk_retro_dither(vec3 color)\n" \
   "{\n" \
+  "  float strength = clamp(u_retro.z, 0.0, 1.0);\n" \
+  "  if (strength <= 0.0)\n" \
+  "    return color;\n" \
+  "  vec3 source = clamp(color, 0.0, 1.0);\n" \
   "  float levels = max(floor(u_retro.y + 0.5), 2.0);\n" \
   "  float max_level = levels - 1.0;\n" \
-  "  vec3 scaled = clamp(color, 0.0, 1.0) * max_level;\n" \
-  "  vec3 lower = floor(scaled);\n" \
-  "  vec3 fraction = scaled - lower;\n" \
-  "  float threshold = mix(0.5, ldk_retro_threshold(),\n" \
-  "      clamp(u_retro.z, 0.0, 1.0));\n" \
-  "  vec3 quantized = lower + step(vec3(threshold), fraction);\n" \
-  "  return clamp(quantized / max_level, 0.0, 1.0);\n" \
+  "  float luminance = dot(source, vec3(0.2126, 0.7152, 0.0722));\n" \
+  "  float scaled = luminance * max_level;\n" \
+  "  float lower = floor(scaled);\n" \
+  "  float fraction = scaled - lower;\n" \
+  "  float threshold = ldk_retro_threshold();\n" \
+  "  float quantized_luminance = (lower +\n" \
+  "      step(threshold, fraction)) / max_level;\n" \
+  "  // A second coverage signal follows absolute luminance, not the\n" \
+  "  // fractional position inside a quantization interval.\n" \
+  "  // Both signals are unbiased across a Bayer cell. Add their\n" \
+  "  // contrast without eliminating the Color Levels contribution.\n" \
+  "  float coverage = step(threshold, luminance);\n" \
+  "  float contrast = clamp(u_retro_options.y, 0.0, 1.0);\n" \
+  "  float dithered_luminance = quantized_luminance +\n" \
+  "      contrast * (coverage - luminance);\n" \
+  "  // Shift RGB channels together to retain the source chromaticity.\n" \
+  "  // RGB gamut clipping is unavoidable for saturated endpoints.\n" \
+  "  vec3 chroma = source - vec3(luminance);\n" \
+  "  vec3 quantized = clamp(vec3(dithered_luminance) + chroma,\n" \
+  "      0.0, 1.0);\n" \
+  "  return mix(color, quantized, strength);\n" \
   "}\n" \
   "void main()\n" \
   "{\n" \
@@ -1450,7 +1472,7 @@
   "  if (u_blur_options.x > 0.5)\n" \
   "  {\n" \
   "    vec4 blurred = ldk_sample_drunk_source(LDK_TEXTURE_2, sample_uv);\n" \
-  "    color = mix(original, blurred, ldk_blur_mask(v_uv));\n" \
+  "    color = mix(original, blurred, ldk_blur_mask(v_uv, u_blur_focus, u_blur_options));\n" \
   "  }\n" \
   "  if (u_bloom_options.x > 0.0)\n" \
   "    color.rgb += max(texture(LDK_TEXTURE_3, sample_uv).rgb,\n" \
@@ -1489,13 +1511,14 @@
   "        radius, radius + softness, distance_to_center);\n" \
   "    color.rgb *= 1.0 - amount * clamp(u_vignette.x, 0.0, 1.0);\n" \
   "  }\n" \
-  "  if (u_stylization_options.w > 0.5)\n" \
-  "    color.rgb = ldk_retro_dither(color.rgb);\n" \
   "  vec3 linear_color = max(color.rgb, vec3(0.0));\n" \
   "  vec3 lower = linear_color * 12.92;\n" \
   "  vec3 upper = 1.055 * pow(linear_color, vec3(1.0 / 2.4)) - 0.055;\n" \
   "  color.rgb = mix(lower, upper,\n" \
   "      step(vec3(0.0031308), linear_color));\n" \
+  "  // Quantize perceptual brightness, not linear light or RGB channels.\n" \
+  "  if (u_stylization_options.w > 0.5)\n" \
+  "    color.rgb = ldk_retro_dither(color.rgb);\n" \
   "  out_color = color;\n" \
   "}\n"
 
@@ -1538,6 +1561,28 @@
   "  float fog_enabled = step(0.000001, u_fog_params.y);\n" \
   "  out_color.rgb = mix(out_color.rgb, u_fog_color.rgb,\n" \
   "      horizon * fog_enabled);\n" \
+  "}\n"
+
+/* Applied only after the main post-process has encoded its output into LDR.
+ * This shader does not perform tonemapping, dithering or sRGB conversion again. */
+#define LDK_RHI_GL33_POST_PROCESS_COMPOSITE_PASS_FRAGMENT_SHADER \
+  "#version 330 core\n" \
+  "in vec2 v_uv;\n" \
+  "out vec4 out_color;\n" \
+  "layout(std140) uniform LDK_UBO_0\n" \
+  "{\n" \
+  "  vec4 u_blur_focus;\n" \
+  "  vec4 u_blur_options;\n" \
+  "};\n" \
+  "uniform sampler2D LDK_TEXTURE_1;\n" \
+  "uniform sampler2D LDK_TEXTURE_2;\n" \
+  LDK_RHI_GL33_BLUR_MASK_GLSL \
+  "void main()\n" \
+  "{\n" \
+  "  vec4 original = texture(LDK_TEXTURE_1, v_uv);\n" \
+  "  vec4 blurred = texture(LDK_TEXTURE_2, v_uv);\n" \
+  "  out_color = mix(original, blurred,\n" \
+  "      ldk_blur_mask(v_uv, u_blur_focus, u_blur_options));\n" \
   "}\n"
 
 #define LDK_RHI_GL33_BLOOM_EXTRACT_PASS_FRAGMENT_SHADER \

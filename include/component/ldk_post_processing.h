@@ -18,6 +18,8 @@ extern "C" {
 #endif
 
   /** @group ldk.component.post_processing */
+  /* Ordered threshold matrices. Bayer 8x8 matches dispersed-dot
+   * halftoning; this does not imply monochrome output. */
   //@enum
   typedef enum LDKRetroDitherPattern
   {
@@ -25,6 +27,17 @@ extern "C" {
     LDK_RETRO_DITHER_PATTERN_BAYER_4X4,
     LDK_RETRO_DITHER_PATTERN_BAYER_8X8
   } LDKRetroDitherPattern;
+
+  /** @group ldk.component.post_processing */
+  /* The default preserves legacy blur-before-color behavior. The alternate
+   * mode applies the same blur kernel to the fully processed image, including
+   * dithering, and composites with the existing focus mask. */
+  //@enum
+  typedef enum LDKBlurOrder
+  {
+    LDK_BLUR_ORDER_BEFORE_DITHER = 0,
+    LDK_BLUR_ORDER_AFTER_DITHER
+  } LDKBlurOrder;
 
   /** @group ldk.component.post_processing */
   //@component
@@ -59,6 +72,8 @@ extern "C" {
     //@inspect slider min=0.0 max=1.0
     float blur_focus_feather;
     bool blur_inverted;
+    // After Dither blurs the finished post-process image (also when Retro is off).
+    LDKBlurOrder blur_order;
     //@inspect slider min=-1.0 max=1.0
     float blur_focus_offset_x;
     //@inspect slider min=-1.0 max=1.0
@@ -122,6 +137,9 @@ extern "C" {
     float retro_color_levels;
     //@inspect slider min=0.0 max=1.0
     float retro_dither_strength;
+    // Additional ordered-dot contrast, independently of color levels.
+    //@inspect slider min=0.0 max=1.0
+    float retro_dither_contrast;
     //@inspect slider min=1.0 max=8.0
     float retro_pattern_scale;
     LDKRetroDitherPattern retro_dither_pattern;
