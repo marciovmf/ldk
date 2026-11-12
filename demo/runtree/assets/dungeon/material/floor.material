@@ -11,6 +11,6 @@ material:
   material_type: 2
   material_color: 0xffffffff
   material_texture: "assets/dungeon/textures/floor_stone_opaque.png"
-  material_specular: 0
-  material_shininess: 32
+  material_specular: 1
+  material_shininess: 256
   material_emission: 0

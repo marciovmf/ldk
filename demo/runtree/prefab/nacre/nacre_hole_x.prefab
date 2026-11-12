@@ -1,0 +1,22 @@
+prefab:
+  version: 1
+  root: 0
+  entities:
+    - entity: 0
+      parent: -1
+      flags: 0
+      name: "nacre_hole_x"
+      name_hash: "0x1eb71312d1c07060"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.00000000, 0.00000000
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/nacre_dungeon_structural.mesh"
+            mesh_index: 1
+            casts_shadows: false
+            billboard: false
+            material_asset: "assets/dungeon/material/passage.material"

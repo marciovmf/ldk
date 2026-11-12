@@ -24,6 +24,8 @@
 #include "src/system/hello.h"
 #include "src/system/tftf_island_system.h"
 #include "src/system/tftf_decoration_system.h"
+#include "src/system/tftf_decoration_system.h"
+#include "src/system/nacre_dungeon_generator.h"
 #include "src/system/tftf_bulb_plant_ai_system.h"
 #include "src/system/tftf_bullet_system.h"
 #include "src/system/tftf_player_character_system.h"
