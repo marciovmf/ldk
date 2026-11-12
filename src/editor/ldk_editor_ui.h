@@ -110,6 +110,14 @@ LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_image(LDKEditorContext *editor,
     const LDKAssetInfo *info, bool readonly, bool optional, bool has_value, bool *expanded,
     XFSPath *path, const LDKEditorUIUndoProperty *undo_property);
 
+/* A material texture slot accepts either an image or a .atlas asset.
+ * Unlike the generic image field, its chooser exposes both file types. */
+LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_material_texture(
+    LDKEditorContext *editor, const char *label, const char *dialog_title,
+    u32 group_depth, const LDKAssetInfo *info, bool readonly, bool optional,
+    bool has_value, bool *expanded, XFSPath *path,
+    const LDKEditorUIUndoProperty *undo_property);
+
 LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_texture_atlas(LDKEditorContext *editor,
     const char *label, u32 group_depth, const LDKAssetInfo *info,
     bool readonly, bool has_value, XFSPath *path, const LDKEditorUIUndoProperty *undo_property);

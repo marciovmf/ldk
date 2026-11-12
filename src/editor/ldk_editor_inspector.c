@@ -14,6 +14,7 @@
 #include <ldk_scene.h>
 #include <ldk_property.h>
 #include <component/ldk_mesh_source.h>
+#include <component/ldk_material_instance.h>
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_keyframe_animation_source.h>
 #include <module/ldk_scene_manager.h>
@@ -3626,6 +3627,42 @@ static void s_editor_inspector_field_or_array_draw(LDKEditorContext *editor,
       meta, field, component);
 }
 
+/* MaterialInstance.atlas is a derived, read-only inspector source, not an
+ * authored asset. The renderer also resolves it when submitting a mesh, but
+ * that path is not guaranteed to run before the inspector (or at all when the
+ * entity is culled/hidden). Resolve it from the primary MeshSource material
+ * here, so the Sprite region selector works independently of rendering.
+ *
+ * Use the same material synchronization as the MeshSource inspector. This
+ * picks up edits to shared .material assets without changing sprite IDs or
+ * making the atlas a second source of truth. */
+static void s_editor_material_instance_atlas_sync(
+    LDKEntity entity, LDKMaterialInstance *instance)
+{
+  LDKAssetTextureAtlas atlas = ldk_asset_texture_atlas_null();
+  LDKMeshSource *mesh;
+  LDKAssetManager *assets;
+
+  if (!instance)
+    return;
+
+  mesh = ldk_ecs_component_get(entity, LDK_COMPONENT_TYPE_MESH_SOURCE);
+  assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  if (mesh)
+  {
+    if (assets)
+      (void)ldk_mesh_source_material_sync(mesh, assets);
+    atlas = mesh->material.texture_atlases[0];
+  }
+
+  if (instance->atlas.h.index != atlas.h.index ||
+      instance->atlas.h.version != atlas.h.version)
+  {
+    instance->atlas = atlas;
+    instance->cache_valid = false;
+  }
+}
+
 static void s_editor_inspector_fields_draw(
     LDKEditorContext *editor, LDKEntity entity, u32 component_type,
     const LDKComponentMeta *meta, void *component, u32 group_domain,
@@ -3640,6 +3677,11 @@ static void s_editor_inspector_fields_draw(
   {
     return;
   }
+
+  /* The atlas is derived from a sibling component. Refresh before drawing
+   * both the read-only Atlas field and its dependent Sprite selector. */
+  if (component_type == LDK_COMPONENT_TYPE_MATERIAL_INSTANCE)
+    s_editor_material_instance_atlas_sync(entity, component);
 
   ui = &editor->ui;
 
@@ -4225,6 +4267,157 @@ static bool s_editor_material_texture_settings_editor(
   return changed;
 }
 
+/* A material slot has TWO mutually exclusive asset sources: a direct image
+ * or a texture atlas. Both are already supported by LDKMaterialDesc and the
+ * renderer; only the editor's picker was restricted to LDKAssetImage.
+ *
+ * Resolve and assign by asset type. Never pass a .atlas path to the image
+ * loader: it cannot produce the LDKAssetTextureAtlas handle needed by the
+ * material and the MaterialInstance sprite selector. */
+static bool s_editor_material_texture_asset_editor(
+    LDKEditorContext *editor, const char *label, const char *dialog_title,
+    LDKMaterialDesc *desc, u32 slot, bool readonly, bool *expanded,
+    bool *removed, const LDKMaterialIOContext *context)
+{
+  LDKAssetManager *assets;
+  LDKAssetTextureAtlas atlas;
+  LDKAssetImage image;
+  LDKAssetHandle asset;
+  const LDKAssetInfo *info;
+  XFSPath path = {0};
+  LDKEditorUIRowSlotAction action;
+  LDKAssetPath asset_path;
+  const char *ext;
+
+  if (!editor || !desc || slot >= LDK_MATERIAL_TEXTURE_SLOT_COUNT ||
+      !label || !dialog_title || !context || !context->assets)
+    return false;
+
+  assets = context->assets;
+  atlas = desc->texture_atlases[slot];
+  image = ldk_material_texture_slot_get(desc, slot);
+  asset.h = !x_handle_is_null(atlas.h) ? atlas.h : image.h;
+  info = !x_handle_is_null(asset.h)
+      ? ldk_asset_get_info_const(assets, asset) : NULL;
+
+  ldk_ui_push_id_cstr(&editor->ui, label);
+  action = ldk_editor_ui_row_slot_material_texture(editor, label,
+      dialog_title, s_editor_inspector_row_group_depth, info, readonly,
+      true, !x_handle_is_null(asset.h), expanded, &path, NULL);
+  ldk_ui_pop_id(&editor->ui);
+
+  if (action == LDK_EDITOR_UI_ROW_SLOT_CLEAR)
+  {
+    LDKAssetImage null_image = ldk_asset_image_null();
+    if (removed)
+      *removed = true;
+    return ldk_material_texture_slot_set(desc, slot, null_image);
+  }
+  if (action != LDK_EDITOR_UI_ROW_SLOT_ASSIGN)
+    return false;
+
+  if (!s_editor_inspector_asset_path_validate(editor, &path, dialog_title,
+          "Choose an image or .atlas inside the project's runtree folder.",
+          &asset_path))
+    return false;
+
+  ext = strrchr(asset_path.buf, '.');
+  if (ext && x_slice_eq_ci(x_slice(ext), x_slice(".atlas")))
+  {
+    LDKAssetTextureAtlas selected =
+        ldk_asset_manager_texture_atlas_load_shared(assets, asset_path.buf);
+    if (x_handle_is_null(selected.h))
+    {
+      ldki_editor_log_error(editor, "Failed to load material texture atlas.");
+      return false;
+    }
+    if (!x_handle_is_null(atlas.h) &&
+        selected.h.index == atlas.h.index &&
+        selected.h.version == atlas.h.version)
+      return false;
+    /* Region zero means the complete image; MaterialInstance can select
+     * its own sprite region later without altering this shared material. */
+    return ldk_material_texture_atlas_set(desc, slot, selected, 0);
+  }
+
+  if (!ext || (!x_slice_eq_ci(x_slice(ext), x_slice(".png")) &&
+          !x_slice_eq_ci(x_slice(ext), x_slice(".jpg")) &&
+          !x_slice_eq_ci(x_slice(ext), x_slice(".jpeg")) &&
+          !x_slice_eq_ci(x_slice(ext), x_slice(".bmp")) &&
+          !x_slice_eq_ci(x_slice(ext), x_slice(".tga"))))
+  {
+    ldki_editor_log_error(editor,
+        "Material texture must be an image or .atlas file.");
+    return false;
+  }
+
+  LDKAssetImage selected =
+      ldk_asset_manager_image_load_shared(assets, asset_path.buf);
+  if (x_handle_is_null(selected.h))
+  {
+    ldki_editor_log_error(editor, "Failed to load material texture image.");
+    return false;
+  }
+  if (x_handle_is_null(atlas.h) && selected.h.index == image.h.index &&
+      selected.h.version == image.h.version)
+    return false;
+  return ldk_material_texture_slot_set(desc, slot, selected);
+}
+
+/* Optional material-level default region; the MaterialInstance's sprite
+ * selection is separate and continues to override it per entity. */
+static bool s_editor_material_texture_atlas_region_editor(
+    LDKEditorContext *editor, LDKMaterialDesc *desc, u32 slot,
+    bool readonly, const LDKMaterialIOContext *context)
+{
+  const LDKAssetTextureAtlasData *data;
+  const LDKTextureAtlas *atlas;
+  const char **names;
+  u32 count, selected, next;
+  u64 region_id;
+  char missing[96];
+
+  if (!editor || !desc || !context || !context->assets ||
+      slot >= LDK_MATERIAL_TEXTURE_SLOT_COUNT ||
+      x_handle_is_null(desc->texture_atlases[slot].h))
+    return false;
+  data = ldk_asset_manager_texture_atlas_get_const(
+      context->assets, desc->texture_atlases[slot]);
+  if (!data)
+    return false;
+  atlas = &data->atlas;
+  region_id = desc->texture_regions[slot];
+  names = x_arena_alloc(editor->ui.frame_arena,
+      (size_t)(atlas->region_count + 2u) * sizeof(*names));
+  if (!names)
+    return false;
+
+  names[0] = "(Full atlas)";
+  selected = region_id ? atlas->region_count + 1u : 0u;
+  for (u32 i = 0; i < atlas->region_count; ++i)
+  {
+    names[i + 1u] = atlas->regions[i].name;
+    if (region_id && region_id == atlas->regions[i].id)
+      selected = i + 1u;
+  }
+  count = atlas->region_count + 1u;
+  if (selected == count)
+  {
+    snprintf(missing, sizeof(missing), "Missing region: 0x%016" PRIx64,
+        region_id);
+    names[count++] = missing;
+  }
+
+  next = ldk_editor_ui_row_atlas_region(editor, "Atlas Region",
+      s_editor_inspector_row_group_depth, names, count, selected,
+      readonly, NULL);
+  if (next == selected || next > atlas->region_count)
+    return false;
+  return ldk_material_texture_atlas_set(desc, slot,
+      desc->texture_atlases[slot],
+      next ? atlas->regions[next - 1u].id : 0u);
+}
+
 static bool s_editor_material_textures_editor(LDKEditorContext *editor,
     LDKMaterialDesc *desc, bool readonly, const LDKMaterialIOContext *context)
 {
@@ -4245,7 +4438,8 @@ static bool s_editor_material_textures_editor(LDKEditorContext *editor,
   for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
   {
     if ((textured || ((slot == 1u || slot == 2u) && lit)) &&
-        !x_handle_is_null(ldk_material_texture_slot_get(desc, slot).h))
+        (!x_handle_is_null(ldk_material_texture_slot_get(desc, slot).h) ||
+         !x_handle_is_null(desc->texture_atlases[slot].h)))
       active |= 1u << slot;
     if ((textured || ((slot == 1u || slot == 2u) && lit)) &&
         !(active & (1u << slot)))
@@ -4297,14 +4491,10 @@ static bool s_editor_material_textures_editor(LDKEditorContext *editor,
     bool removed = false;
     char prompt[64];
     snprintf(prompt, sizeof(prompt), "Choose %s texture", labels[slot]);
-    LDKAssetImage image = ldk_material_texture_slot_get(desc, slot);
     ldk_ui_push_id_u32(ui, slot);
-    if (s_editor_material_image_editor_ex(editor, labels[slot], prompt,
-            &image, readonly, true, &expanded[slot], &removed, context))
-    {
-      ldk_material_texture_slot_set(desc, slot, image);
+    if (s_editor_material_texture_asset_editor(editor, labels[slot], prompt,
+            desc, slot, readonly, &expanded[slot], &removed, context))
       changed = true;
-    }
     if (removed)
     {
       active &= ~(1u << slot);
@@ -4315,6 +4505,9 @@ static bool s_editor_material_textures_editor(LDKEditorContext *editor,
     }
     else if (expanded[slot])
     {
+      if (s_editor_material_texture_atlas_region_editor(
+              editor, desc, slot, readonly, context))
+        changed = true;
       LDKMaterialTextureSettings settings =
           ldk_material_texture_settings_get(desc, slot);
       if (s_editor_material_texture_settings_editor(editor, &settings, readonly))
