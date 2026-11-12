@@ -1,0 +1,53 @@
+prefab:
+  version: 1
+  root: 0
+  entities:
+    - entity: 0
+      parent: -1
+      flags: 0
+      name: "nacre_player_debug"
+      name_hash: "0xb3d91f1e8b4543fc"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.00000000, 0.00000000
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+    - entity: 1
+      parent: 0
+      flags: 0
+      name: "Quad"
+      name_hash: "0x45308213b11221ae"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.181645304, 0.00000000
+            local_scale: 0.202640653, 0.355898619, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/quad"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            material_texture_slots: 1
+            material_texture_0_filter: 0
+            material_texture_0_mip_filter: 0
+            material_texture_0_wrap_u: 1
+            material_texture_0_wrap_v: 1
+            material_texture_0_uv_scale_x: 1
+            material_texture_0_uv_scale_y: 1
+            material_texture_0_uv_offset_x: 0
+            material_texture_0_uv_offset_y: 0
+            material_texture_0_atlas: "assets/nacre_hero.atlas"
+            material_type: 2
+            material_color: 0xffffffff
+            material_texture: ""
+            material_alpha_mode: 1
+            material_alpha_cutoff: 0.5
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+        - type: 4294967279 # LDKMaterialInstance
+          fields:
+            sprite_id: "4"

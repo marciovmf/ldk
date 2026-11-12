@@ -35,6 +35,7 @@ typedef struct NacreDungeonRuntime
 {
   NacreDungeonSystem *owner;
   NacreDungeonMap map;
+  Vec3 generated_origin;
   LDKEntity generated_root;
   u32 generated_entity_count;
   u32 missing_prefab_pieces;
@@ -405,6 +406,9 @@ static void nacre_dungeon_system_generate(NacreDungeonSystem *system)
   nacre_dungeon_system_destroy_subtree(nacre_dungeon_runtime.generated_root);
   nacre_dungeon_generator_release(&nacre_dungeon_runtime.map);
   nacre_dungeon_runtime.map = next;
+  /* Commit the same origin used when creating prefab transforms. Do not
+   * follow uncommitted editor changes until the scene is regenerated. */
+  nacre_dungeon_runtime.generated_origin = system->world_origin;
   nacre_dungeon_runtime.generated_root = next_root;
   nacre_dungeon_runtime.generated_entity_count = created;
   nacre_dungeon_runtime.missing_prefab_pieces = missing;
@@ -488,4 +492,14 @@ const NacreDungeonMap *nacre_dungeon_system_map_get(void)
     return NULL;
   }
   return &nacre_dungeon_runtime.map;
+}
+
+/* Expose the authored placement of the currently active dungeon to gameplay.
+ * Navigation coordinates must match prefab placement exactly. */
+bool nacre_dungeon_system_world_origin_get(Vec3 *out)
+{
+  if (!out || !nacre_dungeon_runtime.owner ||
+      !nacre_dungeon_runtime.map.cells) return false;
+  *out = nacre_dungeon_runtime.generated_origin;
+  return true;
 }

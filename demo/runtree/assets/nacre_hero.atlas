@@ -1,0 +1,9 @@
+texture_atlas:
+  version: 1
+  texture: "assets/textures/nacre_hero_sheet.png"
+  next_id: 5
+  regions:
+    - id: 4
+      name: "sprite_0003"
+      rect: 1040, 32, 173, 177
+      pivot: 0.500000000, 0.500000000

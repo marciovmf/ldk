@@ -54,14 +54,14 @@ scene:
             brightness: -0.00562661886
             contrast: 1.01125324
             saturation: 1.01687980
-            vignette_enabled: false
-            vignette_intensity: 0.601278782
-            vignette_radius: 0.435294122
-            vignette_softness: 0.103324801
+            vignette_enabled: true
+            vignette_intensity: 0.810631216
+            vignette_radius: 0.655315638
+            vignette_softness: 0.326411963
             screen_distortion_enabled: false
             screen_distortion_strength: 0.250000000
-            chromatic_aberration_enabled: false
-            chromatic_aberration_strength: 0.831969261
+            chromatic_aberration_enabled: true
+            chromatic_aberration_strength: 0.00000000
             heat_enabled: false
             heat_strength: 1.00000000
             heat_amplitude: 4.00000000
@@ -71,10 +71,10 @@ scene:
             black_and_white_enabled: false
             retro_enabled: true
             retro_pixel_size: 1.00000000
-            retro_color_levels: 14.5957003
-            retro_dither_strength: 0.569430232
-            retro_dither_contrast: 0.858410060
-            retro_pattern_scale: 2.83179784
+            retro_color_levels: 10.3212080
+            retro_dither_strength: 0.586822212
+            retro_dither_contrast: 0.768016458
+            retro_pattern_scale: 3.94509268
             retro_dither_pattern: 2
             drunk_enabled: false
             drunk_strength: 0.750000000
@@ -134,3 +134,13 @@ scene:
         world_origin: 0.00000000, 0.00000000, 0.00000000
         generate_on_start: true
         regenerate: false
+    - id: "0x7b9b9cb3bfa5b31c"
+      data:
+        player_prefab: "prefab/nacre/nacre_player_debug.prefab"
+        step_duration: 0.300000012
+        ground_offset: 0.00000000
+        follow_main_camera: true
+        camera_offset: 0.00000000, 2.00000000, 1.00000000
+        look_at_height: 0.00000000
+        follow_sharpness: 140.000000
+        orbit_degrees_per_second: 360.000000

@@ -8,6 +8,8 @@ list(APPEND LDK_GAME_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/src/system/nacre_dungeon_generator.c"
   "${CMAKE_CURRENT_LIST_DIR}/src/system/nacre_dungeon_system.c"
   "${CMAKE_CURRENT_LIST_DIR}/src/system/nacre_dungeon_placement.c"
+  "${CMAKE_CURRENT_LIST_DIR}/src/system/nacre_dungeon_navigation.c"
+  "${CMAKE_CURRENT_LIST_DIR}/src/system/nacre_player_controller_system.c"
   "${CMAKE_CURRENT_LIST_DIR}/src/system/tftf_decoration_system.c"
   "${CMAKE_CURRENT_LIST_DIR}/src/system/tftf_player_character_system.c"
   "${CMAKE_CURRENT_LIST_DIR}/src/system/tftf_bulb_plant_ai_system.c"

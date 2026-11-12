@@ -28,6 +28,8 @@ void nacre_dungeon_system_terminate(void *data);
  * NULL when the system has no successfully generated layout.
  */
 const NacreDungeonMap *nacre_dungeon_system_map_get(void);
+/* Return world-space center of the generated grid.  False without a map. */
+bool nacre_dungeon_system_world_origin_get(Vec3 *out);
 
 //@system name=NacreDungeonSystem initialize=nacre_dungeon_system_initialize update=nacre_dungeon_system_update terminate=nacre_dungeon_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED
 typedef struct NacreDungeonSystem
