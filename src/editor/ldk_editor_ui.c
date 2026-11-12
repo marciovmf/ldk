@@ -2121,10 +2121,13 @@ LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_texture_atlas(LDKEditorContext *
       true, has_value, "Choose texture atlas", "Texture Atlas\0*.atlas\0\0", path);
 }
 
-LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_image(LDKEditorContext *editor,
+/* The material texture slot may reference an image OR an atlas. Keep the
+ * generic image picker image-only so unrelated image fields stay type-safe. */
+static LDKEditorUIRowSlotAction s_editor_ui_row_slot_image_filtered(LDKEditorContext *editor,
     const char *label, const char *dialog_title, u32 group_depth, const LDKAssetInfo *info,
     bool readonly, bool optional, bool has_value, bool *expanded,
-    XFSPath *path, const LDKEditorUIUndoProperty *undo_property)
+    XFSPath *path, const LDKEditorUIUndoProperty *undo_property,
+    const char *file_filter)
 {
   (void)undo_property;
   LDKUIContext *ui;
@@ -2192,7 +2195,7 @@ LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_image(LDKEditorContext *editor,
   if (ldk_ui_button(ui, "..."))
   {
     assign = ldk_os_dialog_show_open_file(editor->window, dialog_title,
-        "Images\0*.png;*.jpg;*.jpeg;*.bmp;*.tga\0\0", path);
+        file_filter, path);
   }
   ldk_ui_end_disabled(ui);
 
@@ -2208,4 +2211,26 @@ LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_image(LDKEditorContext *editor,
   return clear ? LDK_EDITOR_UI_ROW_SLOT_CLEAR
                : assign ? LDK_EDITOR_UI_ROW_SLOT_ASSIGN
                         : LDK_EDITOR_UI_ROW_SLOT_NONE;
+}
+
+LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_image(LDKEditorContext *editor,
+    const char *label, const char *dialog_title, u32 group_depth, const LDKAssetInfo *info,
+    bool readonly, bool optional, bool has_value, bool *expanded,
+    XFSPath *path, const LDKEditorUIUndoProperty *undo_property)
+{
+  return s_editor_ui_row_slot_image_filtered(editor, label, dialog_title,
+      group_depth, info, readonly, optional, has_value, expanded, path,
+      undo_property, "Images\0*.png;*.jpg;*.jpeg;*.bmp;*.tga\0\0");
+}
+
+LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_material_texture(
+    LDKEditorContext *editor, const char *label, const char *dialog_title,
+    u32 group_depth, const LDKAssetInfo *info, bool readonly, bool optional,
+    bool has_value, bool *expanded, XFSPath *path,
+    const LDKEditorUIUndoProperty *undo_property)
+{
+  return s_editor_ui_row_slot_image_filtered(editor, label, dialog_title,
+      group_depth, info, readonly, optional, has_value, expanded, path,
+      undo_property,
+      "Images and atlases\0*.png;*.jpg;*.jpeg;*.bmp;*.tga;*.atlas\0\0");
 }
