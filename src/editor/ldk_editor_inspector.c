@@ -6252,8 +6252,18 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
         enabled_rect.x -= 24.0f + LDK_UI_DEFAULT_SPACING;
       }
       bool enabled = ldk_ecs_component_is_enabled(entity, component_type);
-      bool next = ldk_ui_widget_toggle(
-          ui, (LDKUIId)0x454e4142u, enabled, enabled_rect);
+      // Explicit-rectangle widgets use the supplied ID directly: unlike
+      // layout widgets, ldk_ui_widget_toggle() does not hash the ID stack.
+      // Include the entity handle and component type so each enabled checkbox
+      // owns independent hover/active/click state.
+      LDKUIId enabled_id = 2166136261u;
+      enabled_id = (enabled_id ^ 0x454e4142u) * 16777619u;
+      enabled_id = (enabled_id ^ entity.index) * 16777619u;
+      enabled_id = (enabled_id ^ entity.version) * 16777619u;
+      enabled_id = (enabled_id ^ component_type) * 16777619u;
+      if (enabled_id == 0u)
+        enabled_id = 1u;
+      bool next = ldk_ui_widget_toggle(ui, enabled_id, enabled, enabled_rect);
       if (next != enabled)
       {
         if (!ldk_ecs_component_enabled_set(entity, component_type, next))
