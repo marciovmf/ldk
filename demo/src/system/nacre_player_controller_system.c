@@ -171,6 +171,7 @@ static bool nacre_player_spawn(NacrePlayerControllerSystem *s,
   s->player_spawned = true;
   s->player_moving = false;
   nacre_player_publish_cell(s, map);
+  (void)nacre_dungeon_system_visible_tiles_set(map->entry, map->entry);
   nacre_player_status(s, "Ready (WASD move, Q/E rotate camera)");
   return true;
 }
@@ -340,6 +341,8 @@ void nacre_player_controller_system_update(
       r->visual_world = r->target_world;
       s->player_moving = false;
       nacre_player_publish_cell(s, map);
+      (void)nacre_dungeon_system_visible_tiles_set(
+          r->current_tile, r->current_tile);
       ++s->successful_steps;
     }
   }
@@ -361,6 +364,9 @@ void nacre_player_controller_system_update(
           map, r->current_tile, dx, dz, &dest);
       if (check == NACRE_DUNGEON_MOVE_ALLOWED)
       {
+        /* Reveal the destination only during the doorway crossing. It stays
+         * visible while the player's interpolation spans the two regions. */
+        (void)nacre_dungeon_system_visible_tiles_set(r->current_tile, dest);
         r->target_tile = dest;
         r->start_world = r->visual_world;
         r->target_world = nacre_player_tile_world(map, origin, dest,

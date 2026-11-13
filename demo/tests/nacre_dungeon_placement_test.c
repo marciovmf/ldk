@@ -1,5 +1,6 @@
 /* Placement regression: checks the physical scene plan independently of ECS. */
 #include "../src/system/nacre_dungeon_placement.h"
+#include "../src/system/nacre_dungeon_visibility.h"
 
 #include <assert.h>
 #include <math.h>
@@ -13,7 +14,10 @@
 static void nacre_test_verify(const NacreDungeonMap *map, bool merge_x, bool merge_z)
 {
   NacreDungeonPlacementList pieces = {0};
-  assert(nacre_dungeon_placements_build(map, merge_x, merge_z, &pieces));
+  NacreDungeonVisibilityMap visibility = {0};
+  assert(nacre_dungeon_visibility_build(map, &visibility));
+  assert(nacre_dungeon_placements_build(
+      map, &visibility, merge_x, merge_z, &pieces));
   uint32_t floor_count = 0u;
   uint32_t opening_count = 0u;
   uint32_t hole_count = 0u;
@@ -117,6 +121,7 @@ static void nacre_test_verify(const NacreDungeonMap *map, bool merge_x, bool mer
   free(horizontal);
   free(vertical);
   nacre_dungeon_placements_release(&pieces);
+  nacre_dungeon_visibility_release(&visibility);
   assert(pieces.count == 0u && pieces.items == NULL);
   (void)wall_segments;
 }

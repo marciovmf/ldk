@@ -1,4 +1,5 @@
 #include "nacre_dungeon_placement.h"
+#include "nacre_dungeon_visibility.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -92,14 +93,63 @@ static NacreDungeonPartKind nacre_dungeon_boundary_kind(
   }
 }
 
+/* Compare the exact regions that would own each separate 1 m wall.
+ * The visibility module is the sole authority for ownership; do not infer
+ * room IDs here (corridors can have their own visibility regions). Region
+ * lists are unique but not part of an ordered API, so compare as sets.
+ *
+ * This is evaluated only when both adjacent edges are ordinary walls.
+ * Same orientation/type alone is NOT sufficient for a safe 2 m merge. */
+static bool nacre_dungeon_walls_share_visibility(
+    const NacreDungeonMap *map,
+    const NacreDungeonVisibilityMap *visibility,
+    bool along_x, uint32_t x, uint32_t z)
+{
+  const NacreDungeonPartKind kind = along_x ?
+      NACRE_DUNGEON_PART_WALL_X_1M : NACRE_DUNGEON_PART_WALL_Z_1M;
+  const NacreDungeonPlacement first = {
+    kind, along_x ? (float)x + .5f : (float)x,
+    along_x ? (float)z : (float)z + .5f
+  };
+  const NacreDungeonPlacement second = {
+    kind, along_x ? (float)x + 1.5f : (float)x,
+    along_x ? (float)z : (float)z + 1.5f
+  };
+  uint16_t first_regions[4] = {0};
+  uint16_t second_regions[4] = {0};
+  const uint32_t first_count = nacre_dungeon_visibility_piece_regions(
+      map, visibility, &first, first_regions);
+  const uint32_t second_count = nacre_dungeon_visibility_piece_regions(
+      map, visibility, &second, second_regions);
+
+  if (!first_count || first_count != second_count) return false;
+  for (uint32_t i = 0; i < first_count; ++i)
+  {
+    bool found = false;
+    for (uint32_t j = 0; j < second_count; ++j)
+    {
+      if (first_regions[i] == second_regions[j])
+      {
+        found = true;
+        break;
+      }
+    }
+    if (!found) return false;
+  }
+  return true;
+}
+
 bool nacre_dungeon_placements_build(const NacreDungeonMap *map,
+    const NacreDungeonVisibilityMap *visibility,
     bool use_wall_x_2m, bool use_wall_z_2m,
     NacreDungeonPlacementList *out)
 {
-  if (!map || !out || !map->cells || !map->room_ids ||
+  if (!map || !visibility || !visibility->region_by_tile ||
+      !out || !map->cells || !map->room_ids ||
       !map->width || !map->height ||
       map->width > NACRE_DUNGEON_MAX_DIMENSION ||
-      map->height > NACRE_DUNGEON_MAX_DIMENSION)
+      map->height > NACRE_DUNGEON_MAX_DIMENSION ||
+      visibility->tile_count != map->width * map->height)
   {
     return false;
   }
@@ -169,7 +219,8 @@ bool nacre_dungeon_placements_build(const NacreDungeonMap *map,
       }
       if (boundary == NACRE_DUNGEON_BOUNDARY_WALL && use_wall_x_2m &&
           x + 1u < w &&
-          horizontal[(size_t)z * w + (x + 1u)] == NACRE_DUNGEON_BOUNDARY_WALL)
+          horizontal[(size_t)z * w + (x + 1u)] == NACRE_DUNGEON_BOUNDARY_WALL &&
+          nacre_dungeon_walls_share_visibility(map, visibility, true, x, z))
       {
         if (!nacre_dungeon_placement_add(&result,
             NACRE_DUNGEON_PART_WALL_X_2M, (float)x + 1.0f, (float)z))
@@ -202,7 +253,8 @@ bool nacre_dungeon_placements_build(const NacreDungeonMap *map,
       }
       if (boundary == NACRE_DUNGEON_BOUNDARY_WALL && use_wall_z_2m &&
           z + 1u < h &&
-          vertical[(size_t)(z + 1u) * (w + 1u) + x] == NACRE_DUNGEON_BOUNDARY_WALL)
+          vertical[(size_t)(z + 1u) * (w + 1u) + x] == NACRE_DUNGEON_BOUNDARY_WALL &&
+          nacre_dungeon_walls_share_visibility(map, visibility, false, x, z))
       {
         if (!nacre_dungeon_placement_add(&result,
             NACRE_DUNGEON_PART_WALL_Z_2M, (float)x, (float)z + 1.0f))

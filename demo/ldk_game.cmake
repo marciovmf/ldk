@@ -14,6 +14,7 @@ list(APPEND LDK_GAME_SOURCES
   "${CMAKE_CURRENT_LIST_DIR}/src/system/tftf_player_character_system.c"
   "${CMAKE_CURRENT_LIST_DIR}/src/system/tftf_bulb_plant_ai_system.c"
   "${CMAKE_CURRENT_LIST_DIR}/src/system/tftf_bullet_system.c"
+  "${CMAKE_CURRENT_LIST_DIR}/src/system/nacre_dungeon_visibility.c"
 )
 list(APPEND LDK_GAME_INCLUDE_DIRS "")
 list(APPEND LDK_GAME_DEFINITIONS "")

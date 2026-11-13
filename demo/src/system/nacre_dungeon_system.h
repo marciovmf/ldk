@@ -30,6 +30,13 @@ void nacre_dungeon_system_terminate(void *data);
 const NacreDungeonMap *nacre_dungeon_system_map_get(void);
 /* Return world-space center of the generated grid.  False without a map. */
 bool nacre_dungeon_system_world_origin_get(Vec3 *out);
+/*
+ * Update the scene visibility from the player's logical tiles.
+ * During a doorway crossing pass (source,destination); once the step finishes
+ * pass (destination,destination). Both regions are temporarily visible during
+ * a crossing. Non-rendering gameplay systems and the logical map are intact.
+ */
+bool nacre_dungeon_system_visible_tiles_set(u32 source, u32 destination);
 
 //@system name=NacreDungeonSystem initialize=nacre_dungeon_system_initialize update=nacre_dungeon_system_update terminate=nacre_dungeon_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED
 typedef struct NacreDungeonSystem
@@ -93,6 +100,15 @@ typedef struct NacreDungeonSystem
   //@begin_group "Scene Placement"
   /** World-space center of the generated dungeon, at floor level (Y). */
   Vec3 world_origin;
+  //@end_group
+
+  //@begin_group "Room Visibility"
+  /** Show the full dungeon for debugging. Default: false (current room only). */
+  bool show_entire_dungeon;
+  //@inspect readonly runtime
+  u32 visible_instance_count;
+  //@inspect readonly runtime
+  u32 active_visibility_region;
   //@end_group
 
   //@begin_group "Generation Control"

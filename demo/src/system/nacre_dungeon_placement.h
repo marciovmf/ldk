@@ -6,6 +6,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+struct NacreDungeonVisibilityMap;
+
 /*
  * Deterministic conversion from NacreDungeonMap topology to structural pieces.
  *
@@ -49,10 +51,16 @@ typedef struct NacreDungeonPlacementList
   uint32_t capacity;
 } NacreDungeonPlacementList;
 
-/* When a 2 m wall prefab is available, two adjacent ordinary 1 m wall
- * segments are merged. Passages, holes and cracked walls always occupy
- * exactly one grid edge. Geometry data is never modified. */
+/* The visibility map must be built BEFORE placements. Two consecutive 1 m
+ * walls may share a 2 m prefab only when their visibility-region sets are
+ * identical. This prevents a long prefab from extending beyond the current
+ * room when room culling is enabled. Different ownership -> two 1 m pieces.
+ *
+ * Passages, holes and cracked walls are never merged. Prefab placement never
+ * changes the generated topology, and every physical grid edge remains once.
+ */
 bool nacre_dungeon_placements_build(const NacreDungeonMap *map,
+    const struct NacreDungeonVisibilityMap *visibility,
     bool use_wall_x_2m, bool use_wall_z_2m,
     NacreDungeonPlacementList *out);
 void nacre_dungeon_placements_release(NacreDungeonPlacementList *placements);

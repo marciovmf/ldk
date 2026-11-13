@@ -43,9 +43,9 @@ scene:
             bloom_radius: 0.591822565
             bloom_soft_knee: 0.674982667
             blur_enabled: true
-            blur_strength: 1.00000000
-            blur_focus_size: 0.678266823
-            blur_focus_feather: 0.183750004
+            blur_strength: 0.437142849
+            blur_focus_size: 0.269523799
+            blur_focus_feather: 0.217142850
             blur_inverted: false
             blur_order: 1
             blur_focus_offset_x: 0.00000000
@@ -132,6 +132,7 @@ scene:
         pillar_intact_prefab: "prefab/nacre/nacre_pillar_intact.prefab"
         pillar_broken_prefab: "prefab/nacre/nacre_pillar_broken.prefab"
         world_origin: 0.00000000, 0.00000000, 0.00000000
+        show_entire_dungeon: false
         generate_on_start: true
         regenerate: false
     - id: "0x7b9b9cb3bfa5b31c"
