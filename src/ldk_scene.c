@@ -1575,6 +1575,46 @@ static bool s_read_entity_headers(const TMLDocument *doc,
     }
 #endif
 
+#ifdef LDK_EDITOR
+    /* Scene metadata. Prefab files omit their own root's origin, so
+     * instantiating a prefab never links its root to itself. */
+    {
+      TMLString source;
+      if (tml_node_get_string(doc, entity_node, "prefab_source", &source))
+      {
+        char path[LDK_ASSET_PATH_MAX_LENGTH + 1u] = {0};
+        if (!source.size || source.size >= sizeof(path) ||
+            memchr(source.data, 0, source.size))
+        {
+          s_recoverable_error("invalid prefab source path; ignoring origin");
+        }
+        else
+        {
+          memcpy(path, source.data, source.size);
+          LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+          LDKAssetPrefab asset = assets
+              ? ldk_asset_manager_prefab_load_shared(assets, path)
+              : ldk_asset_prefab_null();
+          if (!x_handle_is_null(asset.h))
+          {
+            LDKEntityRegistry *registry = ldk_ecs_entity_registry_get();
+            LDKEntityInfo *info = registry
+                ? ldk_entity_info_get(registry, entity) : NULL;
+            if (info)
+            {
+              info->prefab_source = asset.h;
+              info->prefab_source_valid = true;
+            }
+          }
+          else
+          {
+            s_recoverable_error("prefab source could not be resolved");
+          }
+        }
+      }
+    }
+#endif
+
     {
       TMLString saved_hash;
       if (tml_node_get_string(doc, entity_node, "name_hash", &saved_hash))
@@ -3927,6 +3967,32 @@ static bool s_write_entity_callback(LDKEntity entity, void *user)
   s_append_indent(context->out, 3u);
   x_strbuilder_append_format(context->out, "name_hash: \"0x%016" PRIx64 "\"\n",
       ldk_ecs_entity_name_hash_get(entity));
+
+#ifdef LDK_EDITOR
+  /* Persist prefab origin only in the containing scene. The root of a
+   * prefab asset must not refer back to the file being written. */
+  if (!context->prefab || !s_entity_equal(entity, context->root))
+  {
+    LDKEntityRegistry *registry = ldk_ecs_entity_registry_get();
+    const LDKEntityInfo *info = registry
+        ? ldk_entity_info_get(registry, entity) : NULL;
+    if (info && info->prefab_source_valid)
+    {
+      LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+      LDKAssetHandle handle = {.h = info->prefab_source};
+      const LDKAssetInfo *asset = assets
+          ? ldk_asset_get_info_const(assets, handle) : NULL;
+      if (asset && asset->type == LDK_ASSET_TYPE_PREFAB &&
+          asset->asset_path.buf[0])
+      {
+        s_append_indent(context->out, 3u);
+        x_strbuilder_append(context->out, "prefab_source: ");
+        s_append_escaped_string(context->out, asset->asset_path.buf);
+        x_strbuilder_append_char(context->out, '\n');
+      }
+    }
+  }
+#endif
 
   s_append_indent(context->out, 3u);
   x_strbuilder_append(context->out, "components:\n");

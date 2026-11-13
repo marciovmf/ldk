@@ -116,6 +116,13 @@ typedef struct LDKEntityInfo
   u16 internal_flags;
   u16 flags;
   u64 name_hash; /* Stable hash of the authoring name, zero means unnamed. */
+#ifdef LDK_EDITOR
+  /* Origin of an instantiated prefab, stored only on its root entity.
+   * A separate flag permits the zero-initialized entity pool to represent
+   * ordinary entities without depending on the null-handle encoding. */
+  XHandle prefab_source;
+  bool prefab_source_valid;
+#endif
 #if defined(_DEBUG) || defined(LDK_EDITOR)
   u8 name[LDK_ENTITY_NAME_MAX_LEN];
 #endif

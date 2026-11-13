@@ -4,6 +4,7 @@
 #include <ldk_skybox_asset.h>
 #include <ldk_texture_atlas.h>
 #include <module/ldk_asset_manager.h>
+#include <module/ldk_asset_source.h>
 #include "ldk_editor_color_picker.h"
 #include "ldk_editor_internal.h"
 #include "ldk_editor_ui.h"
@@ -13,6 +14,7 @@
 #include "module/ldk_ui.h"
 #include <ldk_scene.h>
 #include <ldk_property.h>
+#include <component/ldk_transform.h>
 #include <component/ldk_mesh_source.h>
 #include <component/ldk_material_instance.h>
 #include <component/ldk_instanced_mesh_source.h>
@@ -37,21 +39,48 @@ static bool s_editor_material_image_editor(LDKEditorContext *editor,
     bool readonly, bool optional, const LDKMaterialIOContext *context);
 
 static void s_editor_inspector_prefab_save(
-    LDKEditorContext *editor, LDKEntity root)
+    LDKEditorContext *editor, LDKEntity root, const char *asset_path)
 {
   XFSPath path = {0};
   XFSPath relative = {0};
   LDKSceneResult result;
+  const bool updating = asset_path != NULL && asset_path[0] != '\0';
 
   if (!editor || !editor->project.loaded ||
-      editor->editor_state != LDK_EDITOR_STATE_STOPED ||
-      !ldk_os_dialog_show_save_file(
-          editor->window, "Save Prefab", "*.prefab", &path))
+      editor->editor_state != LDK_EDITOR_STATE_STOPED)
   {
     return;
   }
+
+  if (updating)
+  {
+    /* Resolve the displayed logical path to the actual file. Package-backed
+     * assets cannot be overwritten by an editor save. */
+    LDKAssetSource *source = ldk_module_get(LDK_MODULE_ASSET_SOURCE);
+    LDKAssetSourceFile file = {0};
+    if (!source || !ldk_asset_source_find(source, asset_path, &file) ||
+        file.origin != LDK_ASSET_SOURCE_ORIGIN_FILESYSTEM)
+    {
+      ldki_editor_log_error(editor,
+          "Cannot update prefab: asset is missing or package-backed.");
+      return;
+    }
+    path = file.location.filesystem_path;
+  }
+  else
+  {
+    if (!ldk_os_dialog_show_save_file(
+            editor->window, "Save Prefab", "*.prefab", &path))
+    {
+      return;
+    }
+  }
+
   x_fs_path_normalize(&path);
-  x_fs_path_change_extension(&path, ".prefab");
+  if (!updating)
+  {
+    x_fs_path_change_extension(&path, ".prefab");
+  }
   if (x_fs_path_relative_to(
           &editor->project.run_root_path, &path, &relative) <= 0)
   {
@@ -64,7 +93,23 @@ static void s_editor_inspector_prefab_save(
     ldki_editor_log_error(editor, result.error);
     return;
   }
-  ldki_editor_log_info(editor, "Prefab saved.");
+
+  /* The prefab asset manager caches parsed source by logical path. Without
+   * refreshing that source, another instance in this editor session would
+   * still be created from the previous version of the file. */
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  if (!assets || !ldk_asset_manager_prefab_reload(assets, relative.buf))
+  {
+    ldki_editor_log_error(editor,
+        "Prefab saved to disk, but failed to refresh cached prefab.");
+    return;
+  }
+
+  /* Report success only after both disk and in-memory source are updated. */
+  char message[X_FS_PATH_MAX_LENGTH + 48];
+  snprintf(message, sizeof(message), "Prefab %s: %s",
+      updating ? "updated" : "saved", relative.buf);
+  ldki_editor_log_info(editor, message);
 }
 
 enum
@@ -6132,13 +6177,86 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
 
   s_editor_inspector_flags_draw(editor, ecs, entity);
 
-  ldk_ui_begin_disabled(ui, !editor->project.loaded ||
-      editor->editor_state != LDK_EDITOR_STATE_STOPED);
-  if (ldk_ui_button(ui, "Save as Prefab..."))
+  /* Prefab origin is editor-only metadata on the instantiated root.
+   * A child can reveal its ancestor's asset, but cannot save itself as
+   * a separate prefab through this control. */
   {
-    s_editor_inspector_prefab_save(editor, entity);
+    bool child_of_prefab = false;
+    const LDKEntityInfo *prefab_info = info;
+    LDKEntity ancestor = ldk_transform_get_parent(entity);
+    for (u32 depth = 0; depth < 128 && !x_handle_is_null(ancestor); ++depth)
+    {
+      const LDKEntityInfo *parent_info =
+          ldk_entity_info_get(&ecs->entity, ancestor);
+      if (parent_info && parent_info->prefab_source_valid)
+      {
+        prefab_info = parent_info;
+        child_of_prefab = true;
+        break;
+      }
+      ancestor = ldk_transform_get_parent(ancestor);
+    }
+
+    const char *path = "";
+    if (prefab_info && prefab_info->prefab_source_valid)
+    {
+      LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+      LDKAssetHandle asset_handle = {.h = prefab_info->prefab_source};
+      const LDKAssetInfo *asset = assets
+          ? ldk_asset_get_info_const(assets, asset_handle) : NULL;
+      if (asset && asset->type == LDK_ASSET_TYPE_PREFAB)
+        path = asset->asset_path.buf;
+    }
+
+    ldk_ui_push_id_cstr(ui, "prefab_section");
+    /* Matches other Inspector sections and keeps the Path read-only. */
+    static bool prefab_expanded = true;
+    prefab_expanded = ldk_ui_begin_area_ex(
+        ui, "Prefab", (LDKUIIcon){0}, prefab_expanded);
+    if (prefab_expanded)
+    {
+      /* Reuse the Inspector's standard label/splitter/field row. The field
+       * is read-only, but clicking it still reveals its asset in Explorer. */
+      char display[X_FS_PATH_MAX_LENGTH];
+      snprintf(display, sizeof(display), "%s", path);
+      s_editor_inspector_row_begin(editor, "Path");
+      ldk_ui_begin_disabled(ui, true);
+      (void)ldk_ui_input_box(ui, display, sizeof(display));
+      LDKUIRect target = ldk_ui_last_bounding_rect(ui);
+      ldk_ui_end_disabled(ui);
+      ldk_ui_end_horizontal(ui);
+
+      if (path[0] && ui->mouse && !ui->active_id &&
+          ui->current_window &&
+          ui->hovered_window_id == ui->current_window->id &&
+          ldk_os_mouse_button_down(
+              (LDKMouseState *)ui->mouse, LDK_MOUSE_BUTTON_LEFT))
+      {
+        LDKPoint cursor = ldk_os_mouse_cursor((LDKMouseState *)ui->mouse);
+        if (ldk_rectf_contains(&target, (float)cursor.x, (float)cursor.y) &&
+            ldk_rectf_contains(
+                &ui->clip_rect, (float)cursor.x, (float)cursor.y) &&
+            !ldki_editor_file_explorer_reveal_asset(editor, path))
+        {
+          ldki_editor_log_error(
+              editor, "Unable to reveal prefab in Project Explorer.");
+        }
+      }
+
+      if (!child_of_prefab)
+      {
+        ldk_ui_begin_disabled(ui, !editor->project.loaded ||
+            editor->editor_state != LDK_EDITOR_STATE_STOPED);
+        if (ldk_ui_button(ui, "Save Prefab"))
+        {
+          s_editor_inspector_prefab_save(editor, entity, path);
+        }
+        ldk_ui_end_disabled(ui);
+      }
+    }
+    ldk_ui_end_area(ui);
+    ldk_ui_pop_id(ui);
   }
-  ldk_ui_end_disabled(ui);
 
   ldk_ui_set_next_height(ui, ldk_ui_px(4.0f));
   ldk_ui_spacer(ui);

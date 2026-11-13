@@ -1196,7 +1196,22 @@ LDKEntity ldk_ecs_prefab_instantiate(LDKAssetPrefab prefab)
     return x_handle_null();
   }
 
-  return ldki_prefab_instantiate_tml(data->source, &result);
+  LDKEntity root = ldki_prefab_instantiate_tml(data->source, &result);
+#ifdef LDK_EDITOR
+  /* Preserve the asset origin on the instance root, not on its children.
+   * The scene writer persists the asset path instead of this handle. */
+  if (!x_handle_is_null(root))
+  {
+    LDKEntityRegistry *registry = ldk_ecs_entity_registry_get();
+    LDKEntityInfo *info = registry ? ldk_entity_info_get(registry, root) : NULL;
+    if (info)
+    {
+      info->prefab_source = prefab.h;
+      info->prefab_source_valid = true;
+    }
+  }
+#endif
+  return root;
 }
 
 // ---------------------------------------------------------------------------
