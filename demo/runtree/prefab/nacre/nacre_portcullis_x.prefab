@@ -20,3 +20,11 @@ prefab:
             casts_shadows: false
             billboard: false
             material_asset: "assets/dungeon/material/nacre_portcullis.material"
+        - type: 4294967280 # LDKKeyFrameAnimationSource
+          fields:
+            current_animation: 0
+            play_on_start: true
+            loop: true
+            speed: 1.00000000
+            animations:
+              - path: "nacre_porticulis_open.anim"

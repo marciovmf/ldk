@@ -18,8 +18,9 @@ struct NacreDungeonVisibilityMap;
  * Every referenced prefab MUST have its pivot at the center of its base.
  *
  * X-aligned walls span X and stand in an XY plane. Z-aligned walls span Z
- * and stand in a ZY plane. Prefabs already provide the mesh orientation and
- * dimensions; the placement layer never rotates or resizes individual parts.
+ * and stand in a ZY plane. All authored directional prefabs face X; the
+ * scene system rotates Z placements +90 degrees about world Y. The placement
+ * layer remains engine-independent and never rotates or scales parts.
  */
 typedef enum NacreDungeonPartKind
 {
@@ -34,6 +35,22 @@ typedef enum NacreDungeonPartKind
   NACRE_DUNGEON_PART_HOLE_Z,
   NACRE_DUNGEON_PART_CRACKED_X,
   NACRE_DUNGEON_PART_CRACKED_Z,
+  NACRE_DUNGEON_PART_SECRET_X, /* Visually identical to ordinary 1 m wall. */
+  NACRE_DUNGEON_PART_SECRET_Z,
+  NACRE_DUNGEON_PART_PILLAR_INTACT,
+  NACRE_DUNGEON_PART_PILLAR_BROKEN,
+  NACRE_DUNGEON_PART_CAVE_FLOOR,
+  NACRE_DUNGEON_PART_CAVE_WALL_X,
+  NACRE_DUNGEON_PART_CAVE_WALL_Z,
+  NACRE_DUNGEON_PART_DOOR_X,
+  NACRE_DUNGEON_PART_DOOR_Z,
+  NACRE_DUNGEON_PART_PORTCULLIS_X,
+  NACRE_DUNGEON_PART_PORTCULLIS_Z,
+  NACRE_DUNGEON_PART_TOTEM,
+  NACRE_DUNGEON_PART_ENTRY,
+  NACRE_DUNGEON_PART_EXIT,
+  NACRE_DUNGEON_PART_OBJECTIVE_KEY,
+  NACRE_DUNGEON_PART_OBJECTIVE_LEVER,
   NACRE_DUNGEON_PART_KIND_COUNT
 } NacreDungeonPartKind;
 
@@ -56,12 +73,14 @@ typedef struct NacreDungeonPlacementList
  * identical. This prevents a long prefab from extending beyond the current
  * room when room culling is enabled. Different ownership -> two 1 m pieces.
  *
- * Passages, holes and cracked walls are never merged. Prefab placement never
- * changes the generated topology, and every physical grid edge remains once.
+ * Passages, holes and cracked walls are never merged. Each DOOR or
+ * PORTCULLIS edge produces exactly TWO placements: Passage X/Z plus the
+ * appropriate barrier X/Z at the same pivot. Both have independent visibility
+ * and prefab fallback. The underlying logical grid edge remains unique.
  */
 bool nacre_dungeon_placements_build(const NacreDungeonMap *map,
     const struct NacreDungeonVisibilityMap *visibility,
-    bool use_wall_x_2m, bool use_wall_z_2m,
+    bool use_wall_2m,
     NacreDungeonPlacementList *out);
 void nacre_dungeon_placements_release(NacreDungeonPlacementList *placements);
 

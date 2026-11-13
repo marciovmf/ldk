@@ -33,7 +33,13 @@ NacreDungeonMoveResult nacre_dungeon_navigation_step(
   if (!map->cells[from] || !map->cells[to])
     return NACRE_DUNGEON_MOVE_VOID;
 
-  if (map->room_ids[from] != map->room_ids[to])
+  /* All pillar variants block, regardless of their rendered shape. */
+  if (map->pillar_mask && map->pillar_mask[to])
+    return NACRE_DUNGEON_MOVE_WALL;
+
+  if (map->room_ids[from] != map->room_ids[to] ||
+      ((map->cells[from] == NACRE_DUNGEON_CAVE) !=
+       (map->cells[to] == NACRE_DUNGEON_CAVE)))
   {
     /* No implicit passage through a wall just because two floor cells touch.
      * Both endpoints are always cardinally adjacent by the check above. */
@@ -45,6 +51,21 @@ NacreDungeonMoveResult nacre_dungeon_navigation_step(
         continue;
       if (e->type == NACRE_DUNGEON_EDGE_CRACKED)
         return NACRE_DUNGEON_MOVE_CRACKED;
+      if (e->type == NACRE_DUNGEON_EDGE_SECRET)
+        return NACRE_DUNGEON_MOVE_WALL;
+      if (e->type == NACRE_DUNGEON_EDGE_OPEN)
+      {
+        const uint32_t a=from<to?from:to,b=from<to?to:from;
+        for(uint32_t p=0;p<map->passage_count;p++){
+          const NacreDungeonPassage *passage=&map->passages[p];
+          if(passage->a!=a||passage->b!=b)continue;
+          if(!passage->opened && passage->kind==NACRE_DUNGEON_PASSAGE_DOOR)
+            return NACRE_DUNGEON_MOVE_DOOR;
+          if(!passage->opened && passage->kind==NACRE_DUNGEON_PASSAGE_PORTCULLIS)
+            return NACRE_DUNGEON_MOVE_PORTCULLIS;
+          break;
+        }
+      }
       if (e->type == NACRE_DUNGEON_EDGE_OPEN ||
           e->type == NACRE_DUNGEON_EDGE_HOLE)
       {

@@ -12,7 +12,11 @@ typedef enum NacreDungeonBoundary
   NACRE_DUNGEON_BOUNDARY_WALL,
   NACRE_DUNGEON_BOUNDARY_PASSAGE,
   NACRE_DUNGEON_BOUNDARY_HOLE,
-  NACRE_DUNGEON_BOUNDARY_CRACKED
+  NACRE_DUNGEON_BOUNDARY_CRACKED,
+  NACRE_DUNGEON_BOUNDARY_SECRET,
+  NACRE_DUNGEON_BOUNDARY_CAVE_WALL,
+  NACRE_DUNGEON_BOUNDARY_DOOR,
+  NACRE_DUNGEON_BOUNDARY_PORTCULLIS
 } NacreDungeonBoundary;
 
 static NacreDungeonBoundary nacre_dungeon_boundary_between(
@@ -20,11 +24,18 @@ static NacreDungeonBoundary nacre_dungeon_boundary_between(
 {
   if (!map->cells[a] || !map->cells[b])
   {
-    return NACRE_DUNGEON_BOUNDARY_WALL;
+    return (map->cells[a] == NACRE_DUNGEON_CAVE ||
+            map->cells[b] == NACRE_DUNGEON_CAVE) ?
+        NACRE_DUNGEON_BOUNDARY_CAVE_WALL : NACRE_DUNGEON_BOUNDARY_WALL;
   }
 
-  /* Same room, or two corridor cells: no internal wall. */
-  if (map->room_ids[a] == map->room_ids[b])
+  /* Cave cells and ordinary corridor cells can both carry room ID -1.
+   * Check their authored edge BEFORE the equal-room shortcut: cave entrance
+   * barriers must be rendered, never silently treated as open floor. */
+  const bool cave_transition =
+      (map->cells[a] == NACRE_DUNGEON_CAVE) !=
+      (map->cells[b] == NACRE_DUNGEON_CAVE);
+  if (!cave_transition && map->room_ids[a] == map->room_ids[b])
   {
     return NACRE_DUNGEON_BOUNDARY_NONE;
   }
@@ -38,6 +49,21 @@ static NacreDungeonBoundary nacre_dungeon_boundary_between(
     if ((edge->a == a && edge->b == b) ||
         (edge->a == b && edge->b == a))
     {
+      if (edge->type == NACRE_DUNGEON_EDGE_OPEN)
+      {
+        for (uint32_t p = 0; p < map->passage_count; ++p)
+        {
+          const NacreDungeonPassage *passage = &map->passages[p];
+          if (passage->a == edge->a && passage->b == edge->b)
+          {
+            if (passage->kind == NACRE_DUNGEON_PASSAGE_DOOR)
+              return NACRE_DUNGEON_BOUNDARY_DOOR;
+            if (passage->kind == NACRE_DUNGEON_PASSAGE_PORTCULLIS)
+              return NACRE_DUNGEON_BOUNDARY_PORTCULLIS;
+            break;
+          }
+        }
+      }
       switch (edge->type)
       {
         case NACRE_DUNGEON_EDGE_OPEN:
@@ -46,12 +72,16 @@ static NacreDungeonBoundary nacre_dungeon_boundary_between(
           return NACRE_DUNGEON_BOUNDARY_HOLE;
         case NACRE_DUNGEON_EDGE_CRACKED:
           return NACRE_DUNGEON_BOUNDARY_CRACKED;
+        case NACRE_DUNGEON_EDGE_SECRET:
+          return NACRE_DUNGEON_BOUNDARY_SECRET;
         default:
           return NACRE_DUNGEON_BOUNDARY_WALL;
       }
     }
   }
-  return NACRE_DUNGEON_BOUNDARY_WALL;
+  return (map->cells[a] == NACRE_DUNGEON_CAVE ||
+          map->cells[b] == NACRE_DUNGEON_CAVE) ?
+      NACRE_DUNGEON_BOUNDARY_CAVE_WALL : NACRE_DUNGEON_BOUNDARY_WALL;
 }
 
 static bool nacre_dungeon_placement_add(NacreDungeonPlacementList *list,
@@ -61,7 +91,7 @@ static bool nacre_dungeon_placement_add(NacreDungeonPlacementList *list,
   {
     uint32_t next = list->capacity ? list->capacity * 2u : 256u;
     if (next <= list->capacity ||
-        (size_t)next > SIZE_MAX / sizeof(*list->items))
+        SIZE_MAX / (size_t)next < sizeof(*list->items))
     {
       return false;
     }
@@ -88,6 +118,14 @@ static NacreDungeonPartKind nacre_dungeon_boundary_kind(
       return along_x ? NACRE_DUNGEON_PART_HOLE_X : NACRE_DUNGEON_PART_HOLE_Z;
     case NACRE_DUNGEON_BOUNDARY_CRACKED:
       return along_x ? NACRE_DUNGEON_PART_CRACKED_X : NACRE_DUNGEON_PART_CRACKED_Z;
+    case NACRE_DUNGEON_BOUNDARY_SECRET:
+      return along_x ? NACRE_DUNGEON_PART_SECRET_X : NACRE_DUNGEON_PART_SECRET_Z;
+    case NACRE_DUNGEON_BOUNDARY_DOOR:
+      return along_x ? NACRE_DUNGEON_PART_DOOR_X : NACRE_DUNGEON_PART_DOOR_Z;
+    case NACRE_DUNGEON_BOUNDARY_PORTCULLIS:
+      return along_x ? NACRE_DUNGEON_PART_PORTCULLIS_X : NACRE_DUNGEON_PART_PORTCULLIS_Z;
+    case NACRE_DUNGEON_BOUNDARY_CAVE_WALL:
+      return along_x ? NACRE_DUNGEON_PART_CAVE_WALL_X : NACRE_DUNGEON_PART_CAVE_WALL_Z;
     default:
       return along_x ? NACRE_DUNGEON_PART_WALL_X_1M : NACRE_DUNGEON_PART_WALL_Z_1M;
   }
@@ -141,7 +179,7 @@ static bool nacre_dungeon_walls_share_visibility(
 
 bool nacre_dungeon_placements_build(const NacreDungeonMap *map,
     const NacreDungeonVisibilityMap *visibility,
-    bool use_wall_x_2m, bool use_wall_z_2m,
+    bool use_wall_2m,
     NacreDungeonPlacementList *out)
 {
   if (!map || !visibility || !visibility->region_by_tile ||
@@ -179,7 +217,9 @@ bool nacre_dungeon_placements_build(const NacreDungeonMap *map,
         continue;
       }
       if (!nacre_dungeon_placement_add(&result,
-          NACRE_DUNGEON_PART_FLOOR, (float)x + .5f, (float)z + .5f))
+          map->cells[a] == NACRE_DUNGEON_CAVE ?
+              NACRE_DUNGEON_PART_CAVE_FLOOR : NACRE_DUNGEON_PART_FLOOR,
+          (float)x + .5f, (float)z + .5f))
       {
         goto failure;
       }
@@ -189,18 +229,26 @@ bool nacre_dungeon_placements_build(const NacreDungeonMap *map,
        * cell's right/bottom edge. */
       if (x == 0u || !map->cells[a - 1u])
       {
-        vertical[(size_t)z * (w + 1u) + x] = NACRE_DUNGEON_BOUNDARY_WALL;
+        vertical[(size_t)z * (w + 1u) + x] =
+            map->cells[a] == NACRE_DUNGEON_CAVE ?
+                NACRE_DUNGEON_BOUNDARY_CAVE_WALL : NACRE_DUNGEON_BOUNDARY_WALL;
       }
       if (z == 0u || !map->cells[a - w])
       {
-        horizontal[(size_t)z * w + x] = NACRE_DUNGEON_BOUNDARY_WALL;
+        horizontal[(size_t)z * w + x] =
+            map->cells[a] == NACRE_DUNGEON_CAVE ?
+                NACRE_DUNGEON_BOUNDARY_CAVE_WALL : NACRE_DUNGEON_BOUNDARY_WALL;
       }
 
       vertical[(size_t)z * (w + 1u) + (x + 1u)] =
-          x + 1u == w ? NACRE_DUNGEON_BOUNDARY_WALL :
+          x + 1u == w ?
+              (map->cells[a] == NACRE_DUNGEON_CAVE ?
+                  NACRE_DUNGEON_BOUNDARY_CAVE_WALL : NACRE_DUNGEON_BOUNDARY_WALL) :
           nacre_dungeon_boundary_between(map, a, a + 1u);
       horizontal[(size_t)(z + 1u) * w + x] =
-          z + 1u == h ? NACRE_DUNGEON_BOUNDARY_WALL :
+          z + 1u == h ?
+              (map->cells[a] == NACRE_DUNGEON_CAVE ?
+                  NACRE_DUNGEON_BOUNDARY_CAVE_WALL : NACRE_DUNGEON_BOUNDARY_WALL) :
           nacre_dungeon_boundary_between(map, a, a + w);
     }
   }
@@ -217,7 +265,7 @@ bool nacre_dungeon_placements_build(const NacreDungeonMap *map,
       {
         continue;
       }
-      if (boundary == NACRE_DUNGEON_BOUNDARY_WALL && use_wall_x_2m &&
+      if (boundary == NACRE_DUNGEON_BOUNDARY_WALL && use_wall_2m &&
           x + 1u < w &&
           horizontal[(size_t)z * w + (x + 1u)] == NACRE_DUNGEON_BOUNDARY_WALL &&
           nacre_dungeon_walls_share_visibility(map, visibility, true, x, z))
@@ -229,6 +277,16 @@ bool nacre_dungeon_placements_build(const NacreDungeonMap *map,
         }
         ++x;
         continue;
+      }
+      /* A door/portcullis is a blocking object placed IN an architectural
+       * passage, not a replacement for that passage. Both are independent
+       * prefabs, with identical orientation and bottom-center pivot. */
+      if ((boundary == NACRE_DUNGEON_BOUNDARY_DOOR ||
+           boundary == NACRE_DUNGEON_BOUNDARY_PORTCULLIS) &&
+          !nacre_dungeon_placement_add(&result,
+              NACRE_DUNGEON_PART_PASSAGE_X, (float)x + .5f, (float)z))
+      {
+        goto failure;
       }
       if (!nacre_dungeon_placement_add(&result,
           nacre_dungeon_boundary_kind(boundary, true),
@@ -251,7 +309,7 @@ bool nacre_dungeon_placements_build(const NacreDungeonMap *map,
       {
         continue;
       }
-      if (boundary == NACRE_DUNGEON_BOUNDARY_WALL && use_wall_z_2m &&
+      if (boundary == NACRE_DUNGEON_BOUNDARY_WALL && use_wall_2m &&
           z + 1u < h &&
           vertical[(size_t)(z + 1u) * (w + 1u) + x] == NACRE_DUNGEON_BOUNDARY_WALL &&
           nacre_dungeon_walls_share_visibility(map, visibility, false, x, z))
@@ -264,6 +322,13 @@ bool nacre_dungeon_placements_build(const NacreDungeonMap *map,
         ++z;
         continue;
       }
+      if ((boundary == NACRE_DUNGEON_BOUNDARY_DOOR ||
+           boundary == NACRE_DUNGEON_BOUNDARY_PORTCULLIS) &&
+          !nacre_dungeon_placement_add(&result,
+              NACRE_DUNGEON_PART_PASSAGE_Z, (float)x, (float)z + .5f))
+      {
+        goto failure;
+      }
       if (!nacre_dungeon_placement_add(&result,
           nacre_dungeon_boundary_kind(boundary, false),
           (float)x, (float)z + .5f))
@@ -273,6 +338,37 @@ bool nacre_dungeon_placements_build(const NacreDungeonMap *map,
     }
   }
 
+  /* Pillar prefabs share the same centered-at-base pivot convention as
+   * floor tiles. Their cells stay walkable in the map but are forbidden by
+   * the navigation mask, so placement and collision cannot diverge. */
+  for (uint32_t i = 0; i < map->pillar_count; ++i)
+  {
+    const NacreDungeonPillar *pillar = &map->pillars[i];
+    if (!nacre_dungeon_placement_add(&result,
+        pillar->broken ? NACRE_DUNGEON_PART_PILLAR_BROKEN :
+                         NACRE_DUNGEON_PART_PILLAR_INTACT,
+        (float)(pillar->tile % w) + .5f,
+        (float)(pillar->tile / w) + .5f)) goto failure;
+  }
+
+  /* Start/end markers are optional prefabs, but always part of the logical
+   * placement list. They are centered on their respective tile bases. */
+  if(!nacre_dungeon_placement_add(&result,NACRE_DUNGEON_PART_ENTRY,
+      (float)(map->entry%w)+.5f,(float)(map->entry/w)+.5f) ||
+     !nacre_dungeon_placement_add(&result,NACRE_DUNGEON_PART_EXIT,
+      (float)(map->exit%w)+.5f,(float)(map->exit/w)+.5f))goto failure;
+  for(uint32_t t=0;t<map->totem_count;t++){
+    const uint32_t tile=map->totems[t].tile;
+    if(!nacre_dungeon_placement_add(&result,NACRE_DUNGEON_PART_TOTEM,
+        (float)(tile%w)+.5f,(float)(tile/w)+.5f))goto failure;
+  }
+  for(uint32_t o=0;o<map->objective_count;o++){
+    const uint32_t tile=map->objectives[o].tile;
+    if(!nacre_dungeon_placement_add(&result,
+        map->exit_requirement==1 ? NACRE_DUNGEON_PART_OBJECTIVE_KEY :
+        NACRE_DUNGEON_PART_OBJECTIVE_LEVER,
+        (float)(tile%w)+.5f,(float)(tile/w)+.5f))goto failure;
+  }
   free(horizontal);
   free(vertical);
   *out = result;

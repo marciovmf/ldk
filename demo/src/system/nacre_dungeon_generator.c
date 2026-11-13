@@ -1,4 +1,6 @@
 #include "nacre_dungeon_generator.h"
+#include "nacre_dungeon_features.h"
+#include "nacre_dungeon_progression.h"
 
 #include <limits.h>
 #include <math.h>
@@ -509,11 +511,18 @@ static int nacre_find_parent(uint32_t parent[NACRE_DUNGEON_MAX_ROOMS],int i){
   return i;
 }
 static bool nacre_traversable(const NacreDungeonMap *m,uint32_t a,uint32_t b){
-  if(!m->cells[a]||!m->cells[b])return false;
+  if(!m->cells[a]||!m->cells[b]||
+     m->cells[a]==NACRE_DUNGEON_SECRET||m->cells[b]==NACRE_DUNGEON_SECRET||
+     (m->pillar_mask&&m->pillar_mask[b]))return false;
   int ra=m->room_ids[a],rb=m->room_ids[b];
-  if(ra==rb)return true;
-  if(ra==-1&&rb==-1)return true;
-  return nacre_edge_exists(m,a,b);
+  if(ra==rb&&m->cells[a]==m->cells[b])return true;
+  for(uint32_t i=0;i<m->edge_count;i++){
+    const NacreDungeonEdge *e=&m->edges[i];
+    if(nacre_edge_order(e,a,b))
+      return e->type==NACRE_DUNGEON_EDGE_OPEN||
+             e->type==NACRE_DUNGEON_EDGE_HOLE;
+  }
+  return false;
 }
 static int nacre_bfs(const NacreDungeonMap *m,uint32_t start,int32_t *dist,int32_t *prev,
     uint32_t ignored_a,uint32_t ignored_b) {
@@ -779,6 +788,12 @@ void nacre_dungeon_generator_config_defaults(NacreDungeonConfig *config){
   config->adjacent_rooms=.75;
   config->alternative_walls=.50;
   config->cracked_fraction=.50;
+  config->secret_rooms_max=3;
+  config->cave_tunnels_max=3;
+  config->pillar_count=8;
+  config->pillar_broken_fraction=.40;
+  config->exit_requirement=2;
+  config->objective_count=3;
 }
 /* Share the exact validation rules with the LDK inspector adapter. Each
  * message describes one field; NULL means the configuration is valid. */
@@ -805,6 +820,14 @@ const char *nacre_dungeon_generator_config_error(const NacreDungeonConfig *cfg){
     return "Alternative Walls must be 0..1";
   if(!(cfg->cracked_fraction>=0&&cfg->cracked_fraction<=1))
     return "Cracked Fraction must be 0..1";
+  if(cfg->secret_rooms_max>3)return "Secret Rooms Max must be 0..3";
+  if(cfg->cave_tunnels_max>3)return "Cave Tunnels Max must be 0..3";
+  if(cfg->pillar_count>18)return "Pillar Count must be 0..18";
+  if(cfg->exit_requirement>2)return "Exit Requirement must be 0..2";
+  if(cfg->objective_count<1||cfg->objective_count>6)
+    return "Objective Count must be 1..6";
+  if(!(cfg->pillar_broken_fraction>=0&&cfg->pillar_broken_fraction<=1))
+    return "Pillar Broken Fraction must be 0..1";
   return NULL;
 }
 
@@ -813,6 +836,8 @@ void nacre_dungeon_generator_release(NacreDungeonMap *map){
   if(map->rooms)for(uint32_t i=0;i<map->room_count;i++){
     free(map->rooms[i].cells);free(map->rooms[i].exits);
   }
+  nacre_dungeon_features_release(map);
+  nacre_dungeon_progression_release(map);
   free(map->rooms);free(map->links);free(map->edges);
   free(map->cells);free(map->room_ids);free(map->shortest_route);
   memset(map,0,sizeof(*map));
@@ -904,6 +929,15 @@ NacreDungeonResult nacre_dungeon_generator_generate(
   if(s.oom)goto failed;
   nacre_normalize_micro_corridors(&s);
   if(s.oom||!nacre_choose_endpoints(&s))goto failed;
+  /* Extra stages are deterministic and do not alter primary connectivity. */
+  {uint32_t feature_rng=s.rng.state;
+   if(!nacre_dungeon_features_generate(cfg,out,&feature_rng)){
+     s.oom=true;goto failed;
+   }}
+  if(!nacre_dungeon_progression_generate(cfg,out) ||
+     !nacre_dungeon_features_place_pillars(cfg,out)) {
+    goto failed;
+  }
   free(s.room_capacity);free(s.exit_capacity);free(s.reserved);
   if(!nacre_dungeon_generator_validate(out)){
     nacre_dungeon_generator_release(out);return NACRE_DUNGEON_INVALID_LAYOUT;
@@ -938,6 +972,80 @@ bool nacre_dungeon_generator_validate(const NacreDungeonMap *m){
     if(edge->a>=n||edge->b>=n||!m->cells[edge->a]||!m->cells[edge->b]||
        !nacre_near_grid(m,edge->a,edge->b))valid=false;
     for(uint32_t j=0;j<e;j++)if(nacre_edge_order(&m->edges[j],edge->a,edge->b))valid=false;
+  }
+  /* Verify optional feature metadata against the authoritative tile grid.
+   * An opened hidden/cracked entrance may already be a HOLE at runtime. */
+  if(valid && (m->secret_room_count>3 || m->cave_count>3 ||
+      m->pillar_count>18 ||
+      (m->secret_room_count&&!m->secret_rooms) ||
+      (m->cave_count&&!m->caves) ||
+      (m->pillar_count&&(!m->pillars||!m->pillar_mask))))valid=false;
+  for(uint32_t r=0;r<m->secret_room_count&&valid;r++){
+    const NacreDungeonSecretRoom *secret=&m->secret_rooms[r];
+    if(!secret->cells || secret->id!=m->room_count+r ||
+       secret->cell_count!=(uint32_t)(secret->width*secret->height) ||
+       secret->entrance_inside>=n || secret->entrance_outside>=n)
+    {valid=false;break;}
+    for(uint32_t j=0;j<secret->cell_count;j++){
+      const uint32_t tile=secret->cells[j];
+      if(tile>=n || seen[tile] || m->cells[tile]!=NACRE_DUNGEON_SECRET ||
+         m->room_ids[tile]!=(int16_t)secret->id){valid=false;break;}
+      seen[tile]=1;
+    }
+    if(!valid)break;
+    bool found=false;
+    for(uint32_t k=0;k<m->edge_count;k++)if(
+        nacre_edge_order(&m->edges[k],secret->entrance_inside,
+                         secret->entrance_outside) &&
+        (m->edges[k].type==NACRE_DUNGEON_EDGE_SECRET ||
+         m->edges[k].type==NACRE_DUNGEON_EDGE_HOLE))found=true;
+    if(!found)valid=false;
+  }
+  for(uint32_t i=0;i<n&&valid;i++){
+    if(m->cells[i]==NACRE_DUNGEON_SECRET && !seen[i])valid=false;
+  }
+  for(uint32_t r=0;r<m->cave_count&&valid;r++){
+    const NacreDungeonCave *cave=&m->caves[r];
+    if(cave->room_a>=m->room_count || cave->room_b>=m->room_count ||
+       !cave->path || cave->path_count<4 || cave->path_count>16){
+      valid=false;break;
+    }
+    for(uint32_t j=0;j<cave->path_count;j++){
+      const uint32_t tile=cave->path[j];
+      if(tile>=n || seen[tile] || m->cells[tile]!=NACRE_DUNGEON_CAVE ||
+         m->room_ids[tile]!=-1 ||
+         (j&&!nacre_near_grid(m,cave->path[j-1],tile))){
+        valid=false;break;
+      }
+      seen[tile]=1;
+    }
+    if(!valid)break;
+    for(uint32_t e=0;e<2;e++){
+      const NacreDungeonEdge *entrance=&cave->entrances[e];
+      bool found=false;
+      for(uint32_t k=0;k<m->edge_count;k++)if(
+          nacre_edge_order(&m->edges[k],entrance->a,entrance->b) &&
+          (m->edges[k].type==NACRE_DUNGEON_EDGE_CRACKED ||
+           m->edges[k].type==NACRE_DUNGEON_EDGE_HOLE))found=true;
+      if(!found)valid=false;
+    }
+  }
+  for(uint32_t i=0;i<n&&valid;i++){
+    if(m->cells[i]==NACRE_DUNGEON_CAVE && !seen[i])valid=false;
+  }
+  uint32_t mask_count=0;
+  for(uint32_t i=0;i<n&&valid;i++)if(m->pillar_mask&&m->pillar_mask[i])mask_count++;
+  if(valid && mask_count!=m->pillar_count)valid=false;
+  for(uint32_t p=0;p<m->pillar_count&&valid;p++){
+    const NacreDungeonPillar *pillar=&m->pillars[p];
+    if(pillar->tile>=n || pillar->room_id>=m->room_count ||
+       !m->pillar_mask[pillar->tile] ||
+       m->cells[pillar->tile]!=NACRE_DUNGEON_ROOM ||
+       m->room_ids[pillar->tile]!=(int16_t)pillar->room_id ||
+       pillar->tile==m->entry || pillar->tile==m->exit){
+      valid=false;break;
+    }
+    for(uint32_t j=0;j<p;j++)if(m->pillars[j].tile==pillar->tile)valid=false;
   }
   for(uint32_t l=0;l<m->link_count&&valid;l++){
     const NacreDungeonLink *link=&m->links[l];
@@ -975,5 +1083,6 @@ bool nacre_dungeon_generator_validate(const NacreDungeonMap *m){
       free(dist);
     }
   }
+  if(valid)valid=nacre_dungeon_progression_validate(m);
   free(seen);return valid;
 }

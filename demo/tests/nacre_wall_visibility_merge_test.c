@@ -54,7 +54,7 @@ static void horizontal_different_rooms_must_not_merge(void)
   NacreDungeonPlacementList pieces = {0};
   assert(nacre_dungeon_visibility_build(&map, &visibility));
   assert(nacre_dungeon_placements_build(
-      &map, &visibility, true, true, &pieces));
+      &map, &visibility, true, &pieces));
   /* These neighbors are collinear ordinary walls, but are owned by different
    * rooms, so both the top and bottom boundaries remain separate 1 m pieces. */
   assert(count_kind_at(&pieces, NACRE_DUNGEON_PART_WALL_X_2M,
@@ -80,7 +80,7 @@ static void horizontal_same_room_must_merge(void)
   NacreDungeonPlacementList pieces = {0};
   assert(nacre_dungeon_visibility_build(&map, &visibility));
   assert(nacre_dungeon_placements_build(
-      &map, &visibility, true, true, &pieces));
+      &map, &visibility, true, &pieces));
   assert(count_kind_at(&pieces, NACRE_DUNGEON_PART_WALL_X_2M,
       1.0f, 1.0f) == 1u);
   nacre_dungeon_placements_release(&pieces);
@@ -100,7 +100,7 @@ static void horizontal_shared_boundary_must_merge(void)
   NacreDungeonPlacementList pieces = {0};
   assert(nacre_dungeon_visibility_build(&map, &visibility));
   assert(nacre_dungeon_placements_build(
-      &map, &visibility, true, true, &pieces));
+      &map, &visibility, true, &pieces));
   /* Both edges are owned by the SAME set {room A, room B}. */
   assert(count_kind_at(&pieces, NACRE_DUNGEON_PART_WALL_X_2M,
       1.0f, 1.0f) == 1u);
@@ -121,7 +121,7 @@ static void vertical_different_rooms_must_not_merge(void)
   NacreDungeonPlacementList pieces = {0};
   assert(nacre_dungeon_visibility_build(&map, &visibility));
   assert(nacre_dungeon_placements_build(
-      &map, &visibility, true, true, &pieces));
+      &map, &visibility, true, &pieces));
   assert(count_kind_at(&pieces, NACRE_DUNGEON_PART_WALL_Z_2M,
       1.0f, 1.0f) == 0u);
   assert(count_kind_at(&pieces, NACRE_DUNGEON_PART_WALL_Z_1M,
@@ -145,7 +145,7 @@ static void vertical_same_room_must_merge(void)
   NacreDungeonPlacementList pieces = {0};
   assert(nacre_dungeon_visibility_build(&map, &visibility));
   assert(nacre_dungeon_placements_build(
-      &map, &visibility, true, true, &pieces));
+      &map, &visibility, true, &pieces));
   assert(count_kind_at(&pieces, NACRE_DUNGEON_PART_WALL_Z_2M,
       1.0f, 1.0f) == 1u);
   nacre_dungeon_placements_release(&pieces);
@@ -165,7 +165,7 @@ static void same_region_set_in_reversed_order_must_merge(void)
   NacreDungeonPlacementList pieces = {0};
   assert(nacre_dungeon_visibility_build(&map, &visibility));
   assert(nacre_dungeon_placements_build(
-      &map, &visibility, true, true, &pieces));
+      &map, &visibility, true, &pieces));
   /* Region ordering must not affect merge decisions. */
   assert(count_kind_at(&pieces, NACRE_DUNGEON_PART_WALL_X_2M,
       1.0f, 1.0f) == 1u);
@@ -263,9 +263,9 @@ static void generated_maps_must_preserve_edges_and_owner_sets(void)
     NacreDungeonPlacementList single = {0}, packed = {0};
     assert(nacre_dungeon_visibility_build(&map, &visibility));
     assert(nacre_dungeon_placements_build(
-        &map, &visibility, false, false, &single));
+        &map, &visibility, false, &single));
     assert(nacre_dungeon_placements_build(
-        &map, &visibility, true, true, &packed));
+        &map, &visibility, true, &packed));
     validate_merged_wall_owners(&map, &visibility, &packed, &merged);
 
     /* Compacting walls must neither remove nor duplicate physical edges,

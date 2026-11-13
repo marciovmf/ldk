@@ -17,7 +17,7 @@ bool nacre_dungeon_visibility_build(
       !map->width || !map->height ||
       map->width > NACRE_DUNGEON_MAX_DIMENSION ||
       map->height > NACRE_DUNGEON_MAX_DIMENSION ||
-      map->room_count >= UINT16_MAX) return false;
+      map->room_count + map->secret_room_count >= UINT16_MAX) return false;
 
   const uint32_t size = map->width * map->height;
   uint16_t *regions = (uint16_t *)calloc(size, sizeof(*regions));
@@ -36,7 +36,7 @@ bool nacre_dungeon_visibility_build(
     const int32_t room_id = map->room_ids[i];
     if (room_id >= 0)
     {
-      if ((uint32_t)room_id >= map->room_count)
+      if ((uint32_t)room_id >= map->room_count + map->secret_room_count)
       {
         free(regions);
         free(queue);
@@ -48,7 +48,7 @@ bool nacre_dungeon_visibility_build(
 
   /* A corridor is visible as one connected section. Never flood-fill into
    * rooms: a passage/door is a visibility boundary, not a corridor merger. */
-  uint32_t region_count = map->room_count;
+  uint32_t region_count = map->room_count + map->secret_room_count;
   for (uint32_t start = 0; start < size; ++start)
   {
     if (!map->cells[start] || regions[start]) continue;
@@ -76,8 +76,8 @@ bool nacre_dungeon_visibility_build(
       for (uint32_t j = 0; j < count; ++j)
       {
         const uint32_t other = neighbor[j];
-        if (map->cells[other] && map->room_ids[other] < 0 &&
-            !regions[other])
+        if (map->cells[other] == map->cells[start] &&
+            map->room_ids[other] < 0 && !regions[other])
         {
           regions[other] = region;
           queue[tail++] = other;
@@ -114,7 +114,15 @@ uint32_t nacre_dungeon_visibility_piece_regions(
   if (!map || !visibility || !visibility->region_by_tile ||
       !piece || !out_regions) return 0u;
   uint32_t count = 0u;
-  if (piece->kind == NACRE_DUNGEON_PART_FLOOR)
+  if (piece->kind == NACRE_DUNGEON_PART_FLOOR ||
+      piece->kind == NACRE_DUNGEON_PART_PILLAR_INTACT ||
+      piece->kind == NACRE_DUNGEON_PART_PILLAR_BROKEN ||
+      piece->kind == NACRE_DUNGEON_PART_CAVE_FLOOR ||
+      piece->kind == NACRE_DUNGEON_PART_TOTEM ||
+      piece->kind == NACRE_DUNGEON_PART_ENTRY ||
+      piece->kind == NACRE_DUNGEON_PART_EXIT ||
+      piece->kind == NACRE_DUNGEON_PART_OBJECTIVE_KEY ||
+      piece->kind == NACRE_DUNGEON_PART_OBJECTIVE_LEVER)
   {
     /* Floor pivots are at exact tile centers (x+.5, z+.5). */
     nacre_dungeon_visibility_add_region(map, visibility,
@@ -124,7 +132,11 @@ uint32_t nacre_dungeon_visibility_piece_regions(
       piece->kind == NACRE_DUNGEON_PART_WALL_X_2M ||
       piece->kind == NACRE_DUNGEON_PART_PASSAGE_X ||
       piece->kind == NACRE_DUNGEON_PART_HOLE_X ||
-      piece->kind == NACRE_DUNGEON_PART_CRACKED_X)
+      piece->kind == NACRE_DUNGEON_PART_CRACKED_X ||
+      piece->kind == NACRE_DUNGEON_PART_SECRET_X ||
+      piece->kind == NACRE_DUNGEON_PART_CAVE_WALL_X ||
+      piece->kind == NACRE_DUNGEON_PART_DOOR_X ||
+      piece->kind == NACRE_DUNGEON_PART_PORTCULLIS_X)
   {
     /* Horizontal wall at a whole Z coordinate: cells above and below it.
      * A 2 m wall can touch two cells on EACH side. */
@@ -144,7 +156,11 @@ uint32_t nacre_dungeon_visibility_piece_regions(
       piece->kind == NACRE_DUNGEON_PART_WALL_Z_2M ||
       piece->kind == NACRE_DUNGEON_PART_PASSAGE_Z ||
       piece->kind == NACRE_DUNGEON_PART_HOLE_Z ||
-      piece->kind == NACRE_DUNGEON_PART_CRACKED_Z)
+      piece->kind == NACRE_DUNGEON_PART_CRACKED_Z ||
+      piece->kind == NACRE_DUNGEON_PART_SECRET_Z ||
+      piece->kind == NACRE_DUNGEON_PART_CAVE_WALL_Z ||
+      piece->kind == NACRE_DUNGEON_PART_DOOR_Z ||
+      piece->kind == NACRE_DUNGEON_PART_PORTCULLIS_Z)
   {
     const uint32_t length =
         piece->kind == NACRE_DUNGEON_PART_WALL_Z_2M ? 2u : 1u;

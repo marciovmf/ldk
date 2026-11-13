@@ -1,0 +1,26 @@
+prefab:
+  version: 1
+  root: 0
+  entities:
+    - entity: 0
+      parent: -1
+      flags: 0
+      name: "Cube_fallback"
+      name_hash: "0xde7c463dd88e71f3"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.361836255, 0.00000000
+            local_scale: 0.300000012, 0.300000012, 0.300000012
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/cube"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xf91111ff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0.650306761

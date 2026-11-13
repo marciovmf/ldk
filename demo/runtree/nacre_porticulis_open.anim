@@ -1,0 +1,14 @@
+animation:
+  version: 2
+  duration: 1.000000000
+  tracks:
+    - target: "0xcbf29ce484222325"
+      component: 4294967294
+      property: "local_position"
+      type: 5
+      keys:
+        - time: 0.000000000
+          value: 0.000000000, 0.000000000, 0.000000000
+        - time: 0.899999976
+          value: 0.000000000, -0.699999988, 0.000000000
+  events:

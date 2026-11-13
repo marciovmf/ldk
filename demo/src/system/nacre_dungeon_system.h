@@ -37,6 +37,26 @@ bool nacre_dungeon_system_world_origin_get(Vec3 *out);
  * a crossing. Non-rendering gameplay systems and the logical map are intact.
  */
 bool nacre_dungeon_system_visible_tiles_set(u32 source, u32 destination);
+/* Runtime action: break a neighboring cracked wall. Updates navigation AND
+ * its rendered prefab atomically; does not reroll the generated layout. */
+bool nacre_dungeon_system_cracked_wall_break(u32 from, u32 to);
+/* Called only when gameplay has discovered a hidden entrance. */
+bool nacre_dungeon_system_secret_open(u32 from, u32 to);
+/* Every door/gate is a separate prefab placed in a persistent Passage
+ * prefab. Opening plays its prefab-authored "open.anim" keyframe clip once
+ * (never autoplay/loop). If the clip is absent, only the barrier visuals
+ * disappear. Navigation unlocks on interaction, not at animation completion.
+ * Portcullises still require the discovered totem and correct password. */
+bool nacre_dungeon_system_door_open(u32 from, u32 to);
+bool nacre_dungeon_system_portcullis_open(
+    u32 from, u32 to, const NacreDungeonDirection sequence[4]);
+/* Discovering reveals a totem's color and password. Copy the result to
+ * avoid holding pointers across regeneration. */
+bool nacre_dungeon_system_totem_discover(u32 tile, NacreDungeonTotem *out);
+/* Keys and levers are distinct only in visual/presentation data here;
+ * both can be activated at their tile. Completed objectives remain hidden. */
+bool nacre_dungeon_system_objective_complete(u32 tile);
+bool nacre_dungeon_system_exit_can_use(u32 player_tile);
 
 //@system name=NacreDungeonSystem initialize=nacre_dungeon_system_initialize update=nacre_dungeon_system_update terminate=nacre_dungeon_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED
 typedef struct NacreDungeonSystem
@@ -66,35 +86,65 @@ typedef struct NacreDungeonSystem
   float alternative_walls;
   //@inspect slider min=0 max=1
   float cracked_fraction;
+  //@inspect min=0 max=3
+  u32 secret_rooms_max;
+  //@inspect min=0 max=3
+  u32 cave_tunnels_max;
+  //@inspect min=0 max=18
+  u32 pillar_count;
+  //@inspect slider min=0 max=1
+  float pillar_broken_fraction;
+  //@end_group
+
+  //@begin_group "Exit Progression"
+  /** 0=Free, 1=Keys, 2=Levers. Affects next regeneration. */
+  //@inspect min=0 max=2
+  u32 exit_requirement;
+  /** Required objectives, 1..6; ignored for Free. */
+  //@inspect min=1 max=6
+  u32 objective_count;
   //@end_group
 
   //@begin_group "Dungeon Prefabs"
+  /** Optional generic visual placeholder for any missing/unavailable prefab.
+   * Its transform uses the same centered-at-base pivot as dungeon pieces.
+   * Instances made from this slot are renamed to the missing piece type. */
+  LDKAssetPrefab fallback_prefab;
   /** Centered-at-base horizontal floor, one tile per instance. */
   LDKAssetPrefab floor_prefab;
-  /** 1 m walls: the prefab mesh is already aligned with X or Z. */
-  LDKAssetPrefab wall_x_1m_prefab;
-  LDKAssetPrefab wall_z_1m_prefab;
-  /** Optional 2 m walls: adjacent ordinary walls are combined when set. */
-  LDKAssetPrefab wall_x_2m_prefab;
-  LDKAssetPrefab wall_z_2m_prefab;
-  /** A normal OPEN boundary becomes exactly one passage prefab. */
-  LDKAssetPrefab passage_x_prefab;
-  LDKAssetPrefab passage_z_prefab;
-  /** Traversable alternate links (one-attack cracked wall or open hole). */
-  LDKAssetPrefab hole_x_prefab;
-  LDKAssetPrefab hole_z_prefab;
-  LDKAssetPrefab cracked_x_prefab;
-  LDKAssetPrefab cracked_z_prefab;
+  /** All directional prefabs are authored spanning +X (pivot at base center).
+   * Z-aligned placements reuse the same asset rotated 90 degrees around Y.
+   * The optional 2 m wall is used only for safe, region-consistent merges. */
+  LDKAssetPrefab wall_1m_prefab;
+  LDKAssetPrefab wall_2m_prefab;
+  /** Architectural passage, independent of any moving door or portcullis. */
+  LDKAssetPrefab passage_prefab;
+  LDKAssetPrefab hole_prefab;
+  LDKAssetPrefab cracked_prefab;
   //@end_group
 
-  //@begin_group "Future Prefabs (not generated yet)"
-  /** Reserved for future generator stages. Stage 1 has no door/gate IDs. */
-  LDKAssetPrefab door_x_prefab;
-  LDKAssetPrefab door_z_prefab;
-  LDKAssetPrefab portcullis_x_prefab;
-  LDKAssetPrefab portcullis_z_prefab;
+  //@begin_group "Additional Dungeon Prefabs"
+  /** Regular doors open freely. Colored portcullises require passwords.
+   * Door and portcullis prefabs contain only the moving blocker; both are
+   * placed alongside a persistent passage, never instead of it. */
+  LDKAssetPrefab door_prefab;
+  LDKAssetPrefab portcullis_prefab;
+  /** Optional colored overrides; absent ones use portcullis_prefab. */
+  LDKAssetPrefab portcullis_red_prefab;
+  LDKAssetPrefab portcullis_green_prefab;
+  LDKAssetPrefab portcullis_blue_prefab;
   LDKAssetPrefab pillar_intact_prefab;
   LDKAssetPrefab pillar_broken_prefab;
+  /** Optional floor-standing markers. Pivot at base, centered in tile. */
+  LDKAssetPrefab totem_prefab;
+  LDKAssetPrefab entry_prefab;
+  LDKAssetPrefab exit_prefab;
+  LDKAssetPrefab objective_key_prefab;
+  LDKAssetPrefab objective_lever_prefab;
+  /** Optional: different floor/walls for excavated cave segments. If absent,
+   * the ordinary structural prefabs are used. */
+  LDKAssetPrefab cave_floor_prefab;
+  LDKAssetPrefab cave_wall_prefab;
   //@end_group
 
   //@begin_group "Scene Placement"
@@ -131,7 +181,11 @@ typedef struct NacreDungeonSystem
   //@inspect readonly runtime
   u32 generated_entity_count;
   //@inspect readonly runtime
+  /** Pieces not instantiated because no specific or fallback prefab was live. */
   u32 missing_prefab_pieces;
+  /** Number of active pieces using Fallback Prefab instead of a specific one. */
+  //@inspect readonly runtime
+  u32 fallback_instance_count;
   //@inspect readonly runtime
   u32 planned_piece_count;
   //@inspect readonly runtime
@@ -144,6 +198,24 @@ typedef struct NacreDungeonSystem
   u32 edge_count;
   //@inspect readonly runtime
   u32 normalized_micro_corridors;
+  //@inspect readonly runtime
+  u32 secret_room_count;
+  //@inspect readonly runtime
+  u32 cave_count;
+  //@inspect readonly runtime
+  u32 pillar_instances;
+  //@inspect readonly runtime
+  u32 treasure_room_count;
+  //@inspect readonly runtime
+  u32 door_count;
+  //@inspect readonly runtime
+  u32 portcullis_count;
+  //@inspect readonly runtime
+  u32 totem_count;
+  //@inspect readonly runtime
+  u32 objectives_total;
+  //@inspect readonly runtime
+  u32 objectives_completed;
   //@inspect readonly runtime
   u32 shortest_path_length;
   //@inspect readonly runtime

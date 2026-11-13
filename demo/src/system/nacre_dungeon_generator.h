@@ -9,10 +9,9 @@
  * Nacre dungeon generator - geometry phase (LDK Layout Lab v21).
  * Self-contained C11. No dependency on the LDK renderer, editor or ECS.
  *
- * V1 scope: rooms, rooted connection tree, extra loops, special (hole/cracked)
- * room connections, short corridors, micro-corridor normalization and endpoints.
- * Secret rooms, caves, peripheral treasure rooms, totems, gates, objectives and
- * pillars ARE NOT generated yet; never treat this API as the finished v21 port.
+ * Layout geometry, hidden rooms, optional cave shortcuts and blocking pillars.
+ * Peripheral treasure rooms, doors, gates, totems and exit objectives are
+ * generated in a separate progression phase; physics/rendering remain outside.
  *
  * Coordinates: X increases right, Y increases down on the logical grid.
  * A cell's 3D center is (x + .5f, 0, y + .5f) * cell_size, relative to the
@@ -27,14 +26,15 @@ typedef enum NacreDungeonCellType {
   NACRE_DUNGEON_EMPTY = 0,
   NACRE_DUNGEON_ROOM = 1,
   NACRE_DUNGEON_CORRIDOR = 2,
-  NACRE_DUNGEON_SECRET = 3,   /* Reserved for subsequent port. */
-  NACRE_DUNGEON_CAVE = 4      /* Reserved for subsequent port. */
+  NACRE_DUNGEON_SECRET = 3,
+  NACRE_DUNGEON_CAVE = 4
 } NacreDungeonCellType;
 
 typedef enum NacreDungeonEdgeType {
   NACRE_DUNGEON_EDGE_OPEN = 0,
   NACRE_DUNGEON_EDGE_HOLE,
-  NACRE_DUNGEON_EDGE_CRACKED
+  NACRE_DUNGEON_EDGE_CRACKED,
+  NACRE_DUNGEON_EDGE_SECRET /* Closed: normal-looking hidden entrance. */
 } NacreDungeonEdgeType;
 
 typedef struct NacreDungeonConfig {
@@ -50,6 +50,13 @@ typedef struct NacreDungeonConfig {
   double adjacent_rooms;         /* 0..1 */
   double alternative_walls;      /* 0..1 of extra budget */
   double cracked_fraction;       /* 0..1 of special walls */
+  uint32_t secret_rooms_max;     /* 0..3, weighted v21 count */
+  uint32_t cave_tunnels_max;     /* 0..3, weighted v21 count */
+  uint32_t pillar_count;         /* 0..18 desired, not guaranteed */
+  double pillar_broken_fraction; /* 0..1 */
+  /* 0: free exit; 1: keys; 2: levers. N objectives, 1..6. */
+  uint32_t exit_requirement;
+  uint32_t objective_count;
 } NacreDungeonConfig;
 
 typedef struct NacreDungeonRoom {
@@ -60,6 +67,7 @@ typedef struct NacreDungeonRoom {
   uint32_t *cells;
   uint32_t cell_count;
   /* Internal: geometry stage keeps original exits to reproduce scores. */
+  bool peripheral_treasure;
   uint32_t *exits;
   uint32_t exit_count;
 } NacreDungeonRoom;
@@ -75,12 +83,82 @@ typedef struct NacreDungeonLink {
   bool direct;
   bool hole;
   bool normalized_micro_corridor;
+  bool treasure;
   /* An ordinary adjacent link can contain two passages. */
   uint32_t passage_count;
   NacreDungeonEdge passages[2];
   uint32_t path_count;
   uint32_t path[5]; /* max_corridor_tiles <= 5 in v21. */
 } NacreDungeonLink;
+
+typedef struct NacreDungeonSecretRoom {
+  uint32_t id;
+  int32_t x, y, width, height;
+  uint32_t *cells;
+  uint32_t cell_count;
+  uint32_t entrance_outside, entrance_inside;
+} NacreDungeonSecretRoom;
+
+typedef struct NacreDungeonCave {
+  uint32_t room_a, room_b;
+  uint32_t *path;
+  uint32_t path_count;
+  NacreDungeonEdge entrances[2];
+  bool cross_branch;
+} NacreDungeonCave;
+
+typedef struct NacreDungeonPillar {
+  uint32_t tile, room_id;
+  bool broken;
+} NacreDungeonPillar;
+
+/* Gameplay state is deliberately stored on the map, not on a prefab. */
+typedef enum NacreDungeonPassageKind {
+  NACRE_DUNGEON_PASSAGE_OPEN = 0,
+  NACRE_DUNGEON_PASSAGE_DOOR,
+  NACRE_DUNGEON_PASSAGE_PORTCULLIS
+} NacreDungeonPassageKind;
+
+typedef enum NacreDungeonTotemColor {
+  NACRE_DUNGEON_COLOR_RED = 0,
+  NACRE_DUNGEON_COLOR_GREEN = 1,
+  NACRE_DUNGEON_COLOR_BLUE = 2,
+  NACRE_DUNGEON_COLOR_NONE = 255
+} NacreDungeonTotemColor;
+
+typedef enum NacreDungeonDirection {
+  NACRE_DUNGEON_DIRECTION_UP = 0,
+  NACRE_DUNGEON_DIRECTION_DOWN,
+  NACRE_DUNGEON_DIRECTION_LEFT,
+  NACRE_DUNGEON_DIRECTION_RIGHT
+} NacreDungeonDirection;
+
+typedef struct NacreDungeonPassage {
+  uint32_t id, a, b; /* 1-based stable ID; a < b. */
+  NacreDungeonPassageKind kind;
+  bool opened;
+  NacreDungeonTotemColor color;
+  uint32_t totem_id; /* 0 for ordinary openings and doors. */
+  int32_t treasure_room_id; /* -1 for non-treasure passages. */
+} NacreDungeonPassage;
+
+typedef struct NacreDungeonTreasure {
+  uint32_t room_id, parent_room_id;
+  uint32_t entrance_a, entrance_b, gate_id;
+  NacreDungeonTotemColor color;
+} NacreDungeonTreasure;
+
+typedef struct NacreDungeonTotem {
+  uint32_t id, room_id, tile;
+  NacreDungeonTotemColor color;
+  NacreDungeonDirection sequence[4];
+  bool discovered;
+} NacreDungeonTotem;
+
+typedef struct NacreDungeonObjective {
+  uint32_t id, room_id, tile;
+  bool completed;
+} NacreDungeonObjective;
 
 typedef struct NacreDungeonMap {
   uint32_t width, height, seed_hash;
@@ -97,6 +175,23 @@ typedef struct NacreDungeonMap {
   uint32_t edge_count;
   uint32_t *shortest_route;
   uint32_t shortest_route_count;
+  NacreDungeonSecretRoom *secret_rooms;
+  uint32_t secret_room_count, requested_secret_count;
+  NacreDungeonCave *caves;
+  uint32_t cave_count, requested_cave_count;
+  NacreDungeonPillar *pillars;
+  uint32_t pillar_count;
+  uint8_t *pillar_mask;  /* width*height, blocking both intact and broken. */
+  NacreDungeonPassage *passages;
+  uint32_t passage_count;
+  NacreDungeonTreasure *treasures;
+  uint32_t treasure_count;
+  NacreDungeonTotem *totems;
+  uint32_t totem_count;
+  NacreDungeonObjective *objectives;
+  uint32_t objective_count;
+  uint32_t exit_requirement;
+  bool progression_valid;
 } NacreDungeonMap;
 
 typedef enum NacreDungeonResult {

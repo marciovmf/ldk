@@ -99,6 +99,32 @@ scene:
             intensity: 1.20000005
             enabled: true
             casts_shadows: false
+    - entity: 2
+      parent: -1
+      flags: 0
+      name: "nacre_portcullis_x"
+      name_hash: "0x134ec675e5c55ae1"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, -0.699999988, 0.00000000
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "assets/mesh/nacre_dungeon_structural.mesh"
+            mesh_index: 1
+            casts_shadows: false
+            billboard: false
+            material_asset: "assets/dungeon/material/nacre_portcullis.material"
+        - type: 4294967280 # LDKKeyFrameAnimationSource
+          fields:
+            current_animation: 0
+            play_on_start: true
+            loop: true
+            speed: 1.00000000
+            animations:
+              - path: "nacre_porticulis_open.anim"
   systems:
     - id: "0xfb8470f7f31c37df"
       data:
@@ -114,23 +140,33 @@ scene:
         adjacent_rooms: 0.873851836
         alternative_walls: 0.819963276
         cracked_fraction: 0.409063071
+        secret_rooms_max: 0
+        cave_tunnels_max: 0
+        pillar_count: 0
+        pillar_broken_fraction: 0.479119211
+        exit_requirement: 0
+        objective_count: 0
+        fallback_prefab: "prefab/Cube_fallback.prefab"
         floor_prefab: "prefab/nacre/nacre_floor.prefab"
-        wall_x_1m_prefab: "prefab/nacre/nacre_wall_x_1m.prefab"
-        wall_z_1m_prefab: "prefab/nacre/nacre_wall_z_1m.prefab"
-        wall_x_2m_prefab: "prefab/nacre/nacre_wall_x_2m.prefab"
-        wall_z_2m_prefab: "prefab/nacre/nacre_wall_z_2m.prefab"
-        passage_x_prefab: "prefab/nacre/nacre_passage_x.prefab"
-        passage_z_prefab: "prefab/nacre/nacre_passage_z.prefab"
-        hole_x_prefab: "prefab/nacre/nacre_hole_x.prefab"
-        hole_z_prefab: "prefab/nacre/nacre_hole_z.prefab"
-        cracked_x_prefab: "prefab/nacre/nacre_cracked_x.prefab"
-        cracked_z_prefab: "prefab/nacre/nacre_cracked_z.prefab"
-        door_x_prefab: "prefab/nacre/nacre_door_x.prefab"
-        door_z_prefab: "prefab/nacre/nacre_door_z.prefab"
-        portcullis_x_prefab: "prefab/nacre/nacre_portcullis_x.prefab"
-        portcullis_z_prefab: "prefab/nacre/nacre_portcullis_z.prefab"
+        wall_1m_prefab: "prefab/nacre/nacre_wall_x_1m.prefab"
+        wall_2m_prefab: "prefab/nacre/nacre_wall_x_2m.prefab"
+        passage_prefab: "prefab/nacre/nacre_passage_x.prefab"
+        hole_prefab: "prefab/nacre/nacre_hole_x.prefab"
+        cracked_prefab: "prefab/nacre/nacre_cracked_x.prefab"
+        door_prefab: "prefab/nacre/nacre_door_x.prefab"
+        portcullis_prefab: "prefab/nacre/nacre_portcullis_x.prefab"
+        portcullis_red_prefab: "prefab/nacre/nacre_portcullis_x.prefab"
+        portcullis_green_prefab: "prefab/nacre/nacre_portcullis_x.prefab"
+        portcullis_blue_prefab: "prefab/nacre/nacre_portcullis_x.prefab"
         pillar_intact_prefab: "prefab/nacre/nacre_pillar_intact.prefab"
         pillar_broken_prefab: "prefab/nacre/nacre_pillar_broken.prefab"
+        totem_prefab: -1
+        entry_prefab: -1
+        exit_prefab: -1
+        objective_key_prefab: -1
+        objective_lever_prefab: -1
+        cave_floor_prefab: "prefab/nacre/nacre_floor.prefab"
+        cave_wall_prefab: "prefab/nacre/nacre_wall_x_1m.prefab"
         world_origin: 0.00000000, 0.00000000, 0.00000000
         show_entire_dungeon: false
         generate_on_start: true

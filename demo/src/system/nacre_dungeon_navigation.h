@@ -13,7 +13,9 @@ typedef enum NacreDungeonMoveResult
   NACRE_DUNGEON_MOVE_OUTSIDE,
   NACRE_DUNGEON_MOVE_VOID,
   NACRE_DUNGEON_MOVE_WALL,
-  NACRE_DUNGEON_MOVE_CRACKED
+  NACRE_DUNGEON_MOVE_CRACKED,
+  NACRE_DUNGEON_MOVE_DOOR,
+  NACRE_DUNGEON_MOVE_PORTCULLIS
 } NacreDungeonMoveResult;
 
 NacreDungeonMoveResult nacre_dungeon_navigation_step(

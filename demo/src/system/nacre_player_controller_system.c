@@ -36,6 +36,15 @@ typedef struct NacrePlayerRuntime
   Vec3 dungeon_origin;
   uint32_t current_tile;
   uint32_t target_tile;
+  uint32_t last_cracked_from, last_cracked_to;
+  bool last_cracked_valid;
+  uint32_t last_door_from,last_door_to;
+  bool last_door_valid;
+  uint32_t last_gate_from,last_gate_to;
+  bool last_gate_valid;
+  bool entering_gate_code;
+  NacreDungeonDirection gate_code[4];
+  uint32_t gate_code_length;
   Vec3 start_world, target_world, visual_world;
   float step_elapsed;
   float block_cooldown;
@@ -163,6 +172,11 @@ static bool nacre_player_spawn(NacrePlayerControllerSystem *s,
   r->target_world = world;
   r->visual_world = world;
   r->step_elapsed = 0.0f;
+  r->last_cracked_valid = false;
+  r->last_door_valid = false;
+  r->last_gate_valid = false;
+  r->entering_gate_code = false;
+  r->gate_code_length = 0u;
   r->block_cooldown = 0.0f;
   r->camera_initialized = false;
   r->camera_angle = 0.0f;
@@ -313,6 +327,65 @@ void nacre_player_controller_system_update(
 
   LDKKeyboardState kb;
   ldk_input_keyboard_state_get(&kb);
+  /* Temporary wall-breaking input for level-design testing. Gameplay may
+   * later replace this with a weapon/interaction system; the authoritative
+   * action is on the dungeon system, not on the player controller. */
+  if (!s->player_moving && ldk_input_keyboard_key_down(&kb, LDK_KEYCODE_F))
+  {
+    if (r->last_cracked_valid && nacre_dungeon_system_cracked_wall_break(
+        r->last_cracked_from, r->last_cracked_to))
+      nacre_player_status(s, "Cracked wall destroyed");
+    else if (r->last_door_valid && nacre_dungeon_system_door_open(
+        r->last_door_from, r->last_door_to))
+      nacre_player_status(s, "Door opened");
+    r->last_cracked_valid = false;
+    r->last_door_valid = false;
+  }
+  if (!s->player_moving && ldk_input_keyboard_key_down(&kb, LDK_KEYCODE_T))
+  {
+    NacreDungeonTotem totem;
+    if (nacre_dungeon_system_totem_discover(r->current_tile, &totem))
+    {
+      static const char *directions[]={"UP","DOWN","LEFT","RIGHT"};
+      static const char *colors[]={"RED","GREEN","BLUE"};
+      ldk_log_info("Nacre totem %u: %s - %s %s %s %s\n",totem.id,
+          colors[totem.color],directions[totem.sequence[0]],
+          directions[totem.sequence[1]],directions[totem.sequence[2]],
+          directions[totem.sequence[3]]);
+      nacre_player_status(s, "Totem discovered: code in log");
+    }
+  }
+  if (!s->player_moving && r->last_gate_valid &&
+      ldk_input_keyboard_key_down(&kb, LDK_KEYCODE_G))
+  {
+    r->entering_gate_code=true;
+    r->gate_code_length=0u;
+    nacre_player_status(s, "Gate code: 4 arrow keys");
+  }
+  if (r->entering_gate_code)
+  {
+    int32_t direction=-1;
+    if(ldk_input_keyboard_key_down(&kb, LDK_KEYCODE_UP))
+      direction=NACRE_DUNGEON_DIRECTION_UP;
+    else if(ldk_input_keyboard_key_down(&kb, LDK_KEYCODE_DOWN))
+      direction=NACRE_DUNGEON_DIRECTION_DOWN;
+    else if(ldk_input_keyboard_key_down(&kb, LDK_KEYCODE_LEFT))
+      direction=NACRE_DUNGEON_DIRECTION_LEFT;
+    else if(ldk_input_keyboard_key_down(&kb, LDK_KEYCODE_RIGHT))
+      direction=NACRE_DUNGEON_DIRECTION_RIGHT;
+    if(direction>=0)
+    {
+      r->gate_code[r->gate_code_length++]=(NacreDungeonDirection)direction;
+      if(r->gate_code_length==4u)
+      {
+        bool opened=nacre_dungeon_system_portcullis_open(
+            r->last_gate_from,r->last_gate_to,r->gate_code);
+        nacre_player_status(s,opened?"Portcullis opened":"Invalid or unknown gate code");
+        r->entering_gate_code=false;
+        r->last_gate_valid=false;
+      }
+    }
+  }
   if (ldk_input_keyboard_key_down(&kb, LDK_KEYCODE_Q))
   {
     --s->camera_quarter_turns;
@@ -344,6 +417,13 @@ void nacre_player_controller_system_update(
       (void)nacre_dungeon_system_visible_tiles_set(
           r->current_tile, r->current_tile);
       ++s->successful_steps;
+      /* The v21 prototype treats stepping onto an objective as collecting
+       * its key or activating its lever. No combat/UI dependency here. */
+      if(nacre_dungeon_system_objective_complete(r->current_tile))
+        nacre_player_status(s,"Objective completed");
+      if(r->current_tile==map->exit)
+        nacre_player_status(s,nacre_dungeon_system_exit_can_use(r->current_tile)?
+            "Exit unlocked":"Exit requires more objectives");
     }
   }
 
@@ -364,6 +444,10 @@ void nacre_player_controller_system_update(
           map, r->current_tile, dx, dz, &dest);
       if (check == NACRE_DUNGEON_MOVE_ALLOWED)
       {
+        r->last_cracked_valid = false;
+        r->last_door_valid = false;
+        r->last_gate_valid = false;
+        r->entering_gate_code = false;
         /* Reveal the destination only during the doorway crossing. It stays
          * visible while the player's interpolation spans the two regions. */
         (void)nacre_dungeon_system_visible_tiles_set(r->current_tile, dest);
@@ -380,10 +464,24 @@ void nacre_player_controller_system_update(
       }
       else
       {
+        r->last_cracked_valid = check == NACRE_DUNGEON_MOVE_CRACKED;
+        r->last_door_valid = check == NACRE_DUNGEON_MOVE_DOOR;
+        r->last_gate_valid = check == NACRE_DUNGEON_MOVE_PORTCULLIS;
+        if (r->last_cracked_valid || r->last_door_valid || r->last_gate_valid)
+        {
+          const int32_t nx = (int32_t)(r->current_tile % map->width) + dx;
+          const int32_t nz = (int32_t)(r->current_tile / map->width) + dz;
+          r->last_cracked_from = r->current_tile;
+          r->last_cracked_to = (uint32_t)nz * map->width + (uint32_t)nx;
+          r->last_door_from = r->last_gate_from = r->last_cracked_from;
+          r->last_door_to = r->last_gate_to = r->last_cracked_to;
+        }
         ++s->blocked_steps;
         r->block_cooldown = .14f;
         nacre_player_status(s,
-            check == NACRE_DUNGEON_MOVE_CRACKED ? "Blocked: cracked wall" :
+            check == NACRE_DUNGEON_MOVE_CRACKED ? "Cracked wall: F to break" :
+            check == NACRE_DUNGEON_MOVE_DOOR ? "Door: press F to open" :
+            check == NACRE_DUNGEON_MOVE_PORTCULLIS ? "Gate: press G, enter code" :
             check == NACRE_DUNGEON_MOVE_WALL ? "Blocked: wall" :
             "Blocked: outside walkable grid");
       }
