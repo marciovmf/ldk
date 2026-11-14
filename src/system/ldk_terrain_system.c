@@ -510,7 +510,7 @@ static bool s_config_is_valid(const LDKTerrainSystem *system)
       system->color_noise_strength > 1.0f ||
       (!x_handle_is_null(system->color_noise_texture.h) &&
        system->color_noise_scale <= 0.0f) ||
-      system->chunk_size == 0u ||
+      system->chunk_size == 0u || system->mesh_sample_step == 0u ||
       system->surface_count == 0u ||
       system->surface_count > LDK_TERRAIN_SURFACE_COUNT)
     return false;
@@ -621,25 +621,48 @@ static void s_world_origin(
   *out_z = z;
 }
 
-static Vec3 s_vertex_normal(const LDKTerrainSystem *system, u32 x, u32 y)
+/* Map the rendered mesh grid onto the original heightmap grid. The final
+ * cell can be shorter when the source dimensions are not divisible by step.
+ * This preserves the original terrain extents and keeps chunk edges aligned. */
+static u32 s_mesh_source_index(u32 mesh_index, u32 step, u32 source_limit)
 {
-  u32 max_x = s_runtime.source.width;
-  u32 max_y = s_runtime.source.height;
-  u32 left = x > 0u ? x - 1u : x;
-  u32 right = x < max_x ? x + 1u : x;
-  u32 down = y > 0u ? y - 1u : y;
-  u32 up = y < max_y ? y + 1u : y;
-  float h0 = s_vertex_world_height(system, left, y);
-  float h1 = s_vertex_world_height(system, right, y);
-  float z0 = s_vertex_world_height(system, x, down);
-  float z1 = s_vertex_world_height(system, x, up);
-  float dx = (float)(right - left) * system->cell_size;
-  float dz = (float)(up - down) * system->cell_size;
-  Vec3 n = vec3_make(dx > 0.0f ? -(h1-h0)/dx : 0.0f,
-      1.0f, dz > 0.0f ? -(z1-z0)/dz : 0.0f);
-  float len = sqrtf(n.x*n.x+n.y*n.y+n.z*n.z);
-  return len > 1e-8f ? vec3_mul(n, 1.0f/len) : vec3_make(0,1,0);
+  u64 index = (u64)mesh_index * (u64)step;
+  return index >= (u64)source_limit ? source_limit : (u32)index;
 }
+
+static u32 s_mesh_cell_count(u32 source_cells, u32 step)
+{
+  return source_cells / step + (source_cells % step != 0u ? 1u : 0u);
+}
+
+static Vec3 s_vertex_normal(const LDKTerrainSystem *system,
+    u32 mesh_x, u32 mesh_y, u32 mesh_cells_x, u32 mesh_cells_y)
+{
+  u32 left  = mesh_x > 0u ? mesh_x - 1u : mesh_x;
+  u32 right = mesh_x < mesh_cells_x ? mesh_x + 1u : mesh_x;
+  u32 down  = mesh_y > 0u ? mesh_y - 1u : mesh_y;
+  u32 up    = mesh_y < mesh_cells_y ? mesh_y + 1u : mesh_y;
+
+  u32 step = system->mesh_sample_step;
+  u32 sx = s_mesh_source_index(mesh_x, step, s_runtime.source.width);
+  u32 sy = s_mesh_source_index(mesh_y, step, s_runtime.source.height);
+  u32 sx0 = s_mesh_source_index(left, step, s_runtime.source.width);
+  u32 sx1 = s_mesh_source_index(right, step, s_runtime.source.width);
+  u32 sy0 = s_mesh_source_index(down, step, s_runtime.source.height);
+  u32 sy1 = s_mesh_source_index(up, step, s_runtime.source.height);
+
+  float h0 = s_vertex_world_height(system, sx0, sy);
+  float h1 = s_vertex_world_height(system, sx1, sy);
+  float z0 = s_vertex_world_height(system, sx, sy0);
+  float z1 = s_vertex_world_height(system, sx, sy1);
+  float dx = (float)(sx1 - sx0) * system->cell_size;
+  float dz = (float)(sy1 - sy0) * system->cell_size;
+  Vec3 n = vec3_make(dx > 0.0f ? -(h1 - h0) / dx : 0.0f,
+      1.0f, dz > 0.0f ? -(z1 - z0) / dz : 0.0f);
+  float len = sqrtf(n.x*n.x + n.y*n.y + n.z*n.z);
+  return len > 1e-8f ? vec3_mul(n, 1.0f / len) : vec3_make(0, 1, 0);
+}
+
 
 static void s_chunks_destroy(LDKRenderer *renderer)
 {
@@ -673,6 +696,7 @@ static u64 s_geometry_hash(const LDKTerrainSystem *s)
   h=s_hash_bytes(h,&s->origin_x,sizeof(s->origin_x));
   h=s_hash_bytes(h,&s->origin_z,sizeof(s->origin_z));
   h=s_hash_bytes(h,&s->chunk_size,sizeof(s->chunk_size));
+  h=s_hash_bytes(h,&s->mesh_sample_step,sizeof(s->mesh_sample_step));
   h=s_hash_bytes(h,&s->heightmap,sizeof(s->heightmap));
   h=s_hash_bytes(h,&s_runtime.source_revision,sizeof(s_runtime.source_revision));
   h=s_hash_bytes(h,&s->color_noise_texture,sizeof(s->color_noise_texture));
@@ -738,11 +762,14 @@ static u64 s_appearance_hash(const LDKTerrainSystem *s,
 
 static bool s_chunks_rebuild(LDKTerrainSystem *system, LDKRenderer *renderer)
 {
-  u32 chunks_x = (s_runtime.source.width + system->chunk_size - 1u) /
-      system->chunk_size;
-  u32 chunks_y = (s_runtime.source.height + system->chunk_size - 1u) /
-      system->chunk_size;
-  u64 total64 = (u64)chunks_x * chunks_y;
+  /* chunk_size counts rendered cells, whereas mesh_sample_step counts source
+   * heightmap cells. Their product is the nominal source-cells per chunk. */
+  u32 step = system->mesh_sample_step;
+  u32 mesh_cells_x = s_mesh_cell_count(s_runtime.source.width, step);
+  u32 mesh_cells_y = s_mesh_cell_count(s_runtime.source.height, step);
+  u32 chunks_x = 1u + (mesh_cells_x - 1u) / system->chunk_size;
+  u32 chunks_y = 1u + (mesh_cells_y - 1u) / system->chunk_size;
+  u64 total64 = (u64)chunks_x * (u64)chunks_y;
   if (!total64 || total64 > UINT32_MAX)
     return false;
 
@@ -757,90 +784,115 @@ static bool s_chunks_rebuild(LDKTerrainSystem *system, LDKRenderer *renderer)
   s_world_origin(system, &origin_x, &origin_z);
   u32 chunk_index = 0u;
 
-  for (u32 cy=0; cy<chunks_y; ++cy)
+  for (u32 cy = 0u; cy < chunks_y; ++cy)
   {
-    for (u32 cx=0; cx<chunks_x; ++cx)
+    for (u32 cx = 0u; cx < chunks_x; ++cx)
     {
       u32 start_x = cx * system->chunk_size;
       u32 start_y = cy * system->chunk_size;
       u32 cells_x = system->chunk_size;
       u32 cells_y = system->chunk_size;
-      if (start_x + cells_x > s_runtime.source.width)
-        cells_x = s_runtime.source.width - start_x;
-      if (start_y + cells_y > s_runtime.source.height)
-        cells_y = s_runtime.source.height - start_y;
+      if (cells_x > mesh_cells_x - start_x)
+        cells_x = mesh_cells_x - start_x;
+      if (cells_y > mesh_cells_y - start_y)
+        cells_y = mesh_cells_y - start_y;
 
       u32 vw = cells_x + 1u;
       u32 vh = cells_y + 1u;
-      u64 vc64=(u64)vw*vh, ic64=(u64)cells_x*cells_y*6u;
+      u64 vc64 = (u64)vw * vh;
+      u64 ic64 = (u64)cells_x * cells_y * 6u;
       if (vc64 > UINT32_MAX || ic64 > UINT32_MAX)
       {
         s_chunks_destroy(renderer);
         return false;
       }
-      u32 vc=(u32)vc64, ic=(u32)ic64;
-      LDKMeshVertex *vertices=(LDKMeshVertex*)calloc(vc,sizeof(*vertices));
-      u32 *indices=(u32*)malloc((size_t)ic*sizeof(*indices));
+      u32 vc = (u32)vc64;
+      u32 ic = (u32)ic64;
+      LDKMeshVertex *vertices = (LDKMeshVertex *)calloc(vc, sizeof(*vertices));
+      u32 *indices = (u32 *)malloc((size_t)ic * sizeof(*indices));
       if (!vertices || !indices)
       {
-        free(vertices); free(indices); s_chunks_destroy(renderer); return false;
-      }
-
-      Vec3 bmin=vec3_make(FLT_MAX,FLT_MAX,FLT_MAX);
-      Vec3 bmax=vec3_make(-FLT_MAX,-FLT_MAX,-FLT_MAX);
-      for (u32 y=0;y<vh;++y)
-      {
-        for (u32 x=0;x<vw;++x)
-        {
-          u32 gx=start_x+x, gy=start_y+y;
-          u32 vi=y*vw+x;
-          float wx=origin_x+(float)gx*system->cell_size;
-          float wz=origin_z+(float)gy*system->cell_size;
-          float wy=s_vertex_world_height(system,gx,gy);
-          vertices[vi].position=vec3_make(wx,wy,wz);
-          vertices[vi].normal=s_vertex_normal(system,gx,gy);
-          vertices[vi].uv=vec2_make(wx,wz);
-          vertices[vi].color = LDK_RGBA32(
-              s_color_noise_vertex_color(system, wx, wy, wz,
-                  vertices[vi].normal));
-          if(wx<bmin.x)bmin.x=wx; if(wy<bmin.y)bmin.y=wy; if(wz<bmin.z)bmin.z=wz;
-          if(wx>bmax.x)bmax.x=wx; if(wy>bmax.y)bmax.y=wy; if(wz>bmax.z)bmax.z=wz;
-        }
-      }
-      u32 ii=0u;
-      for(u32 y=0;y<cells_y;++y)
-      {
-        for(u32 x=0;x<cells_x;++x)
-        {
-          u32 v0=y*vw+x, v1=v0+1u, v3=(y+1u)*vw+x, v2=v3+1u;
-          indices[ii++]=v0; indices[ii++]=v2; indices[ii++]=v1;
-          indices[ii++]=v0; indices[ii++]=v3; indices[ii++]=v2;
-        }
-      }
-      LDKRendererMeshDesc desc={0};
-      desc.vertices=vertices; desc.vertex_count=vc;
-      desc.indices=indices; desc.index_count=ic;
-      LDKTerrainChunk *chunk=&s_runtime.chunks[chunk_index++];
-      chunk->mesh=ldk_renderer_mesh_create(renderer,&desc);
-      chunk->bounds_min=bmin; chunk->bounds_max=bmax;
-      free(vertices); free(indices);
-      if(!ldk_renderer_mesh_is_valid(renderer,chunk->mesh))
-      {
-        system->chunk_count=chunk_index;
+        free(vertices);
+        free(indices);
         s_chunks_destroy(renderer);
         return false;
       }
-      system->chunk_count=chunk_index;
+
+      Vec3 bmin = vec3_make(FLT_MAX, FLT_MAX, FLT_MAX);
+      Vec3 bmax = vec3_make(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+      for (u32 y = 0u; y < vh; ++y)
+      {
+        for (u32 x = 0u; x < vw; ++x)
+        {
+          u32 mx = start_x + x;
+          u32 my = start_y + y;
+          u32 sx = s_mesh_source_index(mx, step, s_runtime.source.width);
+          u32 sy = s_mesh_source_index(my, step, s_runtime.source.height);
+          u32 vi = y * vw + x;
+          float wx = origin_x + (float)sx * system->cell_size;
+          float wz = origin_z + (float)sy * system->cell_size;
+          float wy = s_vertex_world_height(system, sx, sy);
+          vertices[vi].position = vec3_make(wx, wy, wz);
+          vertices[vi].normal = s_vertex_normal(system, mx, my,
+              mesh_cells_x, mesh_cells_y);
+          vertices[vi].uv = vec2_make(wx, wz);
+          vertices[vi].color = LDK_RGBA32(
+              s_color_noise_vertex_color(system, wx, wy, wz,
+                  vertices[vi].normal));
+          if (wx < bmin.x) bmin.x = wx;
+          if (wy < bmin.y) bmin.y = wy;
+          if (wz < bmin.z) bmin.z = wz;
+          if (wx > bmax.x) bmax.x = wx;
+          if (wy > bmax.y) bmax.y = wy;
+          if (wz > bmax.z) bmax.z = wz;
+        }
+      }
+
+      u32 ii = 0u;
+      for (u32 y = 0u; y < cells_y; ++y)
+      {
+        for (u32 x = 0u; x < cells_x; ++x)
+        {
+          u32 v0 = y * vw + x;
+          u32 v1 = v0 + 1u;
+          u32 v3 = (y + 1u) * vw + x;
+          u32 v2 = v3 + 1u;
+          indices[ii++] = v0; indices[ii++] = v2; indices[ii++] = v1;
+          indices[ii++] = v0; indices[ii++] = v3; indices[ii++] = v2;
+        }
+      }
+
+      LDKRendererMeshDesc desc = {0};
+      desc.vertices = vertices;
+      desc.vertex_count = vc;
+      desc.indices = indices;
+      desc.index_count = ic;
+      LDKTerrainChunk *chunk = &s_runtime.chunks[chunk_index++];
+      chunk->mesh = ldk_renderer_mesh_create(renderer, &desc);
+      chunk->bounds_min = bmin;
+      chunk->bounds_max = bmax;
+      free(vertices);
+      free(indices);
+      if (!ldk_renderer_mesh_is_valid(renderer, chunk->mesh))
+      {
+        system->chunk_count = chunk_index;
+        s_chunks_destroy(renderer);
+        return false;
+      }
+      system->chunk_count = chunk_index;
     }
   }
 
-  system->data_width=s_runtime.source.width;
-  system->data_height=s_runtime.source.height;
+  /* Preserve the data dimensions: they describe the source heightmap, not the
+   * visual mesh density. Original-resolution terrain queries remain intact. */
+  system->data_width = s_runtime.source.width;
+  system->data_height = s_runtime.source.height;
   system->mesh_update_count += 1u;
-  system->has_geometry=true;
-  s_runtime.geometry_hash=s_geometry_hash(system);
+  system->has_geometry = true;
+  s_runtime.geometry_hash = s_geometry_hash(system);
   return true;
 }
+
 
 static void s_material_release(LDKRenderer *renderer)
 {
@@ -1094,6 +1146,7 @@ int ldk_terrain_system_initialize(void *data)
   if(system->cell_size==0.0f)system->cell_size=1.0f;
   if(system->height_scale==0.0f)system->height_scale=1.0f;
   if(system->chunk_size==0u)system->chunk_size=16u;
+  if(system->mesh_sample_step==0u)system->mesh_sample_step=1u;
   if(system->surface_count==0u)system->surface_count=1u;
   s_surface_defaults(system);
   if(s_pending_heightmap_valid)
