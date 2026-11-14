@@ -28,6 +28,8 @@ bool ldki_editor_scene_play_apply_restore(struct LDKEditorContext *editor);
 void ldki_editor_scene_play_apply_discard(struct LDKEditorContext *editor);
 bool ldki_editor_scene_play_apply_available(
     const struct LDKEditorContext *editor);
+bool ldki_editor_scene_play_apply_scene_properties(
+    struct LDKEditorContext *editor);
 bool ldki_editor_scene_play_component_can_apply(
     const struct LDKEditorContext *editor, LDKEntity entity);
 bool ldki_editor_scene_play_apply_component(

@@ -61,6 +61,8 @@ typedef struct LDKEditorPlaySceneApplyState
   LDKEditorSceneApplyOverride *overrides;
   u32 override_count;
   u32 override_capacity;
+  LDKSceneProperties applied_scene_properties;
+  bool scene_properties_applied;
   bool active;
 } LDKEditorPlaySceneApplyState;
 
@@ -1216,6 +1218,28 @@ bool ldki_editor_scene_play_apply_available(const LDKEditorContext *editor)
   return editor && s_editor_play_scene.active;
 }
 
+/* Preserve scene-wide lighting and fog only when explicitly requested.
+ * Ordinary Play edits remain temporary and are discarded on Stop. */
+bool ldki_editor_scene_play_apply_scene_properties(LDKEditorContext *editor)
+{
+  const LDKSceneProperties *properties;
+
+  if (!ldki_editor_scene_play_apply_available(editor))
+  {
+    return false;
+  }
+
+  properties = ldk_scene_properties_get();
+  if (!properties)
+  {
+    return false;
+  }
+
+  s_editor_play_scene.applied_scene_properties = *properties;
+  s_editor_play_scene.scene_properties_applied = true;
+  return true;
+}
+
 bool ldki_editor_scene_play_component_can_apply(
     const LDKEditorContext *editor, LDKEntity entity)
 {
@@ -1566,6 +1590,14 @@ bool ldki_editor_scene_play_apply_restore(LDKEditorContext *editor)
           editor, "Failed to restore an Apply to Scene change.");
       ok = false;
     }
+  }
+
+  if (s_editor_play_scene.scene_properties_applied &&
+      !ldk_scene_properties_set(&s_editor_play_scene.applied_scene_properties))
+  {
+    ldki_editor_log_error(editor,
+        "Failed to apply Scene Properties changes.");
+    ok = false;
   }
 
 cleanup:

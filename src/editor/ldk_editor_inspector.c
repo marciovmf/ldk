@@ -3851,10 +3851,8 @@ static void s_editor_inspector_scene_properties_draw(
 {
   const LDKSceneProperties *current;
   LDKSceneProperties properties;
-  LDKComponentFieldMeta fields[7];
   LDKComponentMeta meta = s_editor_scene_properties_meta;
   LDKEntity key = x_handle_null();
-  bool readonly;
 
   if (!editor)
   {
@@ -3869,19 +3867,37 @@ static void s_editor_inspector_scene_properties_draw(
   }
 
   properties = *current;
-  readonly = editor->editor_state != LDK_EDITOR_STATE_STOPED;
-  memcpy(fields, s_editor_scene_properties_fields, sizeof(fields));
-  if (readonly)
-  {
-    for (u32 i = 0; i < meta.field_count; ++i)
-    {
-      fields[i].flags |= LDK_FIELD_FLAG_READONLY;
-    }
-  }
-  meta.fields = fields;
 
   ldk_ui_push_id_cstr(&editor->ui, "scene_properties");
+  ldk_ui_set_next_height(&editor->ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_begin_horizontal(&editor->ui);
+  ldk_ui_set_next_weight(&editor->ui, 1.0f);
   ldk_ui_label(&editor->ui, "Scene Properties");
+
+  if (editor->editor_state != LDK_EDITOR_STATE_STOPED)
+  {
+    LDKUIIcon apply_icon = {0};
+    apply_icon.size = ldk_sizef(
+        LDK_UI_DEFAULT_CONTROL_HEIGHT, LDK_UI_DEFAULT_CONTROL_HEIGHT);
+    apply_icon.texture =
+        ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
+    apply_icon.color =
+        editor->ui.theme.colors[LDK_UI_COLOR_CONTROL_TEXT];
+    apply_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_HEART];
+
+    ldk_ui_set_next_width(&editor->ui, ldk_ui_px(24.0f));
+    ldk_ui_begin_disabled(&editor->ui,
+        !ldki_editor_scene_play_apply_available(editor));
+    if (ldk_ui_icon_button(&editor->ui, apply_icon, "") &&
+        !ldki_editor_scene_play_apply_scene_properties(editor))
+    {
+      ldki_editor_log_error(
+          editor, "Failed to apply Scene Properties changes.");
+    }
+    ldk_ui_end_disabled(&editor->ui);
+  }
+
+  ldk_ui_end_horizontal(&editor->ui);
   ldk_ui_horizontal_line(&editor->ui);
 
   for (u32 i = 0; i < meta.field_count; ++i)
@@ -3890,7 +3906,7 @@ static void s_editor_inspector_scene_properties_draw(
         editor, key, 0, &meta, &meta.fields[i], &properties);
   }
 
-  if (!readonly && isfinite(properties.ambient_intensity) &&
+  if (isfinite(properties.ambient_intensity) &&
       properties.ambient_intensity >= 0.0f &&
       isfinite(properties.fog_density) && properties.fog_density >= 0.0f &&
       isfinite(properties.fog_start) && properties.fog_start >= 0.0f &&
@@ -3902,7 +3918,8 @@ static void s_editor_inspector_scene_properties_draw(
           properties.fog_density != current->fog_density ||
           properties.fog_start != current->fog_start))
   {
-    if (ldk_scene_properties_set(&properties))
+    if (ldk_scene_properties_set(&properties) &&
+        editor->editor_state == LDK_EDITOR_STATE_STOPED)
     {
       ldki_editor_scene_dirty_set(editor, true);
     }
