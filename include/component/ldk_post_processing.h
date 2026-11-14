@@ -158,6 +158,37 @@ extern "C" {
     //@inspect slider min=0.0 max=3.0
     float drunk_movement;
     //@end_group
+
+    //@begin_group "Dither Region"
+    // Optional screen-space region for Retro dithering. With both modes off,
+    // dithering covers the whole screen as before. The horizontal band wins
+    // when both toggles are on, preserving existing radial-enabled scenes.
+    // These masks only affect dither strength, not pixelation or blur.
+    bool retro_dither_radial_enabled;
+    // Radial radius uses the normalized screen half-diagonal, accounting for
+    // aspect ratio to remain circular in pixels. Ignored by horizontal band.
+    //@inspect slider min=0.0 max=1.0
+    float retro_dither_radius;
+    // The radial mode measures feather in half-diagonal units; the band mode
+    // measures it in viewport height. In either case this extends outwards
+    // from the fully dithered area, never cutting it with a hard edge.
+    //@inspect slider min=0.0 max=1.0
+    float retro_dither_feather;
+    // UV-space offsets from the screen center: +0.1 shifts by 10% of the
+    // viewport width/height. Horizontal band uses only offset_y (the X offset
+    // does not alter a band that crosses the entire viewport).
+    //@inspect slider min=-1.0 max=1.0
+    float retro_dither_offset_x;
+    //@inspect slider min=-1.0 max=1.0
+    float retro_dither_offset_y;
+    // New horizontal band controls follow the original radial fields so
+    // existing component member offsets remain unchanged.
+    bool retro_dither_horizontal_band_enabled;
+    // Half the vertical height of the fully dithered horizontal band, in
+    // normalized viewport height (0.25 = middle 50% of the screen).
+    //@inspect slider min=0.0 max=0.5
+    float retro_dither_band_half_height;
+    //@end_group
   } LDKPostProcessing;
 
 #ifdef LDK_ENGINE

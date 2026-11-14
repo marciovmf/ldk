@@ -114,8 +114,14 @@ typedef struct LDKTerrainSystem
   //@end_group
 
   //@begin_group "Geometry"
+  /** Number of rendered mesh cells per chunk (independent of source resolution). */
   //@inspect min=1 max=256
   u32 chunk_size;
+  /** Distance in source heightmap cells between rendered mesh vertices.
+   * 1 preserves full resolution. Larger values simplify geometry without
+   * changing world dimensions or terrain height/normal queries. */
+  //@inspect min=1 max=256
+  u32 mesh_sample_step;
   //@end_group
 
   //@begin_group "Appearance"

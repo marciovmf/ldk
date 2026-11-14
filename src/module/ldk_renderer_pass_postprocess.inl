@@ -15,6 +15,11 @@
 // scene HDR in both orders. The main post-process shader and color conversion
 // always execute once, and the two orders share the exact focus mask formula.
 // The final post_process_texture handle remains stable for editor/UI clients.
+//
+// Optional radial or horizontal-band Retro dithering is resolved in the
+// existing main color pass, in screen UVs. Both modes only modulate dither
+// strength; they do not depend on blur order and add no extra render targets
+// or fullscreen draws. Blur focus remains independent.
 // ---------------------------------------------------------------------------
 
 typedef struct LDKRendererPostProcessVertex
@@ -41,6 +46,10 @@ typedef struct LDKRendererPostProcessParams
   float drunk_secondary[4];
   float animation[4];
   float bloom_options[4];
+  // Screen-space dither center (UV), radial radius and shared feather.
+  // The mode and horizontal half-height use spare u_retro_options channels.
+  // Appended to keep all original std140 vec4 offsets unchanged.
+  float retro_focus[4];
 } LDKRendererPostProcessParams;
 
 /* Minimal UBO for the LDR compositor, not a second post-processing UBO. */
@@ -1502,6 +1511,22 @@ static bool s_renderer_post_process_color_draw(LDKRenderer* renderer,
       : 2.0f;
   params.retro_options[1] =
       s_renderer_saturate(post_processing->retro_dither_contrast);
+  // 0: fullscreen, 1: radial, 2: horizontal band. The new mode takes
+  // precedence without invalidating scenes that already enable radial.
+  params.retro_options[2] =
+      post_processing->retro_dither_horizontal_band_enabled ? 2.0f
+      : post_processing->retro_dither_radial_enabled ? 1.0f : 0.0f;
+  params.retro_options[3] = s_renderer_clamp_finite(
+      post_processing->retro_dither_band_half_height,
+      0.0f, 0.5f, 0.20f);
+  params.retro_focus[0] = 0.5f + s_renderer_clamp_finite(
+      post_processing->retro_dither_offset_x, -1.0f, 1.0f, 0.0f);
+  params.retro_focus[1] = 0.5f + s_renderer_clamp_finite(
+      post_processing->retro_dither_offset_y, -1.0f, 1.0f, 0.0f);
+  params.retro_focus[2] =
+      s_renderer_saturate(post_processing->retro_dither_radius);
+  params.retro_focus[3] =
+      s_renderer_saturate(post_processing->retro_dither_feather);
   params.drunk_primary[0] =
       s_renderer_saturate(post_processing->drunk_strength);
   params.drunk_primary[1] = s_renderer_clamp_finite(

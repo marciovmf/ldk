@@ -64,6 +64,13 @@ static LDKPostProcessing s_post_processing_make_default(void)
   post_processing.drunk_ghosting = 0.5f;
   post_processing.drunk_chromatic_aberration = 0.35f;
   post_processing.drunk_movement = 0.5f;
+  post_processing.retro_dither_radial_enabled = false;
+  post_processing.retro_dither_horizontal_band_enabled = false;
+  post_processing.retro_dither_radius = 0.30f;
+  post_processing.retro_dither_band_half_height = 0.20f;
+  post_processing.retro_dither_feather = 0.18f;
+  post_processing.retro_dither_offset_x = 0.0f;
+  post_processing.retro_dither_offset_y = 0.0f;
   return post_processing;
 }
 

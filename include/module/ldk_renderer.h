@@ -675,6 +675,15 @@ extern "C" {
     float drunk_ghosting;
     float drunk_chromatic_aberration;
     float drunk_movement;
+    // Optional screen-space masks for Retro dithering. The horizontal band
+    // takes precedence over radial when both are on. Blur focus is separate.
+    bool retro_dither_radial_enabled;
+    float retro_dither_radius;
+    float retro_dither_feather;
+    float retro_dither_offset_x;
+    float retro_dither_offset_y;
+    bool retro_dither_horizontal_band_enabled;
+    float retro_dither_band_half_height;
   } LDKRendererPostProcessing;
 
   /** @group ldk.module.renderer */

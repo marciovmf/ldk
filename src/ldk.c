@@ -1983,6 +1983,20 @@ void ldk_engine_frame(void)
             post_processing->drunk_chromatic_aberration;
         renderer_post_processing.drunk_movement =
             post_processing->drunk_movement;
+        renderer_post_processing.retro_dither_radial_enabled =
+            post_processing->retro_dither_radial_enabled;
+        renderer_post_processing.retro_dither_horizontal_band_enabled =
+            post_processing->retro_dither_horizontal_band_enabled;
+        renderer_post_processing.retro_dither_radius =
+            post_processing->retro_dither_radius;
+        renderer_post_processing.retro_dither_band_half_height =
+            post_processing->retro_dither_band_half_height;
+        renderer_post_processing.retro_dither_feather =
+            post_processing->retro_dither_feather;
+        renderer_post_processing.retro_dither_offset_x =
+            post_processing->retro_dither_offset_x;
+        renderer_post_processing.retro_dither_offset_y =
+            post_processing->retro_dither_offset_y;
       }
       (void)ldk_renderer_view_post_processing_set(
           &e->renderer, view_id, &renderer_post_processing);

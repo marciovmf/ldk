@@ -1222,6 +1222,7 @@
   "  vec4 u_drunk_secondary;\n" \
   "  vec4 u_animation;\n" \
   "  vec4 u_bloom_options;\n" \
+  "  vec4 u_retro_focus;\n" \
   "};\n" \
   "uniform sampler2D LDK_TEXTURE_1;\n" \
   "uniform sampler2D LDK_TEXTURE_2;\n" \
@@ -1434,9 +1435,28 @@
   "      LDK_RETRO_CLUSTERED_4X4[index];\n" \
   "  return (value + 0.5) / 16.0;\n" \
   "}\n" \
-  "vec3 ldk_retro_dither(vec3 color)\n" \
+  "vec3 ldk_retro_dither(vec3 color, vec2 screen_uv)\n" \
   "{\n" \
   "  float strength = clamp(u_retro.z, 0.0, 1.0);\n" \
+  "  // Dither-only screen-space region. No influence on blur or pixelation.\n" \
+  "  // Mode 2: horizontal band, fully dithered across the viewport width.\n" \
+  "  if (u_retro_options.z > 1.5)\n" \
+  "  {\n" \
+  "    float distance_y = abs(screen_uv.y - u_retro_focus.y);\n" \
+  "    float half_height = clamp(u_retro_options.w, 0.0, 0.5);\n" \
+  "    float feather = max(clamp(u_retro_focus.w, 0.0, 1.0), 1e-5);\n" \
+  "    float band_mask = 1.0 - smoothstep(\n" \
+  "        half_height, half_height + feather, distance_y);\n" \
+  "    strength *= band_mask;\n" \
+  "  }\n" \
+  "  // Mode 1: radial. Share the blur focus distance math, not its settings.\n" \
+  "  else if (u_retro_options.z > 0.5)\n" \
+  "  {\n" \
+  "    vec4 screen_options = vec4(0.0, 0.0, u_blur_options.z, 0.0);\n" \
+  "    float radial_mask = 1.0 - ldk_blur_mask(\n" \
+  "        screen_uv, u_retro_focus, screen_options);\n" \
+  "    strength *= radial_mask;\n" \
+  "  }\n" \
   "  if (strength <= 0.0)\n" \
   "    return color;\n" \
   "  vec3 source = clamp(color, 0.0, 1.0);\n" \
@@ -1518,7 +1538,7 @@
   "      step(vec3(0.0031308), linear_color));\n" \
   "  // Quantize perceptual brightness, not linear light or RGB channels.\n" \
   "  if (u_stylization_options.w > 0.5)\n" \
-  "    color.rgb = ldk_retro_dither(color.rgb);\n" \
+  "    color.rgb = ldk_retro_dither(color.rgb, v_uv);\n" \
   "  out_color = color;\n" \
   "}\n"
 
