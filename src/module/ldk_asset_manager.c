@@ -932,6 +932,58 @@ LDKAssetPrefab ldk_asset_manager_prefab_load_shared(
   return lookup.result;
 }
 
+bool ldk_asset_manager_prefab_reload(
+    LDKAssetManager *manager, const char *path)
+{
+  LDKSharedPrefabLookup lookup = {0};
+  LDKAssetInfo *info;
+  LDKAssetPrefabData *data;
+  char *source;
+  u64 source_size;
+
+  if (!manager || !manager->source || !s_prefab_asset_path_valid(path) ||
+      !ldk_asset_path_set(&lookup.path, path))
+  {
+    return false;
+  }
+
+  lookup.revision = manager->source->revision;
+  lookup.result = ldk_asset_prefab_null();
+  ldk_asset_foreach(manager, s_shared_prefab_find, &lookup);
+  if (x_handle_is_null(lookup.result.h))
+  {
+    /* The next load_shared() will read the file from disk. */
+    return true;
+  }
+
+  source = s_asset_source_read(
+      manager, path, &lookup.path, &source_size, true);
+  if (!source)
+  {
+    return false;
+  }
+  if (!s_prefab_source_valid(source))
+  {
+    free(source);
+    return false;
+  }
+
+  LDKAssetHandle handle = {lookup.result.h};
+  info = ldk_asset_get_info(manager, handle);
+  data = info && info->type == LDK_ASSET_TYPE_PREFAB
+      ? (LDKAssetPrefabData *)info->data : NULL;
+  if (!data)
+  {
+    free(source);
+    return false;
+  }
+
+  /* Keep the handle stable: scene instance origins reference this asset. */
+  free(data->source);
+  data->source = source;
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Image asset
 // ---------------------------------------------------------------------------

@@ -307,6 +307,17 @@ extern "C" {
    */
   LDK_API LDKAssetPrefab ldk_asset_manager_prefab_load_shared(
       LDKAssetManager *manager, const char *path);
+  /** @brief Refresh the source of a cached shared prefab in place.
+   * Preserves the asset handle referenced by existing prefab instances.
+   * If no prefab is cached for the active source revision, this is a no-op.
+   * The previous source is retained if reading or validation fails.
+   * @param manager Initialized asset manager.
+   * @param path Logical path to a .prefab asset.
+   * @return True on successful reload or when uncached; false on failure.
+   * @group ldk.module.asset_manager
+   */
+  LDK_API bool ldk_asset_manager_prefab_reload(
+      LDKAssetManager *manager, const char *path);
   /** @brief Get immutable prefab data for a live handle.
    * @param manager Initialized asset manager.
    * @param asset Prefab asset handle.
