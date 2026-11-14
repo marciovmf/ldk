@@ -538,6 +538,41 @@ static void s_win32_keyboard_modifiers_sync(void)
   s_oswin32.keyboard_state.key[VK_MENU] = left_alt | right_alt;
 }
 
+/*
+ * Mouse button state keeps the public PRESSED and CHANGED bits, plus two
+ * Win32-private bits for the individual press and release transitions.
+ * Both transitions may arrive during one event pump when a frame stalls.
+ */
+enum
+{
+  LDK_WIN32_MOUSE_DOWN_THIS_FRAME_BIT = 1 << 2,
+  LDK_WIN32_MOUSE_UP_THIS_FRAME_BIT = 1 << 3
+};
+
+static void s_win32_mouse_button_state_update(
+    LDKMouseButton button, bool is_down)
+{
+  unsigned char *state = &s_oswin32.mouse_state.button[button];
+  bool was_down = (*state & LDK_MOUSE_PRESSED_BIT) != 0;
+
+  if (is_down == was_down)
+  {
+    return;
+  }
+
+  if (is_down)
+  {
+    *state |= LDK_MOUSE_PRESSED_BIT | LDK_MOUSE_CHANGED_THIS_FRAME_BIT |
+              LDK_WIN32_MOUSE_DOWN_THIS_FRAME_BIT;
+  }
+  else
+  {
+    *state &= ~LDK_MOUSE_PRESSED_BIT;
+    *state |= LDK_MOUSE_CHANGED_THIS_FRAME_BIT |
+              LDK_WIN32_MOUSE_UP_THIS_FRAME_BIT;
+  }
+}
+
 static void s_win32_input_state_clear(void)
 {
   memset(&s_oswin32.keyboard_state, 0, sizeof(s_oswin32.keyboard_state));
@@ -910,10 +945,10 @@ void ldk_os_events_pump(void)
         ~LDK_KEYBOARD_CHANGED_THIS_FRAME_BIT;
   }
 
-  // clean up changed bit for mouse buttons
+  // Clear all mouse transition bits, keeping only the held-button state.
   for (int button = 0; button < LDK_MOUSE_MAX_BUTTONS; button++)
   {
-    s_oswin32.mouse_state.button[button] &= ~LDK_MOUSE_CHANGED_THIS_FRAME_BIT;
+    s_oswin32.mouse_state.button[button] &= LDK_MOUSE_PRESSED_BIT;
   }
 
   // reset wheel delta
@@ -1632,37 +1667,16 @@ static LRESULT s_window_proc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         uMsg == WM_XBUTTONDOWN || uMsg == WM_LBUTTONDOWN ||
         uMsg == WM_MBUTTONDOWN || uMsg == WM_RBUTTONDOWN;
 
-    unsigned char *buttonLeft =
-        (unsigned char *)&(s_oswin32.mouse_state.button[LDK_MOUSE_BUTTON_LEFT]);
-    unsigned char *buttonRight = (unsigned char *)&(
-        s_oswin32.mouse_state.button[LDK_MOUSE_BUTTON_RIGHT]);
-    unsigned char *buttonMiddle = (unsigned char *)&(
-        s_oswin32.mouse_state.button[LDK_MOUSE_BUTTON_MIDDLE]);
-    unsigned char *buttonExtra1 = (unsigned char *)&(
-        s_oswin32.mouse_state.button[LDK_MOUSE_BUTTON_EXTRA_0]);
-    unsigned char *buttonExtra2 = (unsigned char *)&(
-        s_oswin32.mouse_state.button[LDK_MOUSE_BUTTON_EXTRA_1]);
-    unsigned char isDown, wasDown;
-
-    isDown = (unsigned char)((wParam & MK_LBUTTON) > 0);
-    wasDown = *buttonLeft;
-    *buttonLeft = (((isDown ^ wasDown) << 1) | isDown);
-
-    isDown = (unsigned char)((wParam & MK_RBUTTON) > 0);
-    wasDown = *buttonRight;
-    *buttonRight = (((isDown ^ wasDown) << 1) | isDown);
-
-    isDown = (unsigned char)((wParam & MK_MBUTTON) > 0);
-    wasDown = *buttonMiddle;
-    *buttonMiddle = (((isDown ^ wasDown) << 1) | isDown);
-
-    isDown = (unsigned char)((wParam & MK_XBUTTON1) > 0);
-    wasDown = *buttonExtra1;
-    *buttonExtra1 = (((isDown ^ wasDown) << 1) | isDown);
-
-    isDown = (unsigned char)((wParam & MK_XBUTTON2) > 0);
-    wasDown = *buttonExtra2;
-    *buttonExtra2 = (((isDown ^ wasDown) << 1) | isDown);
+    s_win32_mouse_button_state_update(
+        LDK_MOUSE_BUTTON_LEFT, (wParam & MK_LBUTTON) != 0);
+    s_win32_mouse_button_state_update(
+        LDK_MOUSE_BUTTON_RIGHT, (wParam & MK_RBUTTON) != 0);
+    s_win32_mouse_button_state_update(
+        LDK_MOUSE_BUTTON_MIDDLE, (wParam & MK_MBUTTON) != 0);
+    s_win32_mouse_button_state_update(
+        LDK_MOUSE_BUTTON_EXTRA_0, (wParam & MK_XBUTTON1) != 0);
+    s_win32_mouse_button_state_update(
+        LDK_MOUSE_BUTTON_EXTRA_1, (wParam & MK_XBUTTON2) != 0);
 
     // update cursor position
     i32 last_x = s_oswin32.mouse_state.cursor.x;
@@ -2546,13 +2560,12 @@ bool ldk_os_mouse_button_is_pressed(LDKMouseState *state, LDKMouseButton button)
 
 bool ldk_os_mouse_button_down(LDKMouseState *state, LDKMouseButton button)
 {
-  u32 mask = LDK_MOUSE_PRESSED_BIT | LDK_MOUSE_CHANGED_THIS_FRAME_BIT;
-  return (state->button[button] & mask) == mask;
+  return (state->button[button] & LDK_WIN32_MOUSE_DOWN_THIS_FRAME_BIT) != 0;
 }
 
 bool ldk_os_mouse_button_up(LDKMouseState *state, LDKMouseButton button)
 {
-  return state->button[button] == LDK_MOUSE_CHANGED_THIS_FRAME_BIT;
+  return (state->button[button] & LDK_WIN32_MOUSE_UP_THIS_FRAME_BIT) != 0;
 }
 
 LDKPoint ldk_os_mouse_cursor(LDKMouseState *state)
