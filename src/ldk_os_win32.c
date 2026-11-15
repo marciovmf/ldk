@@ -543,11 +543,8 @@ static void s_win32_keyboard_modifiers_sync(void)
  * Win32-private bits for the individual press and release transitions.
  * Both transitions may arrive during one event pump when a frame stalls.
  */
-enum
-{
-  LDK_WIN32_MOUSE_DOWN_THIS_FRAME_BIT = 1 << 2,
-  LDK_WIN32_MOUSE_UP_THIS_FRAME_BIT = 1 << 3
-};
+#define LDK_WIN32_MOUSE_DOWN_THIS_FRAME_BIT (1u << 2)
+#define LDK_WIN32_MOUSE_UP_THIS_FRAME_BIT (1u << 3)
 
 static void s_win32_mouse_button_state_update(
     LDKMouseButton button, bool is_down)
