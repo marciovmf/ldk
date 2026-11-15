@@ -1038,7 +1038,22 @@ static void s_editor_animation_axis_input(LDKUIContext *ui,
     ldk_ui_format_float(text, (u32)sizeof(text),
         s_editor_animation_axis_value(track_index, axis));
   }
-  u32 result = ldk_ui_widget_input_box(ui, id, text, sizeof(text), rect);
+  LDKUIInputType input_type = LDK_UI_INPUT_TYPE_DECIMAL;
+  if (track->value_type == LDK_FIELD_STRING)
+  {
+    input_type = LDK_UI_INPUT_TYPE_TEXT;
+  }
+  else if (track->value_type == LDK_FIELD_U32)
+  {
+    input_type = LDK_UI_INPUT_TYPE_UNSIGNED_INTEGER;
+  }
+  else if (track->value_type == LDK_FIELD_I32 ||
+           track->value_type == LDK_FIELD_ENUM)
+  {
+    input_type = LDK_UI_INPUT_TYPE_INTEGER;
+  }
+  u32 result = ldk_ui_widget_input_box_typed(
+      ui, id, text, sizeof(text), rect, input_type);
   bool focused = ui->focused_id == id;
   if (focused)
   {
@@ -2298,8 +2313,9 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
     snprintf(state->duration_text, sizeof(state->duration_text), "%.4f",
         (double)state->clip.duration);
   }
-  u32 duration_result = ldk_ui_widget_input_box(ui, duration_id,
-      state->duration_text, sizeof(state->duration_text), duration_rect);
+  u32 duration_result = ldk_ui_widget_input_box_typed(ui, duration_id,
+      state->duration_text, sizeof(state->duration_text), duration_rect,
+      LDK_UI_INPUT_TYPE_DECIMAL);
   bool duration_focused = ui->focused_id == duration_id;
   if (duration_focused)
   {
@@ -2502,7 +2518,8 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
     ldk_ui_label(ui, "Events (runtime only; preview does not dispatch)");
     ldk_ui_begin_horizontal(ui);
     ldk_ui_set_next_width(ui, ldk_ui_px(120.0f));
-    ldk_ui_input_box(ui, state->event_number, sizeof(state->event_number));
+    ldk_ui_input_box_typed(ui, state->event_number,
+        sizeof(state->event_number), LDK_UI_INPUT_TYPE_INTEGER);
     if (ldk_ui_button(ui, "Add integer event"))
     {
       char *end;
@@ -2556,8 +2573,10 @@ static void s_editor_animation_window(LDKEditor *opaque, void *data)
           ? "Edit integer value" : "Edit string value");
       ldk_ui_begin_horizontal(ui);
       ldk_ui_set_next_width(ui, ldk_ui_px(180.0f));
-      ldk_ui_input_box(ui, state->event_edit_value,
-          sizeof(state->event_edit_value));
+      ldk_ui_input_box_typed(ui, state->event_edit_value,
+          sizeof(state->event_edit_value),
+          event->type == LDK_KEYFRAME_EVENT_INTEGER
+              ? LDK_UI_INPUT_TYPE_INTEGER : LDK_UI_INPUT_TYPE_TEXT);
       if (ldk_ui_button(ui, "Apply"))
       {
         bool updated = false;

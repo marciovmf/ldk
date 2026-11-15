@@ -433,16 +433,24 @@ static void s_editor_settings_row_begin(
       max_width);
 }
 
-static u32 s_editor_settings_input_row(LDKEditorContext *editor,
-    const char *label, char *buffer, u32 buffer_size)
+static u32 s_editor_settings_input_row_typed(LDKEditorContext *editor,
+    const char *label, char *buffer, u32 buffer_size,
+    LDKUIInputType input_type)
 {
   LDKUIContext *ui = &editor->ui;
   u32 result;
 
   s_editor_settings_row_begin(editor, label);
-  result = ldk_ui_input_box(ui, buffer, buffer_size);
+  result = ldk_ui_input_box_typed(ui, buffer, buffer_size, input_type);
   ldk_ui_end_horizontal(ui);
   return result;
+}
+
+static u32 s_editor_settings_input_row(LDKEditorContext *editor,
+    const char *label, char *buffer, u32 buffer_size)
+{
+  return s_editor_settings_input_row_typed(
+      editor, label, buffer, buffer_size, LDK_UI_INPUT_TYPE_TEXT);
 }
 
 static u32 s_editor_settings_browse_row(LDKEditorContext *editor,
@@ -578,12 +586,15 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
   {
     u32 result = 0;
 
-    result |= s_editor_settings_input_row(editor, "Field of view",
-        draft.camera_fov, (u32)sizeof(draft.camera_fov));
-    result |= s_editor_settings_input_row(editor, "Near clip",
-        draft.camera_near_clip, (u32)sizeof(draft.camera_near_clip));
-    result |= s_editor_settings_input_row(editor, "Far clip",
-        draft.camera_far_clip, (u32)sizeof(draft.camera_far_clip));
+    result |= s_editor_settings_input_row_typed(editor, "Field of view",
+        draft.camera_fov, (u32)sizeof(draft.camera_fov),
+        LDK_UI_INPUT_TYPE_DECIMAL);
+    result |= s_editor_settings_input_row_typed(editor, "Near clip",
+        draft.camera_near_clip, (u32)sizeof(draft.camera_near_clip),
+        LDK_UI_INPUT_TYPE_DECIMAL);
+    result |= s_editor_settings_input_row_typed(editor, "Far clip",
+        draft.camera_far_clip, (u32)sizeof(draft.camera_far_clip),
+        LDK_UI_INPUT_TYPE_DECIMAL);
 
     if ((result & LDK_UI_INPUT_BOX_CHANGED) != 0)
     {
@@ -721,10 +732,12 @@ void ldki_editor_settings_show(LDKEditor *opaque_editor, void *data)
     ldk_ui_spacer(ui);
     ldk_ui_end_horizontal(ui);
 
-    result |= s_editor_settings_input_row(
-        editor, "UI scale", draft.ui_scale, (u32)sizeof(draft.ui_scale));
-    result |= s_editor_settings_input_row(
-        editor, "Font size", draft.font_size, (u32)sizeof(draft.font_size));
+    result |= s_editor_settings_input_row_typed(editor, "UI scale",
+        draft.ui_scale, (u32)sizeof(draft.ui_scale),
+        LDK_UI_INPUT_TYPE_DECIMAL);
+    result |= s_editor_settings_input_row_typed(editor, "Font size",
+        draft.font_size, (u32)sizeof(draft.font_size),
+        LDK_UI_INPUT_TYPE_INTEGER);
     result |= s_editor_settings_browse_row(editor, "Editor font",
         draft.font_path, (u32)sizeof(draft.font_path), "Choose Editor Font",
         "TrueType Font\0*.ttf\0All Files\0*.*\0\0");

@@ -756,8 +756,8 @@ float ldk_ui_widget_slider_input(LDKUIContext *ctx, LDKUIId id, float value,
   }
 
   ctx->next_focus = focus_requested;
-  result = ldk_ui_widget_input_box(
-      ctx, input_id, buffer, (u32)sizeof(buffer), input_rect);
+  result = ldk_ui_widget_input_box_typed(ctx, input_id, buffer,
+      (u32)sizeof(buffer), input_rect, LDK_UI_INPUT_TYPE_DECIMAL);
   if (ctx->focused_id == input_id)
   {
     float parsed;
@@ -1650,6 +1650,67 @@ static u32 s_ui_text_paste_prefix_length(char const *text, u32 available)
 }
 
 /**
+ * Checks a proposed replacement without allocating or modifying the buffer.
+ * Numeric edit buffers may temporarily contain a sign or a trailing dot.
+ * The caller still parses and range-checks completed values.
+ */
+static bool s_ui_numeric_input_can_replace(char const *buffer, u32 buffer_len,
+    u32 start, u32 end, char const *replacement, u32 replacement_len,
+    LDKUIInputType input_type)
+{
+  bool decimal_seen = false;
+  u32 position = 0;
+
+  if (input_type == LDK_UI_INPUT_TYPE_TEXT)
+  {
+    return true;
+  }
+
+  if (start > end)
+  {
+    u32 temp = start;
+    start = end;
+    end = temp;
+  }
+
+  if (start > buffer_len || end > buffer_len)
+  {
+    return false;
+  }
+
+  for (u32 section = 0; section < 3; ++section)
+  {
+    char const *text = section == 0 ? buffer
+                       : section == 1 ? replacement : buffer + end;
+    u32 length = section == 0 ? start
+                 : section == 1 ? replacement_len : buffer_len - end;
+
+    for (u32 i = 0; i < length; ++i, ++position)
+    {
+      char ch = text[i];
+      if (ch >= '0' && ch <= '9')
+      {
+        continue;
+      }
+      if (position == 0 && (ch == '+' ||
+              (ch == '-' && input_type != LDK_UI_INPUT_TYPE_UNSIGNED_INTEGER)))
+      {
+        continue;
+      }
+      if (ch == '.' && input_type == LDK_UI_INPUT_TYPE_DECIMAL &&
+          !decimal_seen)
+      {
+        decimal_seen = true;
+        continue;
+      }
+      return false;
+    }
+  }
+
+  return true;
+}
+
+/**
  * Handles editing, interaction, and rendering for a single-line text input.
  * @arg ctx UI context that owns input, focus, theme, and rendering state.
  * @arg id Identifier assigned to the input widget.
@@ -1657,10 +1718,12 @@ static u32 s_ui_text_paste_prefix_length(char const *text, u32 available)
  * @arg buffer_size Total capacity of the text buffer in bytes.
  * @arg rect Screen-space rectangle occupied by the input widget.
  * @arg visual_mode Visual presentation used to render the input widget.
+ * @arg input_type Allowed text or numeric input syntax.
  * @return Bitwise combination of LDKUIInputBoxResult values.
  */
 static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
-    u32 buffer_size, LDKUIRect rect, LDKUIInputVisualMode visual_mode)
+    u32 buffer_size, LDKUIRect rect, LDKUIInputVisualMode visual_mode,
+    LDKUIInputType input_type)
 {
   u32 result = LDK_UI_INPUT_BOX_NONE;
   LDKUIWidgetBox box = {0};
@@ -1708,9 +1771,16 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
   {
     float pressed_text_x = s_ui_input_box_text_x(ctx, buffer, ctx->text_cursor,
         box.rect, frame.focused && ctx->input_box_id == box.id);
-    u32 cursor = s_ui_input_box_cursor_from_x(
+
+    // A click selects all and keeps the caret at the end. Retain the clicked
+    // character as the drag anchor so click-and-drag can still select a range.
+    ctx->text_drag_anchor = s_ui_input_box_cursor_from_x(
         ctx, buffer, pressed_text_x, frame.cursor.x);
-    s_ui_text_selection_begin(ctx, box.id, cursor);
+    ctx->text_drag_press_x = frame.cursor.x;
+    ctx->text_drag_press_y = frame.cursor.y;
+    ctx->text_drag_started = false;
+    s_ui_text_selection_begin(ctx, box.id, buffer_len);
+    ctx->text_select_start = 0;
     s_ui_input_cursor_blink_reset(ctx);
   }
 
@@ -1723,11 +1793,22 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
   if (frame.active && frame.dragging &&
       s_ui_text_selection_owned_by(ctx, box.id))
   {
-    float drag_text_x = s_ui_input_box_text_x(
-        ctx, buffer, ctx->text_cursor, box.rect, true);
-    u32 cursor = s_ui_input_box_cursor_from_x(
-        ctx, buffer, drag_text_x, frame.cursor.x);
-    s_ui_text_selection_extend(ctx, box.id, cursor);
+    const float drag_threshold = 3.0f;
+    if (fabsf(frame.cursor.x - ctx->text_drag_press_x) >= drag_threshold ||
+        fabsf(frame.cursor.y - ctx->text_drag_press_y) >= drag_threshold)
+    {
+      ctx->text_drag_started = true;
+    }
+
+    if (ctx->text_drag_started)
+    {
+      float drag_text_x = s_ui_input_box_text_x(
+          ctx, buffer, ctx->text_cursor, box.rect, true);
+      u32 cursor = s_ui_input_box_cursor_from_x(
+          ctx, buffer, drag_text_x, frame.cursor.x);
+      ctx->text_select_start = ctx->text_drag_anchor;
+      s_ui_text_selection_extend(ctx, box.id, cursor);
+    }
   }
 
   if (frame.focused)
@@ -1783,8 +1864,32 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
             }
 
             u32 available = buffer_size - 1u - (buffer_len - (end - start));
-            u32 paste_length = s_ui_text_paste_prefix_length(
-                clipboard, available);
+            u32 paste_length = 0;
+            if (input_type == LDK_UI_INPUT_TYPE_TEXT)
+            {
+              paste_length = s_ui_text_paste_prefix_length(
+                  clipboard, available);
+            }
+            else
+            {
+              // Filter the clipboard in-place. A rejected character does not
+              // prevent later valid digits from being pasted.
+              for (u32 i = 0; clipboard[i] != 0 &&
+                      paste_length < available; ++i)
+              {
+                char ch = clipboard[i];
+                if ((unsigned char)ch < 0x20u || ch == 0x7f)
+                {
+                  break;
+                }
+                clipboard[paste_length] = ch;
+                if (s_ui_numeric_input_can_replace(buffer, buffer_len,
+                        start, end, clipboard, paste_length + 1, input_type))
+                {
+                  paste_length += 1;
+                }
+              }
+            }
             if (paste_length > 0)
             {
               if (start != end)
@@ -1893,6 +1998,13 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
         u32 codepoint = ctx->input_text->codepoints[i];
         if (codepoint < 0x20u || codepoint == 0x7fu ||
             !x_utf8_encode(codepoint, encoded, &encoded_len))
+        {
+          continue;
+        }
+
+        if (!s_ui_numeric_input_can_replace(buffer, buffer_len,
+                ctx->text_select_start, ctx->text_select_end, encoded,
+                encoded_len, input_type))
         {
           continue;
         }
@@ -2026,18 +2138,25 @@ static u32 s_ui_widget_input(LDKUIContext *ctx, LDKUIId id, char *buffer,
   return result;
 }
 
+u32 ldk_ui_widget_input_box_typed(LDKUIContext *ctx, LDKUIId id,
+    char *buffer, u32 buffer_size, LDKUIRect rect, LDKUIInputType input_type)
+{
+  return s_ui_widget_input(ctx, id, buffer, buffer_size, rect,
+      LDK_UI_INPUT_VISUAL_BOX, input_type);
+}
+
 u32 ldk_ui_widget_input_box(LDKUIContext *ctx, LDKUIId id, char *buffer,
     u32 buffer_size, LDKUIRect rect)
 {
-  return s_ui_widget_input(
-      ctx, id, buffer, buffer_size, rect, LDK_UI_INPUT_VISUAL_BOX);
+  return ldk_ui_widget_input_box_typed(ctx, id, buffer, buffer_size, rect,
+      LDK_UI_INPUT_TYPE_TEXT);
 }
 
 u32 ldk_ui_widget_input_label(LDKUIContext *ctx, LDKUIId id, char *buffer,
     u32 buffer_size, LDKUIRect rect)
 {
-  return s_ui_widget_input(
-      ctx, id, buffer, buffer_size, rect, LDK_UI_INPUT_VISUAL_LABEL);
+  return s_ui_widget_input(ctx, id, buffer, buffer_size, rect,
+      LDK_UI_INPUT_VISUAL_LABEL, LDK_UI_INPUT_TYPE_TEXT);
 }
 
 
@@ -3023,7 +3142,8 @@ float ldk_ui_slider_input(
   return ldk_ui_widget_slider_input(ctx, id, value, min_value, max_value, rect);
 }
 
-u32 ldk_ui_input_box(LDKUIContext *ctx, char *buffer, u32 buffer_size)
+u32 ldk_ui_input_box_typed(LDKUIContext *ctx, char *buffer, u32 buffer_size,
+    LDKUIInputType input_type)
 {
   LDKUILayoutRequest request;
   LDKUIRect rect;
@@ -3041,7 +3161,14 @@ u32 ldk_ui_input_box(LDKUIContext *ctx, char *buffer, u32 buffer_size)
     return LDK_UI_INPUT_BOX_NONE;
   }
 
-  return ldk_ui_widget_input_box(ctx, id, buffer, buffer_size, rect);
+  return ldk_ui_widget_input_box_typed(
+      ctx, id, buffer, buffer_size, rect, input_type);
+}
+
+u32 ldk_ui_input_box(LDKUIContext *ctx, char *buffer, u32 buffer_size)
+{
+  return ldk_ui_input_box_typed(
+      ctx, buffer, buffer_size, LDK_UI_INPUT_TYPE_TEXT);
 }
 
 u32 ldk_ui_input_label(LDKUIContext *ctx, char *buffer, u32 buffer_size)

@@ -890,8 +890,10 @@ static void s_atlas_region_properties(LDKEditorContext *editor,
   for (u32 i = 0; i < 6; ++i)
   {
     s_atlas_property_row_begin(ui, labels[i]);
-    u32 result = ldk_ui_input_box(ui, sprite->fields[i],
-        sizeof(sprite->fields[i]));
+    u32 result = ldk_ui_input_box_typed(ui, sprite->fields[i],
+        sizeof(sprite->fields[i]),
+        i < 4 ? LDK_UI_INPUT_TYPE_UNSIGNED_INTEGER
+              : LDK_UI_INPUT_TYPE_DECIMAL);
     ldk_ui_end_horizontal(ui);
     if (result & LDK_UI_INPUT_BOX_COMMITTED)
     {
@@ -970,7 +972,8 @@ static void s_atlas_grid_controls(LDKEditorContext *editor, LDKUIContext *ui)
   for (u32 i = 0; i < 6; ++i)
   {
     s_atlas_property_row_begin(ui, labels[i]);
-    ldk_ui_input_box(ui, state->grid[i], sizeof(state->grid[i]));
+    ldk_ui_input_box_typed(ui, state->grid[i], sizeof(state->grid[i]),
+        LDK_UI_INPUT_TYPE_UNSIGNED_INTEGER);
     ldk_ui_end_horizontal(ui);
   }
   if (ldk_ui_button(ui, "Add Grid Regions"))

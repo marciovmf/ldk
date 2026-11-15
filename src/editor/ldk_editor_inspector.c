@@ -651,10 +651,10 @@ static bool s_editor_inspector_input_state_matches(LDKEntity entity,
          s_editor_inspector_input_state.value_index == value_index;
 }
 
-static u32 s_editor_inspector_input_box(
-    LDKUIContext *ui, char *buffer, u32 buffer_size)
+static u32 s_editor_inspector_input_box(LDKUIContext *ui, char *buffer,
+    u32 buffer_size, LDKUIInputType input_type)
 {
-  return ldk_ui_input_box(ui, buffer, buffer_size);
+  return ldk_ui_input_box_typed(ui, buffer, buffer_size, input_type);
 }
 
 static u32 s_editor_inspector_field_input_box(LDKUIContext *ui,
@@ -698,8 +698,19 @@ static u32 s_editor_inspector_field_input_box(LDKUIContext *ui,
     }
   }
 
-  result = s_editor_inspector_input_box(
-      ui, input_buffer, LDK_EDITOR_INSPECTOR_INPUT_CAPACITY);
+  LDKUIInputType input_type = LDK_UI_INPUT_TYPE_DECIMAL;
+  if (!float_value && field->type == LDK_FIELD_U32)
+  {
+    input_type = LDK_UI_INPUT_TYPE_UNSIGNED_INTEGER;
+  }
+  else if (!float_value && (field->type == LDK_FIELD_I32 ||
+                                field->type == LDK_FIELD_ENUM))
+  {
+    input_type = LDK_UI_INPUT_TYPE_INTEGER;
+  }
+
+  result = s_editor_inspector_input_box(ui, input_buffer,
+      LDK_EDITOR_INSPECTOR_INPUT_CAPACITY, input_type);
 
   if ((result & LDK_UI_INPUT_BOX_CHANGED) != 0)
   {
@@ -4222,7 +4233,8 @@ static bool s_editor_material_vec2_editor(LDKEditorContext *editor,
   ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
   ldk_ui_label(ui, "X");
   ldk_ui_begin_disabled(ui, readonly);
-  result = ldk_ui_input_box(ui, x_buffer, sizeof(x_buffer));
+  result = ldk_ui_input_box_typed(
+      ui, x_buffer, sizeof(x_buffer), LDK_UI_INPUT_TYPE_DECIMAL);
   ldk_ui_end_disabled(ui);
   if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0 &&
       s_editor_inspector_parse_float(x_buffer, &parsed) && isfinite(parsed) &&
@@ -4235,7 +4247,8 @@ static bool s_editor_material_vec2_editor(LDKEditorContext *editor,
   ldk_ui_set_next_width(ui, ldk_ui_px(12.0f));
   ldk_ui_label(ui, "Y");
   ldk_ui_begin_disabled(ui, readonly);
-  result = ldk_ui_input_box(ui, y_buffer, sizeof(y_buffer));
+  result = ldk_ui_input_box_typed(
+      ui, y_buffer, sizeof(y_buffer), LDK_UI_INPUT_TYPE_DECIMAL);
   ldk_ui_end_disabled(ui);
   if (!readonly && (result & LDK_UI_INPUT_BOX_CHANGED) != 0 &&
       s_editor_inspector_parse_float(y_buffer, &parsed) && isfinite(parsed) &&
