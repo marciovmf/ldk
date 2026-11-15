@@ -18,7 +18,9 @@
  *
  * Controls: WASD move one tile at a time, hold to continue.  Q/E orbit the
  * existing MAIN camera by 90 degrees and rotate the movement frame with it.
- * In the initial orientation, W means world -Z, D means world +X.
+ * In the initial orientation, the camera looks diagonally across the grid
+ * (45 degrees yaw); W still means world -Z, D still means world +X, so
+ * movement remains cardinal and follows the camera's 90-degree Q/E turns.
  *
  * This is intentionally NOT the general-purpose LDK CharacterController.
  */
@@ -55,6 +57,11 @@ typedef struct NacrePlayerControllerSystem
   /* Angular velocity for Q/E 90 degree orbit, in degrees per second. */
   //@inspect min=20
   float orbit_degrees_per_second;
+  /* Additional yaw relative to the 45-degree diagonal camera framing.
+   * Zero = diagonal; -45 = old axis-aligned framing. Q/E still add 90.
+   * The default zero also works with previously serialized scenes. */
+  //@inspect min=-180 max=180
+  float camera_yaw_adjust_degrees;
   //@end_group
 
   //@begin_group "Runtime Debug"

@@ -23,9 +23,13 @@
 #include <module/ldk_ecs.h>
 
 #include <math.h>
+#include <stdio.h>
 #include <string.h>
 
 #define NACRE_PLAYER_PI 3.14159265358979323846f
+/* Diagonal room framing: the scene camera starts between the grid axes. */
+#define NACRE_PLAYER_DIAGONAL_YAW (NACRE_PLAYER_PI * .25f)
+#define NACRE_PLAYER_DEG_TO_RAD (NACRE_PLAYER_PI / 180.0f)
 
 typedef struct NacrePlayerRuntime
 {
@@ -179,8 +183,13 @@ static bool nacre_player_spawn(NacrePlayerControllerSystem *s,
   r->gate_code_length = 0u;
   r->block_cooldown = 0.0f;
   r->camera_initialized = false;
-  r->camera_angle = 0.0f;
-  r->camera_target_angle = 0.0f;
+  /* 45 degrees is the new default view, even for previously serialized
+   * controllers whose newly introduced yaw adjustment is zero. */
+  const float yaw_adjust = isfinite(s->camera_yaw_adjust_degrees)
+      ? s->camera_yaw_adjust_degrees : 0.0f;
+  r->camera_angle = NACRE_PLAYER_DIAGONAL_YAW +
+      yaw_adjust * NACRE_PLAYER_DEG_TO_RAD;
+  r->camera_target_angle = r->camera_angle;
   s->camera_quarter_turns = 0;
   s->player_spawned = true;
   s->player_moving = false;
@@ -232,7 +241,7 @@ static void nacre_player_update_camera(
   }
 
   const float speed = fmaxf(s->orbit_degrees_per_second, 20.0f) *
-      NACRE_PLAYER_PI / 180.0f;
+      NACRE_PLAYER_DEG_TO_RAD;
   if (!r->camera_initialized)
     r->camera_angle = r->camera_target_angle;
   else
@@ -343,8 +352,28 @@ void nacre_player_controller_system_update(
   }
   if (!s->player_moving && ldk_input_keyboard_key_down(&kb, LDK_KEYCODE_T))
   {
+    /* A totem is an object standing in a room, not a floor pressure plate:
+     * allow interaction from its own tile or from an adjacent traversable
+     * tile. Query the same navigation used by movement to prevent reading
+     * through walls, closed doors or portcullises. */
     NacreDungeonTotem totem;
-    if (nacre_dungeon_system_totem_discover(r->current_tile, &totem))
+    bool discovered = nacre_dungeon_system_totem_discover(
+        r->current_tile, &totem);
+    if (!discovered)
+    {
+      static const int32_t offsets[4][2] = {
+        {-1, 0}, {1, 0}, {0, -1}, {0, 1}
+      };
+      for (u32 i = 0u; i < 4u && !discovered; ++i)
+      {
+        u32 neighbor = 0u;
+        if (nacre_dungeon_navigation_step(map, r->current_tile,
+            offsets[i][0], offsets[i][1], &neighbor) ==
+            NACRE_DUNGEON_MOVE_ALLOWED)
+          discovered = nacre_dungeon_system_totem_discover(neighbor, &totem);
+      }
+    }
+    if (discovered)
     {
       static const char *directions[]={"UP","DOWN","LEFT","RIGHT"};
       static const char *colors[]={"RED","GREEN","BLUE"};
@@ -352,7 +381,18 @@ void nacre_player_controller_system_update(
           colors[totem.color],directions[totem.sequence[0]],
           directions[totem.sequence[1]],directions[totem.sequence[2]],
           directions[totem.sequence[3]]);
-      nacre_player_status(s, "Totem discovered: code in log");
+      /* Keep the password in the controller status, not only in the log,
+       * so the value remains inspectable while testing the game. */
+      char message[128];
+      snprintf(message, sizeof(message), "Totem %s: %s %s %s %s",
+          colors[totem.color], directions[totem.sequence[0]],
+          directions[totem.sequence[1]], directions[totem.sequence[2]],
+          directions[totem.sequence[3]]);
+      nacre_player_status(s, message);
+    }
+    else
+    {
+      nacre_player_status(s, "No accessible totem nearby");
     }
   }
   if (!s->player_moving && r->last_gate_valid &&
@@ -387,15 +427,18 @@ void nacre_player_controller_system_update(
     }
   }
   if (ldk_input_keyboard_key_down(&kb, LDK_KEYCODE_Q))
-  {
     --s->camera_quarter_turns;
-    r->camera_target_angle -= NACRE_PLAYER_PI * .5f;
-  }
   if (ldk_input_keyboard_key_down(&kb, LDK_KEYCODE_E))
-  {
     ++s->camera_quarter_turns;
-    r->camera_target_angle += NACRE_PLAYER_PI * .5f;
-  }
+
+  /* Preserve grid-relative movement and 90-degree Q/E turns. The additive
+   * adjustment can be edited during Play without resetting the camera.
+   * Starting from +45 degrees makes both room walls visible at once. */
+  const float yaw_adjust = isfinite(s->camera_yaw_adjust_degrees)
+      ? s->camera_yaw_adjust_degrees : 0.0f;
+  r->camera_target_angle = NACRE_PLAYER_DIAGONAL_YAW +
+      yaw_adjust * NACRE_PLAYER_DEG_TO_RAD +
+      (float)s->camera_quarter_turns * (NACRE_PLAYER_PI * .5f);
 
   /* Complete exactly one checked cardinal transition. The logical position
    * remains on the source tile until the interpolation finishes. */
