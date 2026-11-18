@@ -651,6 +651,20 @@ extern "C"
     LDK_UI_INPUT_BOX_CANCELED = 1 << 2,
   } LDKUIInputBoxResult;
 
+  /**
+   * Input character policy. Numeric policies accept incomplete values while
+   * editing (for example, "-" or "."), but only a leading sign and at most
+   * one decimal point. Value parsing remains the caller's responsibility.
+   * @group ldk.module.ui
+   */
+  typedef enum LDKUIInputType
+  {
+    LDK_UI_INPUT_TYPE_TEXT = 0,
+    LDK_UI_INPUT_TYPE_INTEGER,
+    LDK_UI_INPUT_TYPE_UNSIGNED_INTEGER,
+    LDK_UI_INPUT_TYPE_DECIMAL,
+  } LDKUIInputType;
+
   /** @group ldk.module.ui */
   typedef struct LDKUISliderInputState
   {
@@ -844,6 +858,10 @@ extern "C"
     u32 text_cursor;
     u32 text_select_start;
     u32 text_select_end;
+    u32 text_drag_anchor;
+    float text_drag_press_x;
+    float text_drag_press_y;
+    bool text_drag_started;
     float text_cursor_blink_timer;
     bool text_cursor_blink_visible;
 
@@ -1524,6 +1542,17 @@ extern "C"
   LDK_API u32 ldk_ui_input_box(
       LDKUIContext *ctx, char *buffer, u32 buffer_size);
   /**
+   * @brief Draw an input box with an explicit text or numeric input policy.
+   * @param ctx UI context used by this operation.
+   * @param buffer Mutable, null-terminated text buffer.
+   * @param buffer_size Capacity of the buffer in bytes.
+   * @param input_type Allowed input characters and numeric syntax.
+   * @return Bitwise combination of LDKUIInputBoxResult values.
+   * @group ldk.module.ui
+   */
+  LDK_API u32 ldk_ui_input_box_typed(LDKUIContext *ctx, char *buffer,
+      u32 buffer_size, LDKUIInputType input_type);
+  /**
    * @brief Draw an editable text label and update its buffer.
    * @param ctx UI context used by this operation.
    * @param buffer Buffer containing the data or receiving formatted output.
@@ -1792,6 +1821,19 @@ extern "C"
    */
   LDK_API u32 ldk_ui_widget_input_box(LDKUIContext *ctx, LDKUIId id,
       char *buffer, u32 buffer_size, LDKUIRect rect);
+  /**
+   * @brief Draw a text or numeric input box at an explicit rectangle.
+   * @param ctx UI context used by this operation.
+   * @param id Identifier of the target object.
+   * @param buffer Mutable, null-terminated text buffer.
+   * @param buffer_size Capacity of the buffer in bytes.
+   * @param rect UI or geometry rectangle.
+   * @param input_type Allowed input characters and numeric syntax.
+   * @return Bitwise combination of LDKUIInputBoxResult values.
+   * @group ldk.module.ui
+   */
+  LDK_API u32 ldk_ui_widget_input_box_typed(LDKUIContext *ctx, LDKUIId id,
+      char *buffer, u32 buffer_size, LDKUIRect rect, LDKUIInputType input_type);
   /**
    * @brief Draw an editable text label at an explicit rectangle.
    * @param ctx UI context used by this operation.

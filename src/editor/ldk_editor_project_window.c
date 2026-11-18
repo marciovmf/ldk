@@ -163,16 +163,24 @@ static void s_editor_project_row_begin(
       max_width);
 }
 
-static u32 s_editor_project_input_row(LDKEditorContext *editor,
-    const char *label, char *buffer, u32 buffer_size)
+static u32 s_editor_project_input_row_typed(LDKEditorContext *editor,
+    const char *label, char *buffer, u32 buffer_size,
+    LDKUIInputType input_type)
 {
   LDKUIContext *ui = &editor->ui;
   u32 result;
 
   s_editor_project_row_begin(editor, label);
-  result = ldk_ui_input_box(ui, buffer, buffer_size);
+  result = ldk_ui_input_box_typed(ui, buffer, buffer_size, input_type);
   ldk_ui_end_horizontal(ui);
   return result;
+}
+
+static u32 s_editor_project_input_row(LDKEditorContext *editor,
+    const char *label, char *buffer, u32 buffer_size)
+{
+  return s_editor_project_input_row_typed(
+      editor, label, buffer, buffer_size, LDK_UI_INPUT_TYPE_TEXT);
 }
 
 static void s_editor_project_read_only_row(
@@ -319,10 +327,12 @@ void ldki_editor_project_window_show(LDKEditor *opaque_editor, void *data)
   {
     u32 result = 0;
     ldk_ui_begin_disabled(ui, !can_modify);
-    result |= s_editor_project_input_row(editor, "Target width",
-        draft.resolution_width, (u32)sizeof(draft.resolution_width));
-    result |= s_editor_project_input_row(editor, "Target height",
-        draft.resolution_height, (u32)sizeof(draft.resolution_height));
+    result |= s_editor_project_input_row_typed(editor, "Target width",
+        draft.resolution_width, (u32)sizeof(draft.resolution_width),
+        LDK_UI_INPUT_TYPE_INTEGER);
+    result |= s_editor_project_input_row_typed(editor, "Target height",
+        draft.resolution_height, (u32)sizeof(draft.resolution_height),
+        LDK_UI_INPUT_TYPE_INTEGER);
     ldk_ui_end_disabled(ui);
     if ((result & LDK_UI_INPUT_BOX_CHANGED) != 0)
     {

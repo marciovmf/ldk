@@ -1373,8 +1373,8 @@ static void s_editor_theme_editor_metrics_show(LDKEditorContext *editor)
 
     ldk_ui_push_id_u32(ui, i + 1u);
     s_editor_theme_row_begin(ui, metric->name);
-    result = ldk_ui_input_box(
-        ui, state->metric_text[i], (u32)sizeof(state->metric_text[i]));
+    result = ldk_ui_input_box_typed(ui, state->metric_text[i],
+        (u32)sizeof(state->metric_text[i]), LDK_UI_INPUT_TYPE_DECIMAL);
     ldk_ui_end_horizontal(ui);
     ldk_ui_pop_id(ui);
 
