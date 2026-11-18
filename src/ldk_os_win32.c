@@ -11,6 +11,7 @@
 #include <windowsx.h>
 #include <commdlg.h>
 #include <shlobj.h>
+#include <shobjidl.h>
 #include <shellapi.h>
 
 #include <stdx/stdx_string.h>
@@ -593,8 +594,6 @@ static void s_win32_input_state_clear(void)
 
 bool ldk_os_initialize()
 {
-  // s_ = (LDKWin32s_*) ldk_os_memory_alloc(sizeof(LDKWin32s_));
-  // memset(s_oswin32, 0, sizeof(LDKWin32s_));
   s_win32_input_state_clear();
   QueryPerformanceFrequency(&s_oswin32.frequency);
   s_xinput_init();
@@ -2790,44 +2789,218 @@ bool ldk_os_dialog_show_open_file(LDKWindow owner, const char *title,
   return true;
 }
 
+
+typedef struct LDKWin32FolderDialog
+{
+  HWND owner;
+  const char *title;
+  char *out_path;
+  size_t out_path_size;
+  bool succeeded;
+} LDKWin32FolderDialog;
+
+static DWORD WINAPI s_win32_folder_dialog_thread(LPVOID parameter)
+{
+  LDKWin32FolderDialog *request = (LDKWin32FolderDialog *)parameter;
+  IFileOpenDialog *dialog = NULL;
+  IShellItem *selected_item = NULL;
+  PWSTR selected_path = NULL;
+  wchar_t *title = NULL;
+  FILEOPENDIALOGOPTIONS options;
+  HRESULT hr;
+
+  /*
+   * The folder picker runs in its own STA apartment.
+   * This isolates it from the COM apartment used by miniaudio
+   * or other subsystems on the editor's main thread.
+   */
+  hr = CoInitializeEx(
+      NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+
+  if (FAILED(hr))
+  {
+    return 0;
+  }
+
+  hr = CoCreateInstance(&CLSID_FileOpenDialog, NULL,
+      CLSCTX_INPROC_SERVER, &IID_IFileOpenDialog, (void **)&dialog);
+
+  if (FAILED(hr))
+  {
+    goto cleanup;
+  }
+
+  hr = dialog->lpVtbl->GetOptions(dialog, &options);
+  if (FAILED(hr))
+  {
+    goto cleanup;
+  }
+
+  hr = dialog->lpVtbl->SetOptions(
+      dialog, options | FOS_PICKFOLDERS | FOS_PATHMUSTEXIST);
+
+  if (FAILED(hr))
+  {
+    goto cleanup;
+  }
+
+  if (request->title && request->title[0])
+  {
+    title = s_utf8_to_wide(request->title);
+    if (!title)
+    {
+      goto cleanup;
+    }
+
+    hr = dialog->lpVtbl->SetTitle(dialog, title);
+    if (FAILED(hr))
+    {
+      goto cleanup;
+    }
+  }
+
+  hr = dialog->lpVtbl->Show(dialog, request->owner);
+  if (FAILED(hr))
+  {
+    /* Cancellation is not an error. */
+    goto cleanup;
+  }
+
+  hr = dialog->lpVtbl->GetResult(dialog, &selected_item);
+  if (FAILED(hr))
+  {
+    goto cleanup;
+  }
+
+  hr = selected_item->lpVtbl->GetDisplayName(
+      selected_item, SIGDN_FILESYSPATH, &selected_path);
+
+  if (FAILED(hr))
+  {
+    goto cleanup;
+  }
+
+  /*
+   * Convert the selected filesystem path to UTF-8.
+   * Never truncate a path that exceeds the caller's buffer.
+   */
+  int required_size = WideCharToMultiByte(CP_UTF8,
+      WC_ERR_INVALID_CHARS, selected_path, -1, NULL, 0, NULL, NULL);
+
+  if (required_size > 0 &&
+      (size_t)required_size <= request->out_path_size)
+  {
+    int written = WideCharToMultiByte(CP_UTF8,
+        WC_ERR_INVALID_CHARS, selected_path, -1,
+        request->out_path, required_size, NULL, NULL);
+
+    request->succeeded = written == required_size;
+  }
+
+cleanup:
+  if (selected_path)
+  {
+    CoTaskMemFree(selected_path);
+  }
+
+  if (selected_item)
+  {
+    selected_item->lpVtbl->Release(selected_item);
+  }
+
+  if (dialog)
+  {
+    dialog->lpVtbl->Release(dialog);
+  }
+
+  free(title);
+  CoUninitialize();
+  return 0;
+}
+
 bool ldk_os_dialog_show_open_folder(LDKWindow owner, const char *title,
     const char *filter, char *out_path, size_t out_path_size)
 {
   (void)filter;
 
   if (!out_path || out_path_size == 0)
+  {
     return false;
+  }
 
   out_path[0] = '\0';
 
-  char selected_path[MAX_PATH] = {};
+  LDKWin32FolderDialog request = {0};
+  request.owner = owner ? ((LDKWin32Window *)owner)->handle : NULL;
+  request.title = title;
+  request.out_path = out_path;
+  request.out_path_size = out_path_size;
 
-  BROWSEINFOA info = {};
-  info.hwndOwner = owner ? ((LDKWin32Window *)owner)->handle : NULL;
-  info.pszDisplayName = selected_path;
-  info.lpszTitle = title;
-  info.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+  HANDLE thread = CreateThread(
+      NULL, 0, s_win32_folder_dialog_thread, &request, 0, NULL);
 
-  PIDLIST_ABSOLUTE item = SHBrowseForFolderA(&info);
-
-  if (!item)
-    return false;
-
-  bool result = false;
-
-  if (SHGetPathFromIDListA(item, selected_path))
+  if (!thread)
   {
-    size_t length = strlen(selected_path);
-
-    if (length + 1 <= out_path_size)
-    {
-      memcpy(out_path, selected_path, length + 1);
-      result = true;
-    }
+    return false;
   }
 
-  CoTaskMemFree(item);
-  return result;
+  /*
+   * Keep the owning window's message queue responsive while the
+   * dialog runs. A plain WaitForSingleObject() here could deadlock
+   * when the dialog sends synchronous messages to its owner.
+   *
+   * This pumps Win32 messages, not editor frames.
+   */
+  bool quit_requested = false;
+  int quit_code = 0;
+
+  for (;;)
+  {
+    DWORD wait_result = MsgWaitForMultipleObjectsEx(
+        1, &thread, INFINITE, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
+
+    if (wait_result == WAIT_OBJECT_0)
+    {
+      break;
+    }
+
+    if (wait_result == WAIT_OBJECT_0 + 1)
+    {
+      MSG message;
+
+      while (PeekMessageW(&message, NULL, 0, 0, PM_REMOVE))
+      {
+        if (message.message == WM_QUIT)
+        {
+          quit_requested = true;
+          quit_code = (int)message.wParam;
+          continue;
+        }
+
+        TranslateMessage(&message);
+        DispatchMessageW(&message);
+      }
+
+      continue;
+    }
+
+    /*
+     * The thread handle is valid, but if the message wait fails,
+     * we must still join the worker before the stack-allocated
+     * request can go out of scope.
+     */
+    WaitForSingleObject(thread, INFINITE);
+    break;
+  }
+
+  CloseHandle(thread);
+
+  if (quit_requested)
+  {
+    PostQuitMessage(quit_code);
+  }
+
+  return request.succeeded;
 }
 
 bool ldk_os_dialog_show_save_file(LDKWindow owner, const char *title,
