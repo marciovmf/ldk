@@ -1592,9 +1592,12 @@ static void s_editor_scene_window(LDKEditor *opaque_editor, void *data)
     /* Rendered after the scene but composed after component icons. */
     LDKUITextureHandle overlay = ldk_renderer_view_overlay_texture_request(
         editor->renderer, editor->scene_view);
-    ldki_editor_gizmo_hover_update(editor);
+    ldki_editor_terrain_view_update(editor, image_rect);
+    if (!editor->terrain_editor.enabled)
+      ldki_editor_gizmo_hover_update(editor);
     LDKEntity icon_entity = x_handle_null();
-    bool icon_hovered = ldki_editor_component_icons_show(editor, &icon_entity);
+    bool icon_hovered = !editor->terrain_editor.enabled &&
+        ldki_editor_component_icons_show(editor, &icon_entity);
     if (overlay != (LDKUITextureHandle)LDK_RHI_INVALID_RESOURCE)
     {
       ldk_ui_widget_image(&editor->ui, 0x47495A4Fu, overlay,
@@ -1606,6 +1609,7 @@ static void s_editor_scene_window(LDKEditor *opaque_editor, void *data)
     if (ui->mouse && ui->current_window && ui->active_id == 0 &&
         ui->hot_id == 0 &&
         ui->hovered_window_id == ui->current_window->id &&
+        !editor->terrain_editor.enabled &&
         !editor->gizmo.dragging &&
         !editor->gizmo.drag_block_pick &&
         editor->gizmo.hovered_axis == LDK_EDITOR_GIZMO_AXIS_NONE &&
@@ -4391,6 +4395,7 @@ void ldk_editor_dock_terminate(LDKEditorContext *editor)
   (void)editor;
   ldki_editor_animation_terminate();
   ldki_editor_texture_atlas_terminate(editor);
+  ldki_editor_terrain_terminate(editor);
 
   s_editor_dock = (LDKEditorDockState){.root = LDK_EDITOR_DOCK_INVALID_NODE};
   s_editor_dock_layouts =

@@ -1187,6 +1187,9 @@ static void s_editor_inspector_field_value_format(char *out, size_t out_size,
   case LDK_FIELD_ASSET_FONT:
     snprintf(out, out_size, "<asset font>");
     break;
+  case LDK_FIELD_ASSET_TERRAIN:
+    snprintf(out, out_size, "<asset terrain>");
+    break;
   case LDK_FIELD_ASSET_IMAGE:
     snprintf(out, out_size, "<asset image>");
     break;
@@ -2432,6 +2435,56 @@ static void s_editor_inspector_atlas_region_field_draw(
     *chosen = next == 0u ? 0u : atlas->regions[next - 1u].id;
 }
 
+static bool s_editor_inspector_terrain_asset_field(LDKEditorContext *editor,
+    const char *label, LDKAssetTerrain *value, bool readonly)
+{
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  LDKAssetHandle handle = {value->h};
+  const LDKAssetInfo *info = assets && !x_handle_is_null(value->h)
+      ? ldk_asset_get_info_const(assets, handle) : NULL;
+  XFSPath path = {0};
+  LDKEditorUIRowSlotAction action = ldk_editor_ui_row_slot_terrain(editor,
+      label, s_editor_inspector_row_group_depth, info, readonly,
+      !x_handle_is_null(value->h), &path, NULL);
+  if (action == LDK_EDITOR_UI_ROW_SLOT_CLEAR)
+  {
+    *value = ldk_asset_terrain_null();
+    return true;
+  }
+  if (action != LDK_EDITOR_UI_ROW_SLOT_ASSIGN)
+  {
+    return false;
+  }
+  LDKAssetPath asset_path;
+  if (!s_editor_inspector_asset_path_validate(editor, &path, "Terrain",
+          "Choose a .terrain file inside the project's runtree folder.",
+          &asset_path))
+    return false;
+  const char *ext = strrchr(asset_path.buf, '.');
+  if (!ext || !x_slice_eq_ci(x_slice(ext), x_slice(".terrain")))
+  {
+    ldki_editor_log_error(editor, "Choose a .terrain asset.");
+    return false;
+  }
+  if (!assets)
+  {
+    ldki_editor_log_error(editor, "Asset manager is unavailable.");
+    return false;
+  }
+  LDKAssetTerrain selected =
+      ldk_asset_manager_terrain_load_shared(assets, asset_path.buf);
+  if (x_handle_is_null(selected.h))
+  {
+    ldki_editor_log_error(editor, "Failed to load terrain asset.");
+    return false;
+  }
+  if (selected.h.index == value->h.index &&
+      selected.h.version == value->h.version)
+    return false;
+  *value = selected;
+  return true;
+}
+
 static bool s_editor_inspector_texture_atlas_asset_field(
     LDKEditorContext *editor, const char *label,
     LDKAssetTextureAtlas *value, bool readonly)
@@ -2982,6 +3035,9 @@ void *ldki_editor_undo_property_resolve(
     void *user, LDKEditorUndoKey key, LDKFieldType type, size_t size)
 {
   void *value = NULL;
+  if (ldki_editor_terrain_undo_is_key(key))
+    return ldki_editor_terrain_undo_resolve(
+        (LDKEditorContext *)user, key, type, size);
   if (s_editor_undo_material_key_matches(key, type, size))
   {
     return (void *)s_editor_undo_material_resolve(
@@ -3020,6 +3076,9 @@ bool ldki_editor_undo_property_apply(void *user, LDKEditorUndoKey key,
   {
     return false;
   }
+  if (ldki_editor_terrain_undo_is_key(key))
+    return ldki_editor_terrain_undo_apply(
+        (LDKEditorContext *)user, key, type, value, size);
   if (s_editor_undo_material_key_matches(key, type, size))
   {
     return s_editor_undo_material_apply(
@@ -3157,6 +3216,13 @@ static void s_editor_inspector_field_draw(
     return;
   }
 
+  if (field->type == LDK_FIELD_ASSET_TERRAIN)
+  {
+    (void)s_editor_inspector_terrain_asset_field(editor, display_name,
+        (LDKAssetTerrain *)field_value, readonly);
+    ldk_ui_pop_id(ui);
+    return;
+  }
   if (field->type == LDK_FIELD_ASSET_TEXTURE_ATLAS)
   {
     (void)s_editor_inspector_texture_atlas_asset_field(editor, display_name,
@@ -3604,6 +3670,7 @@ static void s_editor_inspector_field_draw(
   case LDK_FIELD_ENTITY:
   case LDK_FIELD_ASSET_MESH:
   case LDK_FIELD_ASSET_FONT:
+  case LDK_FIELD_ASSET_TERRAIN:
   case LDK_FIELD_ASSET_IMAGE:
   case LDK_FIELD_RESOURCE_MESH:
   case LDK_FIELD_ASSET_MATERIAL:

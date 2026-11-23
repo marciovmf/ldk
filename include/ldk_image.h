@@ -133,6 +133,18 @@ extern "C" {
    * @group ldk.asset.image
    */
   LDK_API u64 ldk_image_get_byte_count(LDKImage const* image);
+  /** Save RGBA8 or RGBA16 image as a lossless PNG on the local filesystem.
+   * Uses an uncompressed DEFLATE stream (no external zlib dependency).
+   * Does not alter the image or its AssetManager identity.
+   */
+  /** Update existing pixel storage without changing its address or size.
+   * For images used by a manager, the caller must publish the change via
+   * that manager's revision tracking.
+   */
+  LDK_API bool ldk_image_pixels_set(LDKImage *image,
+      const void *pixels, u64 byte_count);
+  LDK_API bool ldk_image_save_png(
+      LDKImage const* image, const char* filename);
 
 #ifdef __cplusplus
 }

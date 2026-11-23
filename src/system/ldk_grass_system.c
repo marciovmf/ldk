@@ -2,8 +2,10 @@
 
 #include <ldk.h>
 #include <ldk_image.h>
+#include <ldk_terrain.h>
 #include <ldk_mesh.h>
 #include <component/ldk_grass_interact.h>
+#include <component/ldk_terrain_component.h>
 #include <component/ldk_transform.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_asset_manager.h>
@@ -17,6 +19,10 @@
 #include <string.h>
 
 #define LDK_GRASS_PI 3.14159265358979323846f
+/* Independent chunks for editor-authored terrain vegetation. The mask is
+ * sampled per instance; the tile only bounds candidate generation. */
+#define LDK_GRASS_TERRAIN_PATCH_CELLS 32u
+#define LDK_GRASS_TERRAIN_PATCH_LIMIT 65536u
 #define LDK_GRASS_INVALID_BATCH UINT32_MAX
 #define LDK_GRASS_RIBBON_VERTEX_COUNT                                        \
   (LDK_GRASS_PROFILE_POINT_COUNT * 2u)
@@ -82,6 +88,9 @@ typedef struct LDKGrassResolvedDesc
   float wind_direction;
   float interaction_recovery_time;
   u32 seed;
+  LDKAssetTerrain terrain;
+  LDKEntity terrain_entity;
+  LDKAssetImage density_mask;
   bool casts_shadows;
   bool unlit;
 } LDKGrassResolvedDesc;
@@ -98,6 +107,7 @@ typedef struct LDKGrassPatchEntry
   u32 version;
   Vec3 bounds_min;
   Vec3 bounds_max;
+  bool terrain_owned;
   bool alive;
 } LDKGrassPatchEntry;
 
@@ -198,10 +208,17 @@ typedef struct LDKGrassRuntime
   bool interaction_field_active;
 
   u64 config_hash;
+  u64 terrain_sync_hash;
+  u64 terrain_quick_hash;
+  LDKAssetImage terrain_mask_assets[LDK_TERRAIN_VEGETATION_LAYER_COUNT];
+  u64 terrain_mask_revisions[LDK_TERRAIN_VEGETATION_LAYER_COUNT];
+  LDKAssetImage terrain_heightmap_asset;
+  u64 terrain_heightmap_revision;
   bool initialized;
 } LDKGrassRuntime;
 
 static LDKGrassRuntime s_grass;
+static bool s_grass_editor_preview_active;
 
 static LDKGrassBladeMeshGenerator
     s_custom_generators[LDK_GRASS_CUSTOM_BLADE_PRESET_COUNT];
@@ -1220,6 +1237,9 @@ static bool s_resolved_desc_build(const LDKGrassSystem *system,
       ? type.interaction_recovery_time
       : LDK_GRASS_INTERACTION_DEFAULT_RECOVERY_TIME;
   out_desc->seed = patch->seed;
+  out_desc->terrain = patch->terrain;
+  out_desc->terrain_entity = patch->terrain_entity;
+  out_desc->density_mask = patch->density_mask;
   out_desc->casts_shadows = system->casts_shadows;
   out_desc->unlit = system->unlit;
   return isfinite(out_desc->density) && isfinite(out_desc->wind_strength);
@@ -1699,6 +1719,164 @@ static u32 s_batch_find_or_add(const LDKGrassResolvedDesc *desc)
 
 static float s_noise_sample(float x, float z);
 
+typedef struct LDKGrassTerrainPlacement
+{
+  const LDKTerrain *terrain;
+  LDKImageInfo heights;
+  LDKImageInfo density;
+  bool has_heights;
+  bool has_density;
+  float origin_x;
+  float origin_z;
+  Mat4 world;
+  Mat4 inverse;
+  bool has_entity_transform;
+} LDKGrassTerrainPlacement;
+
+/* A zero-initialized optional handle is also treated as unassigned. */
+static bool s_asset_handle_assigned(XHandle handle)
+{
+  return !x_handle_is_null(handle) &&
+      !(handle.index == 0u && handle.version == 0u);
+}
+
+static bool s_terrain_placement_resolve(const LDKGrassResolvedDesc *desc,
+    LDKGrassTerrainPlacement *out)
+{
+  LDKAssetManager *assets;
+  const LDKAssetTerrainData *data;
+  const LDKAssetImageData *image;
+  if (!out || !desc)
+  {
+    return false;
+  }
+  memset(out, 0, sizeof(*out));
+  if (!s_asset_handle_assigned(desc->terrain.h))
+  {
+    return true;
+  }
+
+  assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  data = assets ? ldk_asset_manager_terrain_get_const(
+      assets, desc->terrain) : NULL;
+  if (!data || !ldk_terrain_validate(&data->terrain))
+  {
+    return false;
+  }
+  if (!x_handle_is_null(desc->terrain_entity))
+  {
+    const LDKTerrainComponent *component = ldk_ecs_component_get_const(
+        desc->terrain_entity, LDK_COMPONENT_TYPE_TERRAIN);
+    bool inverse_ok = false;
+    if (!component || !ldk_ecs_component_is_enabled(
+            desc->terrain_entity, LDK_COMPONENT_TYPE_TERRAIN) ||
+        !ldk_scenegraph_update_entity(desc->terrain_entity) ||
+        !ldk_transform_get_world_matrix(desc->terrain_entity, &out->world))
+      return false;
+    out->inverse = mat4_inverse_full(out->world, &inverse_ok);
+    if (!inverse_ok) return false;
+    out->has_entity_transform = true;
+  }
+  out->terrain = &data->terrain;
+  out->origin_x = data->terrain.origin_x;
+  out->origin_z = data->terrain.origin_z;
+  if (data->terrain.center_on_origin)
+  {
+    out->origin_x -= (float)data->terrain.width *
+        data->terrain.cell_size * 0.5f;
+    out->origin_z -= (float)data->terrain.height *
+        data->terrain.cell_size * 0.5f;
+  }
+  if (data->heightmap_preview_enabled)
+  {
+    if (!ldk_image_get_info(data->heightmap_preview, &out->heights) ||
+        out->heights.width != data->terrain.width ||
+        out->heights.height != data->terrain.height)
+      return false;
+    out->has_heights = true;
+  }
+  else if (data->heightmap_embedded &&
+      !data->terrain.heightmap_path.length)
+  {
+    if (!ldk_image_get_info(data->heightmap_embedded, &out->heights) ||
+        out->heights.width != data->terrain.width ||
+        out->heights.height != data->terrain.height)
+      return false;
+    out->has_heights = true;
+  }
+  else if (data->terrain.heightmap_path.length)
+  {
+    image = ldk_asset_manager_image_get_const(assets, data->heightmap);
+    if (!image || !image->image || image->is_missing ||
+        !ldk_image_get_info(image->image, &out->heights) ||
+        out->heights.width != data->terrain.width ||
+        out->heights.height != data->terrain.height ||
+        out->heights.channel_count != 4u ||
+        (out->heights.format != LDK_IMAGE_FORMAT_RGBA8_UNORM &&
+         out->heights.format != LDK_IMAGE_FORMAT_RGBA16_UNORM))
+      return false;
+    out->has_heights = true;
+  }
+  if (s_asset_handle_assigned(desc->density_mask.h))
+  {
+    image = ldk_asset_manager_image_get_const(assets, desc->density_mask);
+    if (!image || !image->image || image->is_missing ||
+        !ldk_image_get_info(image->image, &out->density) ||
+        !out->density.width || !out->density.height ||
+        out->density.channel_count != 4u ||
+        (out->density.format != LDK_IMAGE_FORMAT_RGBA8_UNORM &&
+         out->density.format != LDK_IMAGE_FORMAT_RGBA16_UNORM))
+      return false;
+    out->has_density = true;
+  }
+  return true;
+}
+
+static float s_terrain_mask_texel(
+    const LDKImageInfo *image, u32 x, u32 z)
+{
+  size_t index = ((size_t)z * image->width + x) * 4u;
+  if (image->format == LDK_IMAGE_FORMAT_RGBA16_UNORM)
+  {
+    u16 v;
+    memcpy(&v, image->pixels + index * sizeof(v), sizeof(v));
+    return (float)v * (1.0f / 65535.0f);
+  }
+  return (float)image->pixels[index] * (1.0f / 255.0f);
+}
+
+/* Pixel-centered, clamped bilinear sampling. Both the texture resolution and
+ * terrain cell size are independent; this works with low-res paint masks. */
+static float s_terrain_mask_sample(
+    const LDKGrassTerrainPlacement *p, float x, float z)
+{
+  if (!p->has_density)
+  {
+    return 1.0f;
+  }
+  const LDKImageInfo *m = &p->density;
+  float u = s_clamp01((x - p->origin_x) /
+      ((float)p->terrain->width * p->terrain->cell_size));
+  float v = s_clamp01((z - p->origin_z) /
+      ((float)p->terrain->height * p->terrain->cell_size));
+  float fx = fmaxf(0.0f, fminf((float)m->width - 1.0f,
+      u * (float)m->width - 0.5f));
+  float fz = fmaxf(0.0f, fminf((float)m->height - 1.0f,
+      v * (float)m->height - 0.5f));
+  u32 x0 = (u32)floorf(fx);
+  u32 z0 = (u32)floorf(fz);
+  u32 x1 = x0 + (x0 + 1u < m->width ? 1u : 0u);
+  u32 z1 = z0 + (z0 + 1u < m->height ? 1u : 0u);
+  float tx = fx - (float)x0;
+  float tz = fz - (float)z0;
+  float a = s_terrain_mask_texel(m, x0, z0);
+  float b = s_terrain_mask_texel(m, x1, z0);
+  float c = s_terrain_mask_texel(m, x0, z1);
+  float d = s_terrain_mask_texel(m, x1, z1);
+  return (a + (b - a) * tx) * (1.0f - tz) +
+      (c + (d - c) * tx) * tz;
+}
+
 static bool s_patch_instances_generate(const LDKGrassResolvedDesc *desc,
     Mat4 **out_instances, u32 *out_count)
 {
@@ -1708,10 +1886,13 @@ static bool s_patch_instances_generate(const LDKGrassResolvedDesc *desc,
   double expected_count;
   u32 count;
   u32 random;
+  u32 accepted = 0u;
   Quat align;
+  LDKGrassTerrainPlacement placement;
 
   if (!out_instances || !out_count ||
-      !s_desc_is_valid(desc, &area, &normal))
+      !s_desc_is_valid(desc, &area, &normal) ||
+      !s_terrain_placement_resolve(desc, &placement))
   {
     return false;
   }
@@ -1753,17 +1934,22 @@ static bool s_patch_instances_generate(const LDKGrassResolvedDesc *desc,
   align = quat_from_to(vec3_make(0.0f, 1.0f, 0.0f), normal);
   for (u32 i = 0u; i < count; ++i)
   {
-    float u = s_random_unit(&random);
-    float v = s_random_unit(&random);
+    /* Terrain masks must not perturb positions of surviving blades when the
+     * painter changes other pixels. Each candidate owns its RNG sequence. */
+    u32 candidate_random = s_random_state(
+        desc->seed ^ (0x9e3779b9u * (i + 1u)));
+    u32 *rng = placement.terrain ? &candidate_random : &random;
+    float u = s_random_unit(rng);
+    float v = s_random_unit(rng);
     if (desc->clumping > 0.0f &&
-        s_random_unit(&random) < desc->clumping)
+        s_random_unit(rng) < desc->clumping)
     {
       Vec3 sample = vec3_add(desc->plane.origin,
           vec3_add(vec3_mul(desc->plane.axis_u, u),
               vec3_mul(desc->plane.axis_v, v)));
-      Vec2 center = s_clump_center_at(sample.x, sample.z, &random);
-      float theta = s_random_unit(&random) * 2.0f * LDK_GRASS_PI;
-      float distance = desc->clump_radius * sqrtf(s_random_unit(&random));
+      Vec2 center = s_clump_center_at(sample.x, sample.z, rng);
+      float theta = s_random_unit(rng) * 2.0f * LDK_GRASS_PI;
+      float distance = desc->clump_radius * sqrtf(s_random_unit(rng));
       Vec3 target = vec3_make(center.x + cosf(theta) * distance,
           sample.y, center.y + sinf(theta) * distance);
       Vec3 offset = vec3_sub(target, desc->plane.origin);
@@ -1785,13 +1971,43 @@ static bool s_patch_instances_generate(const LDKGrassResolvedDesc *desc,
         v = (dv * uu - du * uv) / det;
       }
     }
-    float height_sample = s_random_unit(&random);
-    float angle = s_random_unit(&random) * 2.0f * LDK_GRASS_PI;
-    float tilt_angle = desc->min_tilt +
-        (desc->max_tilt - desc->min_tilt) * s_random_unit(&random);
     Vec3 position = vec3_add(desc->plane.origin,
         vec3_add(vec3_mul(desc->plane.axis_u, u),
             vec3_mul(desc->plane.axis_v, v)));
+    if (placement.terrain)
+    {
+      float ground_y;
+      Vec3 ground_normal;
+      if (!ldk_terrain_surface_sample(placement.terrain,
+              placement.has_heights ? &placement.heights : NULL,
+              position.x, position.z, &ground_y, &ground_normal) ||
+          s_random_unit(rng) >
+              s_terrain_mask_sample(&placement, position.x, position.z))
+      {
+        continue;
+      }
+      position.y = ground_y;
+      if (placement.has_entity_transform)
+      {
+        Vec3 world_normal = vec3_make(
+            placement.inverse.m[0] * ground_normal.x +
+                placement.inverse.m[1] * ground_normal.y +
+                placement.inverse.m[2] * ground_normal.z,
+            placement.inverse.m[4] * ground_normal.x +
+                placement.inverse.m[5] * ground_normal.y +
+                placement.inverse.m[6] * ground_normal.z,
+            placement.inverse.m[8] * ground_normal.x +
+                placement.inverse.m[9] * ground_normal.y +
+                placement.inverse.m[10] * ground_normal.z);
+        ground_normal = vec3_norm(world_normal);
+        position = mat4_mul_point(placement.world, position);
+      }
+      align = quat_from_to(vec3_make(0.0f, 1.0f, 0.0f), ground_normal);
+    }
+    float height_sample = s_random_unit(rng);
+    float angle = s_random_unit(rng) * 2.0f * LDK_GRASS_PI;
+    float tilt_angle = desc->min_tilt +
+        (desc->max_tilt - desc->min_tilt) * s_random_unit(rng);
     if (desc->use_noise_height)
     {
       height_sample = s_noise_sample(position.x, position.z);
@@ -1806,12 +2022,12 @@ static bool s_patch_instances_generate(const LDKGrassResolvedDesc *desc,
         tilt_angle);
     Quat rotation = quat_mul(align, quat_mul(tilt, yaw));
 
-    instances[i] = mat4_compose(
+    instances[accepted++] = mat4_compose(
         position, rotation, vec3_make(1.0f, height, 1.0f));
   }
 
   *out_instances = instances;
-  *out_count = count;
+  *out_count = accepted;
   return true;
 }
 
@@ -3292,6 +3508,9 @@ void ldk_grass_patch_desc_defaults(LDKGrassPatchDesc *out_desc)
   out_desc->plane.axis_u = vec3_make(1.0f, 0.0f, 0.0f);
   out_desc->plane.axis_v = vec3_make(0.0f, 0.0f, -1.0f);
   out_desc->density_scale = 1.0f;
+  out_desc->terrain = ldk_asset_terrain_null();
+  out_desc->terrain_entity = x_handle_null();
+  out_desc->density_mask = ldk_asset_image_null();
 }
 
 LDKGrassPatch ldk_grass_patch_null(void)
@@ -3363,6 +3582,7 @@ LDKGrassPatch ldk_grass_add(
   entry->batch_index = batch_index;
   entry->bounds_min = bounds_min;
   entry->bounds_max = bounds_max;
+  entry->terrain_owned = false;
   entry->alive = true;
   s_grass.batches[batch_index].dirty = true;
   return (LDKGrassPatch){patch_index, entry->version};
@@ -3431,6 +3651,7 @@ bool ldk_grass_remove(LDKGrassPatch patch)
   entry->instance_offset = 0u;
   entry->batch_index = LDK_GRASS_INVALID_BATCH;
   entry->type_id = LDK_GRASS_TYPE_ID_INVALID;
+  entry->terrain_owned = false;
   entry->alive = false;
   entry->version += 1u;
   if (entry->version == 0u)
@@ -3461,6 +3682,7 @@ void ldk_grass_clear(void)
     entry->instance_offset = 0u;
     entry->batch_index = LDK_GRASS_INVALID_BATCH;
     entry->type_id = LDK_GRASS_TYPE_ID_INVALID;
+    entry->terrain_owned = false;
     entry->alive = false;
     entry->version += 1u;
     if (entry->version == 0u)
@@ -3492,6 +3714,286 @@ void ldk_grass_clear(void)
     batch->lod_dirty = true;
     batch->dirty = false;
   }
+  /* A subsequent update should recreate editor-authored terrain patches. */
+  s_grass.terrain_sync_hash = UINT64_MAX;
+  s_grass.terrain_quick_hash = 0u;
+}
+
+/* Terrain-authored patches are internal to GrassSystem. Never remove patches
+ * supplied by game code; those may share the same grass type and batching. */
+static void s_terrain_patches_remove(void)
+{
+  for (u32 i = 0u; i < s_grass.patch_count; ++i)
+  {
+    LDKGrassPatchEntry *entry = &s_grass.patches[i];
+    if (!entry->alive || !entry->terrain_owned)
+    {
+      continue;
+    }
+    (void)ldk_grass_remove((LDKGrassPatch){i, entry->version});
+  }
+  s_grass.terrain_sync_hash = UINT64_MAX;
+  s_grass.terrain_quick_hash = 0u;
+}
+
+static bool s_terrain_density_has_coverage(const LDKImageInfo *image)
+{
+  if (!image || !image->pixels)
+  {
+    return false;
+  }
+  for (u32 z = 0u; z < image->height; ++z)
+  {
+    for (u32 x = 0u; x < image->width; ++x)
+    {
+      if (s_terrain_mask_texel(image, x, z) > 0.0f)
+      {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+/* Only create a patch for terrain tiles whose mask may actually contribute
+ * blades. The one-pixel halo conservatively includes bilinear neighbors. */
+static bool s_terrain_tile_has_coverage(const LDKImageInfo *mask,
+    const LDKTerrain *terrain, u32 x0, u32 z0, u32 x1, u32 z1)
+{
+  if (!mask || !mask->pixels || !terrain ||
+      !terrain->width || !terrain->height)
+    return false;
+  u32 mx0 = (u32)((u64)x0 * mask->width / terrain->width);
+  u32 mz0 = (u32)((u64)z0 * mask->height / terrain->height);
+  u32 mx1 = (u32)((u64)x1 * mask->width / terrain->width);
+  u32 mz1 = (u32)((u64)z1 * mask->height / terrain->height);
+  if (mx0) --mx0;
+  if (mz0) --mz0;
+  if (mx1 >= mask->width) mx1 = mask->width - 1u;
+  else if (mx1 + 1u < mask->width) ++mx1;
+  if (mz1 >= mask->height) mz1 = mask->height - 1u;
+  else if (mz1 + 1u < mask->height) ++mz1;
+  for (u32 z = mz0; z <= mz1; ++z)
+    for (u32 x = mx0; x <= mx1; ++x)
+      if (s_terrain_mask_texel(mask, x, z) > 0.0f)
+      {
+        return true;
+      }
+  return false;
+}
+
+/* Scene terrain recipes are generated from every enabled TerrainComponent.
+ * The hash covers entity identity, transform, .terrain revisions and referenced
+ * image revisions. Rebuild only terrain-owned patches when inputs change.
+ */
+typedef struct LDKGrassTerrainSource
+{
+  LDKEntity entity;
+  LDKAssetTerrain asset;
+  LDKTerrain terrain;
+  LDKAssetImage heightmap;
+  u64 revision;
+  Mat4 world;
+} LDKGrassTerrainSource;
+
+typedef struct LDKGrassTerrainCollection
+{
+  LDKGrassTerrainSource *sources;
+  u32 count;
+  u32 capacity;
+  bool ok;
+} LDKGrassTerrainCollection;
+
+static bool s_terrain_source_collect(LDKEntity entity, void *user)
+{
+  LDKGrassTerrainCollection *list = user;
+  const LDKTerrainComponent *component = ldk_ecs_component_get_const(
+      entity, LDK_COMPONENT_TYPE_TERRAIN);
+  if (!component || !ldk_ecs_component_is_enabled(
+          entity, LDK_COMPONENT_TYPE_TERRAIN) ||
+      !s_asset_handle_assigned(component->terrain.h)) return true;
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  const LDKAssetTerrainData *data = assets
+      ? ldk_asset_manager_terrain_get_const(assets, component->terrain) : NULL;
+  if (!data || !ldk_terrain_validate(&data->terrain) ||
+      !ldk_scenegraph_update_entity(entity)) return true;
+  Mat4 world;
+  if (!ldk_transform_get_world_matrix(entity, &world)) return true;
+  if (list->count == list->capacity)
+  {
+    u32 capacity = list->capacity ? list->capacity * 2u : 4u;
+    LDKGrassTerrainSource *sources = realloc(list->sources,
+        (size_t)capacity * sizeof(*sources));
+    if (!sources)
+    {
+      list->ok = false;
+      return false;
+    }
+    list->sources = sources;
+    list->capacity = capacity;
+  }
+  LDKGrassTerrainSource *source = &list->sources[list->count++];
+  source->entity = entity;
+  source->asset = component->terrain;
+  source->terrain = data->terrain;
+  source->heightmap = data->heightmap;
+  source->revision = data->revision;
+  source->world = world;
+  return true;
+}
+
+static u64 s_terrain_image_revision(LDKAssetManager *assets,
+    LDKAssetImage image)
+{
+  if (!s_asset_handle_assigned(image.h)) return 0u;
+  LDKAssetHandle handle = {image.h};
+  const LDKAssetInfo *info = ldk_asset_get_info_const(assets, handle);
+  return info ? info->source_revision : UINT64_MAX;
+}
+
+static bool s_terrain_patches_sync(const LDKGrassSystem *system)
+{
+  if (!system) return false;
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  if (!assets) return false;
+  LDKGrassTerrainCollection list = {0};
+  list.ok = true;
+  (void)ldk_ecs_entity_foreach(s_terrain_source_collect, &list);
+  if (!list.ok)
+  {
+    free(list.sources);
+    return false;
+  }
+  u64 hash = UINT64_C(14695981039346656037);
+  s_hash_bytes(&hash, &s_grass.config_hash, sizeof(s_grass.config_hash));
+  if (assets->source)
+    s_hash_bytes(&hash, &assets->source->revision,
+        sizeof(assets->source->revision));
+  for (u32 i = 0u; i < list.count; ++i)
+  {
+    const LDKGrassTerrainSource *source = &list.sources[i];
+    const LDKTerrain *terrain = &source->terrain;
+    s_hash_bytes(&hash, &source->entity, sizeof(source->entity));
+    s_hash_bytes(&hash, &source->asset, sizeof(source->asset));
+    s_hash_bytes(&hash, &source->world, sizeof(source->world));
+    s_hash_bytes(&hash, &source->revision,
+        sizeof(source->revision));
+    u64 source_revision = s_terrain_image_revision(
+        assets, source->heightmap);
+    s_hash_bytes(&hash, &source_revision, sizeof(source_revision));
+    for (u32 j = 0u; j < terrain->vegetation_layer_count; ++j)
+    {
+      const LDKTerrainVegetationLayer *layer = &terrain->vegetation_layers[j];
+      if (!layer->density_map_path.length) continue;
+      LDKAssetImage mask = ldk_asset_manager_image_load_shared(
+          assets, layer->density_map_path.buf);
+      u64 revision = s_terrain_image_revision(assets, mask);
+      s_hash_bytes(&hash, &revision, sizeof(revision));
+    }
+  }
+  if (hash == s_grass.terrain_sync_hash)
+  {
+    free(list.sources);
+    return true;
+  }
+  s_terrain_patches_remove();
+  u32 patch_total = 0u;
+  for (u32 n = 0u; n < list.count; ++n)
+  {
+    const LDKGrassTerrainSource *source = &list.sources[n];
+    const LDKTerrain *terrain = &source->terrain;
+    const u32 tiles_x = 1u + (terrain->width - 1u) /
+        LDK_GRASS_TERRAIN_PATCH_CELLS;
+    const u32 tiles_z = 1u + (terrain->height - 1u) /
+        LDK_GRASS_TERRAIN_PATCH_CELLS;
+    float origin_x = terrain->origin_x;
+    float origin_z = terrain->origin_z;
+    if (terrain->center_on_origin)
+    {
+      origin_x -= (float)terrain->width * terrain->cell_size * 0.5f;
+      origin_z -= (float)terrain->height * terrain->cell_size * 0.5f;
+    }
+    for (u32 i = 0u; i < terrain->vegetation_layer_count; ++i)
+    {
+      const LDKTerrainVegetationLayer *layer = &terrain->vegetation_layers[i];
+      if (!layer->density_map_path.length || layer->density_scale <= 0.0f)
+        continue;
+      LDKAssetImage mask = ldk_asset_manager_image_load_shared(
+          assets, layer->density_map_path.buf);
+      const LDKAssetImageData *image =
+          ldk_asset_manager_image_get_const(assets, mask);
+      LDKImageInfo mask_info = {0};
+      if (!image || !image->image || image->is_missing ||
+          !ldk_image_get_info(image->image, &mask_info) ||
+          mask_info.channel_count != 4u || !mask_info.width ||
+          !mask_info.height ||
+          (mask_info.format != LDK_IMAGE_FORMAT_RGBA8_UNORM &&
+           mask_info.format != LDK_IMAGE_FORMAT_RGBA16_UNORM))
+      {
+        s_terrain_patches_remove();
+        free(list.sources);
+        return false;
+      }
+      if (!s_terrain_density_has_coverage(&mask_info)) continue;
+      LDKGrassTypeId type_id = ldk_grass_get_id_by_name(layer->type_name);
+      if (!ldk_grass_type_is_valid(type_id))
+      {
+        ldk_log_warning("Terrain vegetation type '%s' not configured.\n",
+            layer->type_name);
+        continue;
+      }
+      for (u32 tz = 0u; tz < tiles_z; ++tz)
+      {
+        u32 z0 = tz * LDK_GRASS_TERRAIN_PATCH_CELLS;
+        u32 z1 = z0 + LDK_GRASS_TERRAIN_PATCH_CELLS;
+        if (z1 < z0 || z1 > terrain->height) z1 = terrain->height;
+        for (u32 tx = 0u; tx < tiles_x; ++tx)
+        {
+          u32 x0 = tx * LDK_GRASS_TERRAIN_PATCH_CELLS;
+          u32 x1 = x0 + LDK_GRASS_TERRAIN_PATCH_CELLS;
+          if (x1 < x0 || x1 > terrain->width) x1 = terrain->width;
+          if (!s_terrain_tile_has_coverage(&mask_info, terrain,
+                  x0, z0, x1, z1)) continue;
+          if (patch_total >= LDK_GRASS_TERRAIN_PATCH_LIMIT)
+          {
+            ldk_log_error("Too many terrain vegetation patches.\n");
+            s_terrain_patches_remove();
+            free(list.sources);
+            return false;
+          }
+          LDKGrassPatchDesc desc;
+          ldk_grass_patch_desc_defaults(&desc);
+          desc.plane.origin = vec3_make(
+              origin_x + (float)x0 * terrain->cell_size, 0.0f,
+              origin_z + (float)z1 * terrain->cell_size);
+          desc.plane.axis_u = vec3_make(
+              (float)(x1 - x0) * terrain->cell_size, 0.0f, 0.0f);
+          desc.plane.axis_v = vec3_make(
+              0.0f, 0.0f, -(float)(z1 - z0) * terrain->cell_size);
+          desc.density_scale = layer->density_scale;
+          desc.seed = s_random_state(layer->seed ^
+              (u32)layer->id ^ (u32)(layer->id >> 32u) ^
+              (tx * 0x9e3779b9u) ^ (tz * 0x85ebca6bu));
+          desc.terrain = source->asset;
+          desc.terrain_entity = source->entity;
+          desc.density_mask = mask;
+          LDKGrassPatch patch = ldk_grass_add(type_id, &desc);
+          if (!ldk_grass_patch_is_valid(patch))
+          {
+            s_terrain_patches_remove();
+            free(list.sources);
+            return false;
+          }
+          LDKGrassPatchEntry *entry = s_patch_get(patch);
+          entry->terrain_owned = true;
+          ++patch_total;
+        }
+      }
+    }
+  }
+  s_grass.terrain_sync_hash = hash;
+  free(list.sources);
+  return true;
 }
 
 /* Use the submitted game view, which is also used by the existing grass
@@ -3788,7 +4290,7 @@ static void s_grass_submit(void)
     }
 
     if (!ldk_renderer_view_bounds_visible(s_grass.renderer,
-            s_grass.renderer->game_view,
+            LDK_RENDERER_VIEW_ALL,
             entry->bounds_min, entry->bounds_max))
     {
       s_batch_submit_pending(batch);
@@ -3895,6 +4397,11 @@ int ldk_grass_system_initialize(void *data)
   LDKGrassSystem *system = (LDKGrassSystem *)data;
   LDKRenderer *renderer = (LDKRenderer *)ldk_module_get(LDK_MODULE_RENDERER);
 
+  if (s_grass_editor_preview_active && s_grass.initialized)
+  {
+    ldk_grass_system_terminate(s_grass.owner);
+    s_grass_editor_preview_active = false;
+  }
   s_color_noise_defaults(system);
   if (!system || !renderer || s_grass.initialized ||
       !s_system_config_is_valid(system))
@@ -3923,6 +4430,8 @@ int ldk_grass_system_initialize(void *data)
   }
 
   s_grass.config_hash = s_system_config_hash(system);
+  s_grass.terrain_sync_hash = UINT64_MAX;
+  s_grass.terrain_quick_hash = 0u;
   s_grass.initialized = true;
   return 0;
 }
@@ -3944,10 +4453,17 @@ void ldk_grass_system_update(
   config_hash = s_system_config_hash(system);
   if (config_hash != s_grass.config_hash)
   {
+    /* Remove terrain-authored recipes before style regeneration. This also
+     * avoids referencing a stale mask while a .terrain is being reloaded. */
+    s_terrain_patches_remove();
     if (!s_config_rebuild(system))
     {
       return;
     }
+  }
+  if (!s_terrain_patches_sync(system))
+  {
+    return;
   }
 
   s_interaction_components_collect();
@@ -3957,6 +4473,33 @@ void ldk_grass_system_update(
   }
 
   s_grass_submit();
+}
+
+void ldk_grass_system_on_editor_update(
+    u64 system_id, void *data, float dt)
+{
+  (void)system_id;
+  LDKGrassSystem *system = (LDKGrassSystem *)data;
+  if (!system || (s_grass.initialized && !s_grass_editor_preview_active))
+    return;
+  if (s_grass_editor_preview_active && s_grass.owner != system)
+  {
+    ldk_grass_system_terminate(s_grass.owner);
+    s_grass_editor_preview_active = false;
+  }
+  if (!s_grass.initialized)
+  {
+    if (ldk_grass_system_initialize(system) != 0) return;
+    s_grass_editor_preview_active = true;
+  }
+  ldk_grass_system_update(system, NULL, dt);
+}
+
+LDK_API void ldk_grass_system_editor_clear(void)
+{
+  if (s_grass_editor_preview_active && s_grass.initialized)
+    ldk_grass_system_terminate(s_grass.owner);
+  s_grass_editor_preview_active = false;
 }
 
 void ldk_grass_system_terminate(void *data)

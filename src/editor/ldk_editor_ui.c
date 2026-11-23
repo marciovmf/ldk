@@ -863,6 +863,28 @@ static void s_editor_gizmo_mode_buttons(LDKEditorContext *editor)
   icon.texture = ldk_renderer_texture_ui_handle(editor->renderer, editor->ui_atlas);
   icon.size.w = icon.size.h = 24;
 
+  /* While editing terrain, expose only Pan as a toggle. Clicking it again
+   * returns to sculpting. Entity transform gizmos remain unavailable. */
+  if (editor->terrain_editor.enabled)
+  {
+    bool pan = editor->gizmo.mode == LDK_EDITOR_GIZMO_MODE_PAN;
+    icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_PANTOOL];
+    ldk_ui_push_id_cstr(ui, "terrain-pan");
+    ldk_ui_begin_disabled(ui, editor->camera_controller.panning ||
+        editor->camera_controller.orbiting);
+    ldk_ui_set_next_width(ui, ldk_ui_px(
+        24.0f + 2 * LDK_UI_DEFAULT_PADDING));
+    bool next = ldk_ui_toggle_icon_button(ui, icon, NULL, pan);
+    if (next != pan)
+    {
+      editor->gizmo.mode = next ? LDK_EDITOR_GIZMO_MODE_PAN :
+          LDK_EDITOR_GIZMO_MODE_TRANSLATE;
+    }
+    ldk_ui_end_disabled(ui);
+    ldk_ui_pop_id(ui);
+    return;
+  }
+
   u32 item_count = (u32)(sizeof(items) / sizeof(items[0]));
   u32 selected_index = 1;
   for (u32 i = 0; i < item_count; ++i)
@@ -961,6 +983,16 @@ void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor)
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT + 2 * LDK_UI_DEFAULT_PADDING) );
   ldk_ui_begin_horizontal(ui);
   s_editor_gizmo_mode_buttons(editor);
+  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
+  ldk_ui_set_next_disabled(ui, editor->gizmo.dragging ||
+      editor->editor_state != LDK_EDITOR_STATE_STOPED);
+  if (ldk_ui_button(ui, editor->terrain_editor.enabled
+          ? "Terrain: ON" : "Terrain Edit"))
+  {
+    ldki_editor_window_show(LDK_EDITOR_WINDOW_TERRAIN);
+    if (editor->terrain_editor.loaded)
+      editor->terrain_editor.enabled = !editor->terrain_editor.enabled;
+  }
   ldk_ui_set_next_width(ui, ldk_ui_px(LDK_UI_DEFAULT_SPACING * 2.0f));
   ldk_ui_spacer(ui);
   s_editor_gizmo_space_buttons(editor);
@@ -2110,6 +2142,16 @@ LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_skybox(LDKEditorContext *editor,
   (void)undo_property;
   return s_editor_ui_row_slot_asset(editor, label, group_depth, info, readonly,
       optional, has_value, "Choose skybox", "Skyboxes\0*.skybox\0\0", path);
+}
+
+LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_terrain(LDKEditorContext *editor,
+    const char *label, u32 group_depth, const LDKAssetInfo *info,
+    bool readonly, bool has_value, XFSPath *path,
+    const LDKEditorUIUndoProperty *undo_property)
+{
+  (void)undo_property;
+  return s_editor_ui_row_slot_asset(editor, label, group_depth, info, readonly,
+      true, has_value, "Choose terrain", "Terrain\0*.terrain\0\0", path);
 }
 
 LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_texture_atlas(LDKEditorContext *editor,

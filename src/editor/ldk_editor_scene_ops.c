@@ -6,6 +6,8 @@
 #include <component/ldk_instanced_mesh_source.h>
 #include <component/ldk_mesh_source.h>
 #include <component/ldk_transform.h>
+#include <system/ldk_terrain_system.h>
+#include <system/ldk_grass_system.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_ecs.h>
 #include <module/ldk_scene_manager.h>
@@ -387,6 +389,9 @@ static bool s_editor_play_scene_field_size(
   case LDK_FIELD_ASSET_TEXTURE_ATLAS:
     *out_size = sizeof(LDKAssetTextureAtlas);
     return true;
+  case LDK_FIELD_ASSET_TERRAIN:
+    *out_size = sizeof(LDKAssetTerrain);
+    return true;
   case LDK_FIELD_ASSET_IMAGE:
     *out_size = sizeof(LDKAssetImage);
     return true;
@@ -446,6 +451,10 @@ static bool s_editor_play_scene_asset_reference_is_persistent(
   case LDK_FIELD_ASSET_TEXTURE_ATLAS:
     asset.h = ((const LDKAssetTextureAtlas *)(base + field->offset))->h;
     expected_type = LDK_ASSET_TYPE_TEXTURE_ATLAS;
+    break;
+  case LDK_FIELD_ASSET_TERRAIN:
+    asset.h = ((const LDKAssetTerrain *)(base + field->offset))->h;
+    expected_type = LDK_ASSET_TYPE_TERRAIN;
     break;
   case LDK_FIELD_ASSET_IMAGE:
     asset.h = ((const LDKAssetImage *)(base + field->offset))->h;
@@ -1725,6 +1734,10 @@ bool ldki_editor_scene_clear(LDKEditorContext *editor)
         "Cannot clear scene while editor or game is running/updating.");
     return false;
   }
+
+  /* Editor preview render caches refer to the current scene entities. */
+  ldk_terrain_system_editor_clear();
+  ldk_grass_system_editor_clear();
 
   /* Restore editor-only preview poses before the scene is replaced. */
   ldki_editor_animation_scene_reset();

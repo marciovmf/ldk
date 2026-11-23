@@ -41,6 +41,7 @@ extern "C"
     LDK_FIELD_U64,
     LDK_FIELD_ARRAY,
     LDK_FIELD_ASSET_PREFAB,
+    LDK_FIELD_ASSET_TERRAIN,
   } LDKFieldType;
 
   /** @group ldk.editor.component_metadata */
@@ -73,6 +74,7 @@ extern "C"
     LDK_FIELD_WIDGET_ASSET_TEXTURE_ATLAS,
     LDK_FIELD_WIDGET_ATLAS_REGION,
     LDK_FIELD_WIDGET_ASSET_PREFAB,
+    LDK_FIELD_WIDGET_ASSET_TERRAIN,
   } LDKFieldWidget;
 
   /** @group ldk.editor.component_metadata */

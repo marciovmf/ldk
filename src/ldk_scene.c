@@ -257,6 +257,11 @@ u32 ldk_scene_component_meta_runtime_type(const LDKComponentMeta *meta)
       return LDK_COMPONENT_TYPE_GRASS_INTERACT;
     }
 
+    if (strcmp(meta->name, "LDKTerrainComponent") == 0)
+    {
+      return LDK_COMPONENT_TYPE_TERRAIN;
+    }
+
     if (strcmp(meta->name, "LDKTerrainFollowerComponent") == 0)
     {
       return LDK_COMPONENT_TYPE_TERRAIN_FOLLOWER;
@@ -1233,6 +1238,32 @@ static bool s_apply_field_value(const TMLDocument *doc,
     atlas = ldk_asset_manager_texture_atlas_load_shared(assets, path);
     if (x_handle_is_null(atlas.h)) return false;
     *(LDKAssetTextureAtlas *)ptr = atlas;
+  }
+  break;
+
+  case LDK_FIELD_ASSET_TERRAIN:
+  {
+    i64 empty;
+    TMLString reference;
+    char path[LDK_ASSET_PATH_MAX_LENGTH + 1u];
+    LDKAssetManager *assets;
+    LDKAssetTerrain terrain;
+    if (tml_entry_get_i64(entry, &empty))
+    {
+      if (empty != -1) return false;
+      *(LDKAssetTerrain *)ptr = ldk_asset_terrain_null();
+      break;
+    }
+    if (!tml_entry_get_string(entry, &reference) || !reference.size ||
+        reference.size > LDK_ASSET_PATH_MAX_LENGTH ||
+        memchr(reference.data, 0, reference.size)) return false;
+    memcpy(path, reference.data, reference.size);
+    path[reference.size] = 0;
+    assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    if (!assets) return false;
+    terrain = ldk_asset_manager_terrain_load_shared(assets, path);
+    if (x_handle_is_null(terrain.h)) return false;
+    *(LDKAssetTerrain *)ptr = terrain;
   }
   break;
 
@@ -2532,6 +2563,10 @@ static bool s_system_meta_validate(const LDKSystemMeta *meta, u32 size)
       field_size = sizeof(LDKAssetTextureAtlas);
       alignment = _Alignof(LDKAssetTextureAtlas);
       break;
+    case LDK_FIELD_ASSET_TERRAIN:
+      field_size = sizeof(LDKAssetTerrain);
+      alignment = _Alignof(LDKAssetTerrain);
+      break;
     case LDK_FIELD_ASSET_IMAGE:
       field_size = sizeof(LDKAssetImage);
       alignment = _Alignof(LDKAssetImage);
@@ -3361,6 +3396,27 @@ static bool s_write_field_value(XStrBuilder *out,
     handle.h = value->h;
     info = assets ? ldk_asset_get_info_const(assets, handle) : NULL;
     if (!info || info->type != LDK_ASSET_TYPE_TEXTURE_ATLAS ||
+        !assets->source || info->source_revision != assets->source->revision ||
+        !info->asset_path.length) return false;
+    s_append_escaped_string(out, info->asset_path.buf);
+  }
+  break;
+
+  case LDK_FIELD_ASSET_TERRAIN:
+  {
+    const LDKAssetTerrain *value = (const LDKAssetTerrain *)ptr;
+    LDKAssetManager *assets;
+    const LDKAssetInfo *info;
+    LDKAssetHandle handle;
+    if (x_handle_is_null(value->h))
+    {
+      x_strbuilder_append(out, "-1");
+      break;
+    }
+    assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    handle.h = value->h;
+    info = assets ? ldk_asset_get_info_const(assets, handle) : NULL;
+    if (!info || info->type != LDK_ASSET_TYPE_TERRAIN ||
         !assets->source || info->source_revision != assets->source->revision ||
         !info->asset_path.length) return false;
     s_append_escaped_string(out, info->asset_path.buf);

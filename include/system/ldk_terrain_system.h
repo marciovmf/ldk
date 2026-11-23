@@ -8,10 +8,12 @@
 #define LDK_TERRAIN_SYSTEM_H
 
 #include <ldk_asset.h>
+#include <ldk_terrain.h>
 #include <ldk_color.h>
 #include <ldk_common.h>
 #include <ldk_resource.h>
 #include <module/ldk_system.h>
+#include <module/ldk_entity.h>
 #include <stdx/stdx_math.h>
 #include <stdx/stdx_string.h>
 
@@ -21,23 +23,11 @@
 extern "C" {
 #endif
 
-/** @group ldk.system.terrain_system */
-#define LDK_TERRAIN_SURFACE_COUNT 8u
-
-/** @group ldk.system.terrain_system */
-//@enum
-typedef enum LDKTerrainChannel
-{
-  LDK_TERRAIN_CHANNEL_R = 0,
-  LDK_TERRAIN_CHANNEL_G,
-  LDK_TERRAIN_CHANNEL_B,
-  LDK_TERRAIN_CHANNEL_A
-} LDKTerrainChannel;
-
 /**
- * @brief Assign a heightmap image to the terrain system.
- * @param image Image used by this operation.
- * @return True if the operation succeeds; false otherwise.
+ * @brief Set a direct runtime heightmap when no Terrain Asset is assigned.
+ * Kept for procedural terrain providers until the shared Terrain Asset
+ * creation API is integrated. The heightmap is borrowed from AssetManager.
+ * Has no effect on terrain entities with a .terrain asset assigned.
  * @group ldk.system.terrain_system
  */
 LDK_API bool ldk_terrain_heightmap_set(LDKAssetImage image);
@@ -49,8 +39,9 @@ LDK_API bool ldk_terrain_heightmap_set(LDKAssetImage image);
 LDK_API bool ldk_terrain_system_is_active(void);
 /**
  * @brief Revision of the currently queryable terrain geometry.
- * Returns zero when no heightmap is ready. Changes when terrain heights or
- * their world-space mapping change.
+ * Returns zero when no terrain geometry is ready. Includes the flat default
+ * terrain when no heightmap is assigned. Changes when terrain geometry or
+ * its world-space mapping changes.
  * @return Nonzero terrain geometry revision, or zero if unavailable.
  * @group ldk.system.terrain_system
  */
@@ -74,6 +65,17 @@ LDK_API bool ldk_terrain_height_at_world(
 LDK_API bool ldk_terrain_normal_at_world(
     float world_x, float world_z, Vec3 *out_normal);
 
+/** Query a specific terrain entity rather than the highest surface at X/Z.
+ * Only upright terrain transforms are supported by height queries.
+ */
+LDK_API bool ldk_terrain_entity_height_at_world(
+    LDKEntity entity, float world_x, float world_z, float *out_height);
+LDK_API bool ldk_terrain_entity_normal_at_world(
+    LDKEntity entity, float world_x, float world_z, Vec3 *out_normal);
+
+/** Release cached Editor-mode terrain resources before replacing the scene. */
+LDK_API void ldk_terrain_system_editor_clear(void);
+
 /**
  * @brief Initialize the terrain system.
  * @param data Source data or system-owned context for this operation.
@@ -90,6 +92,12 @@ int ldk_terrain_system_initialize(void *data);
  */
 void ldk_terrain_system_update(
     void *data, const LDKEntityGroup *group, float dt);
+/** Comet calls this in Edit mode using the scene-owned system data.
+ * It shares the same renderer/cache with the normal Play update.
+ */
+//@editor_callback system=LDKTerrainSystem flags=OnEditorUpdate
+LDK_GAME_API void ldk_terrain_system_on_editor_update(u64 system_id, void *data, float dt);
+
 /**
  * @brief Shut down the terrain system.
  * @param data Source data or system-owned context for this operation.
@@ -101,273 +109,16 @@ void ldk_terrain_system_terminate(void *data);
 //@system name=LDKTerrainSystem initialize=ldk_terrain_system_initialize update=ldk_terrain_system_update terminate=ldk_terrain_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_ENGINE_NATIVE|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED bucket=LDK_SYSTEM_BUCKET_RENDER
 typedef struct LDKTerrainSystem
 {
-  //@begin_group "Height Source"
-  LDKAssetImage heightmap;
-  LDKTerrainChannel height_channel;
-  //@inspect min=0.0001
-  float cell_size;
-  float height_scale;
-  float height_offset;
-  bool center_on_origin;
-  float origin_x;
-  float origin_z;
-  //@end_group
-
   //@begin_group "Geometry"
-  /** Number of rendered mesh cells per chunk (independent of source resolution). */
+  /** Number of rendered mesh cells per chunk. */
   //@inspect min=1 max=256
   u32 chunk_size;
-  /** Distance in source heightmap cells between rendered mesh vertices.
-   * 1 preserves full resolution. Larger values simplify geometry without
-   * changing world dimensions or terrain height/normal queries. */
+  /** Source heightmap cells per mesh vertex (1 = full resolution). */
   //@inspect min=1 max=256
   u32 mesh_sample_step;
   //@end_group
 
-  //@begin_group "Appearance"
-  LDKAssetMaterial material;
-  LDKAssetTextureAtlas texture_atlas;
-  //@begin_group "Color Noise"
-  /** Grayscale texture, sampled in world XZ like GrassSystem. Empty disables. */
-  LDKAssetImage color_noise_texture;
-  /** Noise UV repetitions per world unit. Match GrassSystem for alignment. */
-  //@inspect min=0.000001
-  float color_noise_scale;
-  /** Strength of per-surface color variation (0 disables). */
-  //@inspect slider min=0 max=1
-  float color_noise_strength;
-  //@end_group
-  //@inspect min=1 max=8
-  u32 surface_count;
-  //@end_group
-
-  //@begin_group "Surface 0"
-  XSmallstr surface_0_name;
-  //@inspect slider min=0 max=1
-  float surface_0_min_height;
-  //@inspect slider min=0 max=1
-  float surface_0_blend_width;
-  //@inspect widget=COLOR
-  u32 surface_0_color;
-  /** Color at noise value 0; zero initializes to the base surface color. */
-  //@inspect widget=COLOR
-  u32 surface_0_noise_low_color;
-  /** Color at noise value 1; zero initializes to the base surface color. */
-  //@inspect widget=COLOR
-  u32 surface_0_noise_high_color;
-  /* Stable atlas region ID (0 means no sprite). */
-  //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
-  u64 surface_0_sprite_id;
-  Vec2 surface_0_uv_scale;
-  //@inspect slider min=0 max=1
-  float surface_0_texture_weight;
-  //@end_group
-  //@begin_group "Surface 1"
-  XSmallstr surface_1_name;
-  //@inspect slider min=0 max=1
-  float surface_1_min_height;
-  //@inspect slider min=0 max=1
-  float surface_1_blend_width;
-  //@inspect widget=COLOR
-  u32 surface_1_color;
-  /** Color at noise value 0; zero initializes to the base surface color. */
-  //@inspect widget=COLOR
-  u32 surface_1_noise_low_color;
-  /** Color at noise value 1; zero initializes to the base surface color. */
-  //@inspect widget=COLOR
-  u32 surface_1_noise_high_color;
-  /* Stable atlas region ID (0 means no sprite). */
-  //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
-  u64 surface_1_sprite_id;
-  Vec2 surface_1_uv_scale;
-  //@inspect slider min=0 max=1
-  float surface_1_texture_weight;
-  /** Select this surface by steepness instead of elevation. */
-  bool surface_1_use_slope;
-  /** Slope threshold in degrees from horizontal. */
-  //@inspect slider min=0 max=90
-  float surface_1_min_slope_degrees;
-  /** Gradual transition below the threshold, in degrees. */
-  //@inspect slider min=0 max=90
-  float surface_1_slope_blend_degrees;
-  //@end_group
-  //@begin_group "Surface 2"
-  XSmallstr surface_2_name;
-  //@inspect slider min=0 max=1
-  float surface_2_min_height;
-  //@inspect slider min=0 max=1
-  float surface_2_blend_width;
-  //@inspect widget=COLOR
-  u32 surface_2_color;
-  /** Color at noise value 0; zero initializes to the base surface color. */
-  //@inspect widget=COLOR
-  u32 surface_2_noise_low_color;
-  /** Color at noise value 1; zero initializes to the base surface color. */
-  //@inspect widget=COLOR
-  u32 surface_2_noise_high_color;
-  /* Stable atlas region ID (0 means no sprite). */
-  //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
-  u64 surface_2_sprite_id;
-  Vec2 surface_2_uv_scale;
-  //@inspect slider min=0 max=1
-  float surface_2_texture_weight;
-  /** Select this surface by steepness instead of elevation. */
-  bool surface_2_use_slope;
-  /** Slope threshold in degrees from horizontal. */
-  //@inspect slider min=0 max=90
-  float surface_2_min_slope_degrees;
-  /** Gradual transition below the threshold, in degrees. */
-  //@inspect slider min=0 max=90
-  float surface_2_slope_blend_degrees;
-  //@end_group
-  //@begin_group "Surface 3"
-  XSmallstr surface_3_name;
-  //@inspect slider min=0 max=1
-  float surface_3_min_height;
-  //@inspect slider min=0 max=1
-  float surface_3_blend_width;
-  //@inspect widget=COLOR
-  u32 surface_3_color;
-  /** Color at noise value 0; zero initializes to the base surface color. */
-  //@inspect widget=COLOR
-  u32 surface_3_noise_low_color;
-  /** Color at noise value 1; zero initializes to the base surface color. */
-  //@inspect widget=COLOR
-  u32 surface_3_noise_high_color;
-  /* Stable atlas region ID (0 means no sprite). */
-  //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
-  u64 surface_3_sprite_id;
-  Vec2 surface_3_uv_scale;
-  //@inspect slider min=0 max=1
-  float surface_3_texture_weight;
-  /** Select this surface by steepness instead of elevation. */
-  bool surface_3_use_slope;
-  /** Slope threshold in degrees from horizontal. */
-  //@inspect slider min=0 max=90
-  float surface_3_min_slope_degrees;
-  /** Gradual transition below the threshold, in degrees. */
-  //@inspect slider min=0 max=90
-  float surface_3_slope_blend_degrees;
-  //@end_group
-  //@begin_group "Surface 4"
-  XSmallstr surface_4_name;
-  //@inspect slider min=0 max=1
-  float surface_4_min_height;
-  //@inspect slider min=0 max=1
-  float surface_4_blend_width;
-  //@inspect widget=COLOR
-  u32 surface_4_color;
-  /** Color at noise value 0; zero initializes to the base surface color. */
-  //@inspect widget=COLOR
-  u32 surface_4_noise_low_color;
-  /** Color at noise value 1; zero initializes to the base surface color. */
-  //@inspect widget=COLOR
-  u32 surface_4_noise_high_color;
-  /* Stable atlas region ID (0 means no sprite). */
-  //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
-  u64 surface_4_sprite_id;
-  Vec2 surface_4_uv_scale;
-  //@inspect slider min=0 max=1
-  float surface_4_texture_weight;
-  /** Select this surface by steepness instead of elevation. */
-  bool surface_4_use_slope;
-  /** Slope threshold in degrees from horizontal. */
-  //@inspect slider min=0 max=90
-  float surface_4_min_slope_degrees;
-  /** Gradual transition below the threshold, in degrees. */
-  //@inspect slider min=0 max=90
-  float surface_4_slope_blend_degrees;
-  //@end_group
-  //@begin_group "Surface 5"
-  XSmallstr surface_5_name;
-  //@inspect slider min=0 max=1
-  float surface_5_min_height;
-  //@inspect slider min=0 max=1
-  float surface_5_blend_width;
-  //@inspect widget=COLOR
-  u32 surface_5_color;
-  /** Color at noise value 0; zero initializes to the base surface color. */
-  //@inspect widget=COLOR
-  u32 surface_5_noise_low_color;
-  /** Color at noise value 1; zero initializes to the base surface color. */
-  //@inspect widget=COLOR
-  u32 surface_5_noise_high_color;
-  /* Stable atlas region ID (0 means no sprite). */
-  //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
-  u64 surface_5_sprite_id;
-  Vec2 surface_5_uv_scale;
-  //@inspect slider min=0 max=1
-  float surface_5_texture_weight;
-  /** Select this surface by steepness instead of elevation. */
-  bool surface_5_use_slope;
-  /** Slope threshold in degrees from horizontal. */
-  //@inspect slider min=0 max=90
-  float surface_5_min_slope_degrees;
-  /** Gradual transition below the threshold, in degrees. */
-  //@inspect slider min=0 max=90
-  float surface_5_slope_blend_degrees;
-  //@end_group
-  //@begin_group "Surface 6"
-  XSmallstr surface_6_name;
-  //@inspect slider min=0 max=1
-  float surface_6_min_height;
-  //@inspect slider min=0 max=1
-  float surface_6_blend_width;
-  //@inspect widget=COLOR
-  u32 surface_6_color;
-  /** Color at noise value 0; zero initializes to the base surface color. */
-  //@inspect widget=COLOR
-  u32 surface_6_noise_low_color;
-  /** Color at noise value 1; zero initializes to the base surface color. */
-  //@inspect widget=COLOR
-  u32 surface_6_noise_high_color;
-  /* Stable atlas region ID (0 means no sprite). */
-  //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
-  u64 surface_6_sprite_id;
-  Vec2 surface_6_uv_scale;
-  //@inspect slider min=0 max=1
-  float surface_6_texture_weight;
-  /** Select this surface by steepness instead of elevation. */
-  bool surface_6_use_slope;
-  /** Slope threshold in degrees from horizontal. */
-  //@inspect slider min=0 max=90
-  float surface_6_min_slope_degrees;
-  /** Gradual transition below the threshold, in degrees. */
-  //@inspect slider min=0 max=90
-  float surface_6_slope_blend_degrees;
-  //@end_group
-  //@begin_group "Surface 7"
-  XSmallstr surface_7_name;
-  //@inspect slider min=0 max=1
-  float surface_7_min_height;
-  //@inspect slider min=0 max=1
-  float surface_7_blend_width;
-  //@inspect widget=COLOR
-  u32 surface_7_color;
-  /** Color at noise value 0; zero initializes to the base surface color. */
-  //@inspect widget=COLOR
-  u32 surface_7_noise_low_color;
-  /** Color at noise value 1; zero initializes to the base surface color. */
-  //@inspect widget=COLOR
-  u32 surface_7_noise_high_color;
-  /* Stable atlas region ID (0 means no sprite). */
-  //@inspect widget=ATLAS_REGION source=texture_atlas label=Sprite
-  u64 surface_7_sprite_id;
-  Vec2 surface_7_uv_scale;
-  //@inspect slider min=0 max=1
-  float surface_7_texture_weight;
-  /** Select this surface by steepness instead of elevation. */
-  bool surface_7_use_slope;
-  /** Slope threshold in degrees from horizontal. */
-  //@inspect slider min=0 max=90
-  float surface_7_min_slope_degrees;
-  /** Gradual transition below the threshold, in degrees. */
-  //@inspect slider min=0 max=90
-  float surface_7_slope_blend_degrees;
-  //@end_group
-
   //@begin_group "Rendering"
-  /** Submit only terrain chunks visible to the game view when enabled. */
   bool cull;
   bool casts_shadows;
   //@end_group

@@ -1,15 +1,17 @@
 bl_info = {
     "name": "LDK Mesh Exporter",
     "author": "Marcio VMF",
-    "version": (4, 1, 0),
+    "version": (4, 2, 0),
     "blender": (3, 0, 0),
     "location": "File > Export > LDK mesh (.mesh)",
     "description": "Export Blender object hierarchy to the LDK mesh format",
     "category": "Import-Export",
 }
 
+import os
+
 import bpy
-from bpy.props import FloatProperty, StringProperty
+from bpy.props import BoolProperty, FloatProperty, StringProperty
 from bpy_extras.io_utils import axis_conversion
 from mathutils import Matrix
 
@@ -263,19 +265,41 @@ def _matrix_max_error(left, right):
     return error
 
 
-def _node_transform(obj, coordinate_matrix):
-    local_matrix = obj.matrix_local.copy()
-    converted = coordinate_matrix @ local_matrix @ coordinate_matrix.inverted()
+def _decompose_transform(matrix, coordinate_matrix, object_name):
+    converted = coordinate_matrix @ matrix @ coordinate_matrix.inverted()
     position, rotation, scale = converted.decompose()
     rebuilt = Matrix.LocRotScale(position, rotation, scale)
 
     if _matrix_max_error(converted, rebuilt) > LDK_TRANSFORM_EPSILON:
         raise ValueError(
-            f'Object "{obj.name}" has a local transform with shear that '
+            f'Object "{object_name}" has a transform with shear that '
             "cannot be represented by LDK position/rotation/scale."
         )
 
     return position, rotation.normalized(), scale
+
+
+def _node_transform(obj, coordinate_matrix):
+    return _decompose_transform(
+        obj.matrix_local.copy(), coordinate_matrix, obj.name)
+
+
+def _individual_node(obj, coordinate_matrix):
+    # Individual assets keep the object's visible rotation and scale (including
+    # its parents' transforms), but not its placement within the Blender scene.
+    # The object's origin is therefore the pivot of the exported root node.
+    transform = obj.matrix_world.copy()
+    transform.translation = (0.0, 0.0, 0.0)
+    position, rotation, scale = _decompose_transform(
+        transform, coordinate_matrix, obj.name)
+    return {
+        "name": obj.name,
+        "parent_index": -1,
+        "mesh_index": 0,
+        "position": position,
+        "rotation": rotation,
+        "scale": scale,
+    }
 
 
 def _objects_for_export(context):
@@ -319,15 +343,19 @@ def _objects_for_export(context):
     return ordered
 
 
-def _collect_asset(context, global_scale):
-    depsgraph = context.evaluated_depsgraph_get()
+def _coordinate_matrix(global_scale):
     axis_matrix = axis_conversion(
         from_forward="Y",
         from_up="Z",
         to_forward="-Z",
         to_up="Y",
     ).to_4x4()
-    coordinate_matrix = Matrix.Scale(global_scale, 4) @ axis_matrix
+    return Matrix.Scale(global_scale, 4) @ axis_matrix
+
+
+def _collect_asset(context, global_scale):
+    depsgraph = context.evaluated_depsgraph_get()
+    coordinate_matrix = _coordinate_matrix(global_scale)
     geometry_matrix = coordinate_matrix
 
     objects = _objects_for_export(context)
@@ -471,6 +499,80 @@ def export_ldk_mesh(context, path, global_scale):
     _write_mesh(path, meshes, nodes)
 
 
+def _safe_object_filename(name):
+    # Use portable filenames even when Blender object names contain separators,
+    # Windows reserved characters, or control characters.
+    invalid = '<>:"/\\|?*'
+    stem = "".join(
+        "_" if char in invalid or ord(char) < 32 else char
+        for char in name
+    ).strip().rstrip(". ")[:120].rstrip(". ")
+    if not stem:
+        stem = "Object"
+
+    reserved = {"CON", "PRN", "AUX", "NUL"}
+    reserved.update(f"COM{index}" for index in range(1, 10))
+    reserved.update(f"LPT{index}" for index in range(1, 10))
+    if stem.split(".", 1)[0].upper() in reserved:
+        stem = "_" + stem
+
+    return stem
+
+
+def _unique_mesh_filename(name, used_names):
+    stem = _safe_object_filename(name)
+    filename = stem + ".mesh"
+    suffix = 2
+    while filename.casefold() in used_names:
+        filename = f"{stem}_{suffix}.mesh"
+        suffix += 1
+
+    used_names.add(filename.casefold())
+    return filename
+
+
+def export_ldk_mesh_objects(context, path, global_scale, selected_only):
+    # The file browser still supplies a filepath. In individual mode only its
+    # parent directory is used: filenames are derived from Blender object names.
+    directory = os.path.dirname(bpy.path.abspath(path))
+    if not os.path.isdir(directory):
+        raise ValueError(f'Output directory does not exist: "{directory}"')
+
+    candidates = context.selected_objects if selected_only else context.scene.objects
+    objects = sorted(
+        (obj for obj in candidates if obj.type == "MESH"),
+        key=lambda obj: obj.name.casefold(),
+    )
+    if not objects:
+        description = "selected" if selected_only else "scene"
+        raise ValueError(f"No mesh objects were found in the {description}.")
+
+    coordinate_matrix = _coordinate_matrix(global_scale)
+    depsgraph = context.evaluated_depsgraph_get()
+    used_names = set()
+    exports = []
+
+    # Validate all root transforms and assign collision-free filenames before
+    # writing any files. Each standalone asset has exactly one mesh and node.
+    for obj in objects:
+        node = _individual_node(obj, coordinate_matrix)
+        filename = _unique_mesh_filename(obj.name, used_names)
+        exports.append((obj, node, os.path.join(directory, filename)))
+
+    written = 0
+    for obj, node, output_path in exports:
+        mesh = _collect_object_mesh(obj, depsgraph, coordinate_matrix)
+        if mesh is None:
+            continue
+        _write_mesh(output_path, [mesh], [node])
+        written += 1
+
+    if not written:
+        raise ValueError("No renderable mesh objects were found.")
+
+    return written
+
+
 class LDKMeshExportOperator(bpy.types.Operator):
     bl_idname = "export_scene.ldk_mesh"
     bl_label = "LDK mesh"
@@ -492,7 +594,28 @@ class LDKMeshExportOperator(bpy.types.Operator):
         max=100.0,
     )
 
+    separate_objects: BoolProperty(
+        name="Separate Objects",
+        description="Export each mesh object to its own .mesh file in the chosen folder",
+        default=False,
+    )
+
+    selected_only: BoolProperty(
+        name="Selected Objects Only",
+        description="In separate mode, export only selected mesh objects",
+        default=False,
+    )
+
     filepath: StringProperty(subtype="FILE_PATH")
+
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "global_scale")
+        layout.prop(self, "separate_objects")
+        if self.separate_objects:
+            layout.prop(self, "selected_only")
+            layout.label(text="Files use object names in the chosen folder.")
+            layout.label(text="Scene positions are not exported.")
 
     def execute(self, context):
         path = self.filepath
@@ -500,7 +623,12 @@ class LDKMeshExportOperator(bpy.types.Operator):
             path += self.filename_ext
 
         try:
-            export_ldk_mesh(context, path, self.global_scale)
+            if self.separate_objects:
+                written = export_ldk_mesh_objects(
+                    context, path, self.global_scale, self.selected_only)
+                self.report({"INFO"}, f"Exported {written} individual LDK meshes.")
+            else:
+                export_ldk_mesh(context, path, self.global_scale)
         except (OSError, ValueError) as error:
             self.report({"ERROR"}, str(error))
             return {"CANCELLED"}

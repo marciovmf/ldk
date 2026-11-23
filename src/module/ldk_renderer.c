@@ -5107,6 +5107,19 @@ bool ldk_renderer_submit_mesh_range_with_flags(LDKRenderer *renderer,
       first_index, index_count, world, flags);
 }
 
+bool ldk_renderer_submit_mesh_to_view_with_flags(
+    LDKRenderer *renderer, LDKRendererViewId view_id,
+    LDKResourceMesh mesh, LDKResourceMaterial material, Mat4 world,
+    u32 flags)
+{
+  if (view_id == LDK_RENDERER_VIEW_INVALID ||
+      view_id == LDK_RENDERER_VIEW_ALL) return false;
+  LDKRendererMeshResource *resource =
+      s_renderer_mesh_get_resource(renderer, mesh);
+  return resource && s_renderer_submit_mesh(renderer, view_id, mesh,
+      material, 0u, resource->index_count, world, flags);
+}
+
 bool ldk_renderer_submit_mesh_to_view(LDKRenderer* renderer,
     LDKRendererViewId view_id, LDKResourceMesh mesh,
     LDKResourceMaterial material, Mat4 world)

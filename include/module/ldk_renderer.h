@@ -2243,6 +2243,12 @@ extern "C" {
       LDKResourceMaterial material,
       Mat4 world);
 
+  /** View-scoped mesh submission with explicit shadow flags. */
+  LDK_API bool ldk_renderer_submit_mesh_to_view_with_flags(
+      LDKRenderer *renderer, LDKRendererViewId view_id,
+      LDKResourceMesh mesh, LDKResourceMaterial material, Mat4 world,
+      u32 flags);
+
 
   // ---------------------------------------------------------------------------
   // Skybox Resource

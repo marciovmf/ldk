@@ -780,6 +780,10 @@ static bool on_event_frame(const LDKEvent *event, void *state)
   LDK_PROFILE_BEGIN("Editor Gizmo Submit");
   ldki_editor_gizmo_submit(editor);
   LDK_PROFILE_END();
+
+  LDK_PROFILE_BEGIN("Terrain Brush Submit");
+  ldki_editor_terrain_submit(editor);
+  LDK_PROFILE_END();
   return true;
 }
 
@@ -1765,6 +1769,7 @@ static void s_editor_update(LDKEditorContext *editor, i32 window_width,
   LDK_PROFILE_BEGIN("Editor UI Build");
   editor->undo_row_seen = false;
   s_draw_editor_ui(editor, delta_time);
+  ldki_editor_terrain_frame_end(editor);
   ldki_editor_undo_frame_end(editor);
   if (editor->undo.position != editor->scene_undo_position_seen)
   {
@@ -3335,6 +3340,8 @@ static bool s_project_unload(LDKEditorContext *editor)
     return true;
   }
 
+  if (!ldki_editor_terrain_project_close(editor))
+    return false;
   if (!ldki_editor_texture_atlas_project_close(editor))
   {
     return false;
@@ -5074,6 +5081,18 @@ static i32 s_editor_main(const char *project_file_path)
     return 1;
   }
   ldki_editor_window_hide(LDK_EDITOR_WINDOW_TEXTURE_ATLAS);
+
+  LDKEditorWindow terrain_window = {.id = LDK_EDITOR_WINDOW_TERRAIN,
+      .title = "Terrain Editor",
+      .function = ldki_editor_terrain_window_show,
+      .data = NULL};
+  if (!ldk_editor_window_add((LDKEditor *)editor, &terrain_window))
+  {
+    ldk_log_error("Failed to register the Terrain Editor window.\n");
+    ldk_engine_terminate();
+    return 1;
+  }
+  ldki_editor_window_hide(LDK_EDITOR_WINDOW_TERRAIN);
 
   LDKEditorWindow catalog_window = {.id = LDK_EDITOR_WINDOW_SCENE_CATALOG,
       .title = "Scene Catalog",

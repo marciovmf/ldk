@@ -272,6 +272,37 @@ static int test_comet_editor_callback_validation(void)
   return 0;
 }
 
+/* Resolving array elements appends fields and can grow state.fields.
+ * The element type name must remain valid across that realloc. */
+static int test_comet_array_element_fields_reallocation(void)
+{
+  LDKMetaState state = {0};
+  const char *inputs[] = {LDK_COMET_TEST_FIXTURE};
+  LDKMetaField *fields;
+  u32 original_count;
+
+  ASSERT_TRUE(ldk_meta_parse_file(&state, inputs[0]));
+  original_count = state.field_count;
+  ASSERT_TRUE(original_count > 0u);
+
+  /* Make the next appended field force realloc, reproducing the case in
+   * metadata generation even with a small test fixture. */
+  fields = (LDKMetaField *)malloc(original_count * sizeof(*fields));
+  ASSERT_TRUE(fields != NULL);
+  memcpy(fields, state.fields, original_count * sizeof(*fields));
+  free(state.fields);
+  state.fields = fields;
+  state.field_capacity = original_count;
+
+  ASSERT_TRUE(ldk_meta_resolve_array_structs(&state, inputs, 1u));
+  ASSERT_EQ(state.structure_count, 1u);
+  ASSERT_TRUE(strcmp(state.structures[0].type_name,
+      "TestCometElement") == 0);
+  ASSERT_TRUE(state.field_count > original_count);
+  test_comet_clear(&state);
+  return 0;
+}
+
 static int test_comet_generator_fixture(void)
 {
   const char *inputs[] = {LDK_COMET_TEST_FIXTURE};
@@ -305,6 +336,7 @@ int main(void)
     X_TEST(test_comet_system_validation),
     X_TEST(test_comet_editor_callback_validation),
     X_TEST(test_comet_generator_fixture),
+    X_TEST(test_comet_array_element_fields_reallocation),
   };
   return x_tests_run(tests, (i32)(sizeof(tests) / sizeof(tests[0])), NULL);
 }

@@ -1732,6 +1732,8 @@ static bool s_editor_gizmo_target_matches_drag(
 
 void ldki_editor_gizmo_hover_update(LDKEditorContext *editor)
 {
+  if (editor && editor->terrain_editor.enabled) return;
+
   LDKECS *ecs;
   LDKMouseState mouse;
   LDKEditorGizmoTarget target;
@@ -2408,6 +2410,8 @@ static void s_editor_selected_component_draw(LDKEditorContext *editor,
 
 void ldki_editor_gizmo_submit(LDKEditorContext *editor)
 {
+  if (editor && editor->terrain_editor.enabled) return;
+
   LDKECS *ecs;
   LDKEditorGizmoTarget target;
   Mat4 target_world;

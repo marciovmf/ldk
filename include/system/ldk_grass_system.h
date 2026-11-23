@@ -15,6 +15,12 @@
  * patches can later be changed with `ldk_grass_update()` or removed with
  * `ldk_grass_remove()`. The engine owns the individual blade instances.
  *
+ * ## Terrain-linked vegetation
+ *
+ * Terrain-authored vegetation is discovered from LDKTerrainComponent entities
+ * in the scene. Each entity references a .terrain with density layers. This
+ * does not affect programmatic patches created with ldk_grass_add().
+ *
  * ## Distance LOD
  *
  * When lod_end_distance is greater than lod_start_distance, grass patches
@@ -342,6 +348,17 @@ typedef struct LDKGrassPatchDesc
   LDKGrassPlane plane;
   float density_scale;
   u32 seed;
+  /** Optional .terrain: project each generated blade to the real heightfield.
+   * Null preserves the original flat-plane behavior.
+   */
+  LDKAssetTerrain terrain;
+  /** Optional terrain entity for local-to-world placement. Null retains the
+   * original world-space behavior of programmatic terrain patches. */
+  LDKEntity terrain_entity;
+  /** Optional density image in terrain UV space (R channel, RGBA8/16).
+   * Null means full density. Only used when terrain is assigned.
+   */
+  LDKAssetImage density_mask;
 } LDKGrassPatchDesc;
 
 /** Opaque identity of one patch. Individual blades are intentionally hidden.
@@ -369,6 +386,12 @@ int ldk_grass_system_initialize(void *data);
  */
 void ldk_grass_system_update(
     void *data, const LDKEntityGroup *group, float dt);
+/** Editor preview uses the same instance renderer; no separate grass system. */
+//@editor_callback system=LDKGrassSystem flags=OnEditorUpdate
+LDK_GAME_API void ldk_grass_system_on_editor_update(u64 system_id, void *data, float dt);
+/** Release Editor-mode grass resources before replacing the scene. */
+LDK_API void ldk_grass_system_editor_clear(void);
+
 /**
  * @brief Shut down the grass system.
  * @param data Source data or system-owned context for this operation.

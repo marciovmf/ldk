@@ -8,6 +8,7 @@
 #include <component/ldk_audio_source.h>
 #include <component/ldk_grass_interact.h>
 #include <component/ldk_terrain_follower.h>
+#include <component/ldk_terrain_component.h>
 #include <component/ldk_keyframe_animation_source.h>
 #include <component/ldk_material_instance.h>
 #include <module/ldk_system.h>
@@ -61,6 +62,8 @@
 #ifndef LDK_DEFAULT_TERRAIN_FOLLOWER_COUNT
 #define LDK_DEFAULT_TERRAIN_FOLLOWER_COUNT 32
 #endif
+
+#define LDK_DEFAULT_TERRAIN_COUNT 8
 
 #define LDK_DEFAULT_KEYFRAME_ANIMATION_SOURCE_COUNT 16
 
@@ -1012,6 +1015,14 @@ bool ldk_ecs_initialize(
   if (!ldk_component_register(&context->component, &grass_interact_desc))
   {
     ldk_log_error("Failed to register component: GrassInteractComponent.");
+    error = true;
+  }
+
+  LDKComponentDesc terrain_component_desc =
+      ldk_terrain_component_desc(LDK_DEFAULT_TERRAIN_COUNT);
+  if (!ldk_component_register(&context->component, &terrain_component_desc))
+  {
+    ldk_log_error("Failed to register component: Terrain.\n");
     error = true;
   }
 

@@ -4,6 +4,10 @@
 #include <ldk_image.h>
 #include <ldk_material_asset.h>
 #include <ldk_mesh.h>
+#include <component/ldk_terrain_component.h>
+#include <component/ldk_transform.h>
+#include <module/ldk_ecs.h>
+#include <module/ldk_scenegraph.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_renderer.h>
 #include <stdx/stdx_math.h>
@@ -25,8 +29,21 @@ typedef struct LDKTerrainChunk
 typedef struct LDKTerrainRuntime
 {
   LDKTerrainSystem *owner;
+  LDKEntity entity;
+  LDKAssetTerrain desired_asset;
+  Mat4 world;
+  bool seen;
+  LDKTerrain config;
+  LDKAssetTerrain terrain_asset;
+  u64 terrain_revision;
+  LDKAssetImage heightmap_asset;
+  LDKAssetImage direct_heightmap;
+  LDKAssetMaterial configured_material;
+  LDKAssetTextureAtlas configured_atlas;
+  LDKAssetImage configured_noise;
   LDKTerrainChunk *chunks;
   u32 chunk_capacity;
+  u32 chunk_count;
   LDKImageInfo source;
   LDKAssetImage source_asset;
   u64 source_revision;
@@ -44,9 +61,69 @@ typedef struct LDKTerrainRuntime
   LDKResourceTexture specular_map;
 } LDKTerrainRuntime;
 
-static LDKTerrainRuntime s_runtime;
-static LDKAssetImage s_pending_heightmap;
-static bool s_pending_heightmap_valid;
+/* Each TerrainComponent owns its render cache. The active pointer is used
+ * only while processing one entity; helper functions never retain it. */
+static LDKTerrainRuntime **s_terrain_entries;
+static u32 s_terrain_count;
+static u32 s_terrain_capacity;
+static LDKTerrainRuntime *s_current;
+#define s_runtime (*s_current)
+static LDKTerrainSystem *s_play_owner;
+static LDKAssetImage s_direct_heightmap;
+static bool s_direct_heightmap_valid;
+
+static bool s_entity_equal(LDKEntity a, LDKEntity b)
+{
+  return a.index == b.index && a.version == b.version;
+}
+
+static LDKTerrainRuntime *s_terrain_entry_find(LDKEntity entity)
+{
+  for (u32 i = 0u; i < s_terrain_count; ++i)
+    if (s_entity_equal(s_terrain_entries[i]->entity, entity))
+      return s_terrain_entries[i];
+  return NULL;
+}
+
+static LDKTerrainRuntime *s_terrain_entry_get(
+    LDKEntity entity, LDKTerrainSystem *system)
+{
+  LDKTerrainRuntime *entry = s_terrain_entry_find(entity);
+  if (entry)
+  {
+    entry->owner = system;
+    return entry;
+  }
+  if (s_terrain_count == s_terrain_capacity)
+  {
+    u32 capacity = s_terrain_capacity ? s_terrain_capacity * 2u : 4u;
+    LDKTerrainRuntime **entries = realloc(s_terrain_entries,
+        (size_t)capacity * sizeof(*entries));
+    if (!entries) return NULL;
+    s_terrain_entries = entries;
+    s_terrain_capacity = capacity;
+  }
+  entry = calloc(1u, sizeof(*entry));
+  if (!entry) return NULL;
+  entry->owner = system;
+  entry->entity = entity;
+  entry->world = mat4_identity();
+  entry->terrain_asset = ldk_asset_terrain_null();
+  entry->desired_asset = ldk_asset_terrain_null();
+  entry->heightmap_asset = ldk_asset_image_null();
+  entry->direct_heightmap = s_direct_heightmap_valid
+      ? s_direct_heightmap : ldk_asset_image_null();
+  entry->terrain_revision = UINT64_MAX;
+  entry->material = ldk_renderer_material_null();
+  entry->texture = ldk_renderer_texture_null();
+  entry->normal_map = ldk_renderer_texture_null();
+  entry->specular_map = ldk_renderer_texture_null();
+  entry->material_asset = ldk_asset_material_null();
+  ldk_terrain_init(&entry->config);
+  s_terrain_entries[s_terrain_count++] = entry;
+  return entry;
+}
+
 
 static u64 s_hash_bytes(u64 hash, const void *data, size_t size)
 {
@@ -88,6 +165,7 @@ static float s_color_noise_texel(const LDKImageInfo *image, u32 x, u32 y)
 static float s_color_noise_sample(const LDKTerrainSystem *system,
     float x, float z)
 {
+  (void)system;
   LDKImageInfo image;
   if (!s_runtime.color_noise_image ||
       !ldk_image_get_info(s_runtime.color_noise_image, &image) ||
@@ -95,7 +173,7 @@ static float s_color_noise_sample(const LDKTerrainSystem *system,
       !image.channel_count || !image.bytes_per_channel)
     return 0.5f;
 
-  float scale = system->color_noise_scale;
+  float scale = s_runtime.config.color_noise_scale;
   float u = x * scale - floorf(x * scale);
   float v = z * scale - floorf(z * scale);
   float fx = u * image.width;
@@ -147,7 +225,7 @@ static float s_palette_channel(rgba32 base, rgba32 low, rgba32 high,
 static u32 s_color_noise_vertex_color(const LDKTerrainSystem *system,
     float x, float y, float z, Vec3 normal)
 {
-  if (!s_runtime.color_noise_image || system->color_noise_strength <= 0.0f)
+  if (!s_runtime.color_noise_image || s_runtime.config.color_noise_strength <= 0.0f)
     return 0xffffff00u;
 
   float noise = s_color_noise_sample(system, x, z);
@@ -160,7 +238,7 @@ static u32 s_color_noise_vertex_color(const LDKTerrainSystem *system,
   /* Elevation layers first, then slope layers; mirror the fragment shader. */
   for (u32 pass = 0u; pass < 2u; ++pass)
   {
-    for (u32 i = 0u; i < system->surface_count; ++i)
+    for (u32 i = 0u; i < s_runtime.config.surface_count; ++i)
     {
       bool use_slope = s_surface_use_slope(system, i);
       if ((pass == 0u && use_slope) || (pass == 1u && !use_slope))
@@ -185,9 +263,9 @@ static u32 s_color_noise_vertex_color(const LDKTerrainSystem *system,
       }
       else if (i > 0u)
       {
-        float threshold = system->height_offset +
-            s_surface_min_height(system, i) * system->height_scale;
-        float width = s_surface_blend_width(system, i) * system->height_scale;
+        float threshold = s_runtime.config.height_offset +
+            s_surface_min_height(system, i) * s_runtime.config.height_scale;
+        float width = s_surface_blend_width(system, i) * s_runtime.config.height_scale;
         if (width > 0.000001f)
         {
           t = fmaxf(0.0f, fminf(1.0f,
@@ -212,8 +290,8 @@ static u32 s_color_noise_vertex_color(const LDKTerrainSystem *system,
   {
     float base = original[k] * original[k];
     float target = varied[k] * varied[k];
-    float factor = (1.0f - system->color_noise_strength) +
-        system->color_noise_strength *
+    float factor = (1.0f - s_runtime.config.color_noise_strength) +
+        s_runtime.config.color_noise_strength *
             (base > 0.000001f ? target / base : 1.0f);
     float encoded = powf(fminf(fmaxf(factor * 0.5f, 0.0f), 1.0f),
         1.0f / 2.2f);
@@ -225,342 +303,240 @@ static u32 s_color_noise_vertex_color(const LDKTerrainSystem *system,
 static bool s_color_noise_refresh(LDKTerrainSystem *system,
     LDKAssetManager *assets)
 {
-  LDKAssetHandle generic = {system->color_noise_texture.h};
+  (void)system;
+  LDKAssetHandle generic = {s_runtime.configured_noise.h};
   const LDKAssetInfo *info = !x_handle_is_null(generic.h)
       ? ldk_asset_get_info_const(assets, generic) : NULL;
   u64 revision = info ? info->source_revision : 0u;
   const LDKAssetImageData *data = !x_handle_is_null(generic.h)
-      ? ldk_asset_manager_image_get_const(assets, system->color_noise_texture)
+      ? ldk_asset_manager_image_get_const(assets, s_runtime.configured_noise)
       : NULL;
   LDKImage *image = data && !data->is_missing ? data->image : NULL;
   if (!x_handle_is_null(generic.h) && !image)
     return false;
   if (s_asset_image_equal(s_runtime.color_noise_loaded_asset,
-        system->color_noise_texture) &&
+        s_runtime.configured_noise) &&
       s_runtime.color_noise_revision == revision &&
       s_runtime.color_noise_image == image)
     return true;
   s_runtime.color_noise_image = image;
-  s_runtime.color_noise_loaded_asset = system->color_noise_texture;
+  s_runtime.color_noise_loaded_asset = s_runtime.configured_noise;
   s_runtime.color_noise_revision = revision;
   s_runtime.geometry_hash = 0u;
   return true;
 }
 
+/* Surface definitions now belong to the shared Terrain Asset. */
 static float s_surface_min_height(const LDKTerrainSystem *s, u32 i)
 {
-  switch (i)
-  {
-  case 0: return s->surface_0_min_height;
-  case 1: return s->surface_1_min_height;
-  case 2: return s->surface_2_min_height;
-  case 3: return s->surface_3_min_height;
-  case 4: return s->surface_4_min_height;
-  case 5: return s->surface_5_min_height;
-  case 6: return s->surface_6_min_height;
-  case 7: return s->surface_7_min_height;
-  default: return 0.0f;
-  }
+  (void)s;
+  return s_runtime.config.surfaces[i].min_height;
 }
-
 static float s_surface_blend_width(const LDKTerrainSystem *s, u32 i)
 {
-  switch (i)
-  {
-  case 0: return s->surface_0_blend_width;
-  case 1: return s->surface_1_blend_width;
-  case 2: return s->surface_2_blend_width;
-  case 3: return s->surface_3_blend_width;
-  case 4: return s->surface_4_blend_width;
-  case 5: return s->surface_5_blend_width;
-  case 6: return s->surface_6_blend_width;
-  case 7: return s->surface_7_blend_width;
-  default: return 0.0f;
-  }
+  (void)s;
+  return s_runtime.config.surfaces[i].blend_width;
 }
-
 static rgba32 s_surface_color(const LDKTerrainSystem *s, u32 i)
 {
-  switch (i)
-  {
-  case 0: return s->surface_0_color;
-  case 1: return s->surface_1_color;
-  case 2: return s->surface_2_color;
-  case 3: return s->surface_3_color;
-  case 4: return s->surface_4_color;
-  case 5: return s->surface_5_color;
-  case 6: return s->surface_6_color;
-  case 7: return s->surface_7_color;
-  default: return LDK_RGBA32(0xffffffffu);
-  }
+  (void)s;
+  return s_runtime.config.surfaces[i].color;
 }
-
 static rgba32 s_surface_noise_low(const LDKTerrainSystem *s, u32 i)
 {
-  switch (i)
-  {
-  case 0: return s->surface_0_noise_low_color;
-  case 1: return s->surface_1_noise_low_color;
-  case 2: return s->surface_2_noise_low_color;
-  case 3: return s->surface_3_noise_low_color;
-  case 4: return s->surface_4_noise_low_color;
-  case 5: return s->surface_5_noise_low_color;
-  case 6: return s->surface_6_noise_low_color;
-  case 7: return s->surface_7_noise_low_color;
-  default: return LDK_RGBA32(0xffffffffu);
-  }
+  (void)s;
+  const LDKTerrainSurface *surface = &s_runtime.config.surfaces[i];
+  return surface->noise_low_color ? surface->noise_low_color : surface->color;
 }
-
 static rgba32 s_surface_noise_high(const LDKTerrainSystem *s, u32 i)
 {
-  switch (i)
-  {
-  case 0: return s->surface_0_noise_high_color;
-  case 1: return s->surface_1_noise_high_color;
-  case 2: return s->surface_2_noise_high_color;
-  case 3: return s->surface_3_noise_high_color;
-  case 4: return s->surface_4_noise_high_color;
-  case 5: return s->surface_5_noise_high_color;
-  case 6: return s->surface_6_noise_high_color;
-  case 7: return s->surface_7_noise_high_color;
-  default: return LDK_RGBA32(0xffffffffu);
-  }
+  (void)s;
+  const LDKTerrainSurface *surface = &s_runtime.config.surfaces[i];
+  return surface->noise_high_color ? surface->noise_high_color : surface->color;
 }
-
 static u64 s_surface_region_id(const LDKTerrainSystem *s, u32 i)
 {
-  switch (i)
-  {
-  case 0: return s->surface_0_sprite_id;
-  case 1: return s->surface_1_sprite_id;
-  case 2: return s->surface_2_sprite_id;
-  case 3: return s->surface_3_sprite_id;
-  case 4: return s->surface_4_sprite_id;
-  case 5: return s->surface_5_sprite_id;
-  case 6: return s->surface_6_sprite_id;
-  case 7: return s->surface_7_sprite_id;
-  default: return 0u;
-  }
+  (void)s;
+  return s_runtime.config.surfaces[i].sprite_id;
 }
-
 static Vec2 s_surface_uv_scale(const LDKTerrainSystem *s, u32 i)
 {
-  switch (i)
-  {
-  case 0: return s->surface_0_uv_scale;
-  case 1: return s->surface_1_uv_scale;
-  case 2: return s->surface_2_uv_scale;
-  case 3: return s->surface_3_uv_scale;
-  case 4: return s->surface_4_uv_scale;
-  case 5: return s->surface_5_uv_scale;
-  case 6: return s->surface_6_uv_scale;
-  case 7: return s->surface_7_uv_scale;
-  default: return vec2_make(1.0f, 1.0f);
-  }
+  (void)s;
+  return s_runtime.config.surfaces[i].uv_scale;
 }
-
 static float s_surface_texture_weight(const LDKTerrainSystem *s, u32 i)
 {
-  switch (i)
-  {
-  case 0: return s->surface_0_texture_weight;
-  case 1: return s->surface_1_texture_weight;
-  case 2: return s->surface_2_texture_weight;
-  case 3: return s->surface_3_texture_weight;
-  case 4: return s->surface_4_texture_weight;
-  case 5: return s->surface_5_texture_weight;
-  case 6: return s->surface_6_texture_weight;
-  case 7: return s->surface_7_texture_weight;
-  default: return 0.0f;
-  }
+  (void)s;
+  return s_runtime.config.surfaces[i].texture_weight;
 }
-
 static bool s_surface_use_slope(const LDKTerrainSystem *s, u32 i)
 {
-  switch (i)
-  {
-  case 1: return s->surface_1_use_slope;
-  case 2: return s->surface_2_use_slope;
-  case 3: return s->surface_3_use_slope;
-  case 4: return s->surface_4_use_slope;
-  case 5: return s->surface_5_use_slope;
-  case 6: return s->surface_6_use_slope;
-  case 7: return s->surface_7_use_slope;
-  default: return false;
-  }
+  (void)s;
+  return s_runtime.config.surfaces[i].use_slope;
 }
-
 static float s_surface_min_slope(const LDKTerrainSystem *s, u32 i)
 {
-  switch (i)
-  {
-  case 1: return s->surface_1_min_slope_degrees;
-  case 2: return s->surface_2_min_slope_degrees;
-  case 3: return s->surface_3_min_slope_degrees;
-  case 4: return s->surface_4_min_slope_degrees;
-  case 5: return s->surface_5_min_slope_degrees;
-  case 6: return s->surface_6_min_slope_degrees;
-  case 7: return s->surface_7_min_slope_degrees;
-  default: return 0.0f;
-  }
+  (void)s;
+  return s_runtime.config.surfaces[i].min_slope_degrees;
 }
-
 static float s_surface_slope_blend(const LDKTerrainSystem *s, u32 i)
 {
-  switch (i)
-  {
-  case 1: return s->surface_1_slope_blend_degrees;
-  case 2: return s->surface_2_slope_blend_degrees;
-  case 3: return s->surface_3_slope_blend_degrees;
-  case 4: return s->surface_4_slope_blend_degrees;
-  case 5: return s->surface_5_slope_blend_degrees;
-  case 6: return s->surface_6_slope_blend_degrees;
-  case 7: return s->surface_7_slope_blend_degrees;
-  default: return 0.0f;
-  }
-}
-
-static void s_surface_defaults(LDKTerrainSystem *system)
-{
-  for (u32 i = 0u; i < LDK_TERRAIN_SURFACE_COUNT; ++i)
-  {
-    Vec2 *scale = NULL;
-    rgba32 *color = NULL;
-    switch (i)
-    {
-    case 0: scale=&system->surface_0_uv_scale; color=&system->surface_0_color; break;
-    case 1: scale=&system->surface_1_uv_scale; color=&system->surface_1_color; break;
-    case 2: scale=&system->surface_2_uv_scale; color=&system->surface_2_color; break;
-    case 3: scale=&system->surface_3_uv_scale; color=&system->surface_3_color; break;
-    case 4: scale=&system->surface_4_uv_scale; color=&system->surface_4_color; break;
-    case 5: scale=&system->surface_5_uv_scale; color=&system->surface_5_color; break;
-    case 6: scale=&system->surface_6_uv_scale; color=&system->surface_6_color; break;
-    case 7: scale=&system->surface_7_uv_scale; color=&system->surface_7_color; break;
-    }
-    if (scale && scale->x == 0.0f && scale->y == 0.0f)
-      *scale = vec2_make(1.0f, 1.0f);
-    if (color && *color == 0u)
-      *color = LDK_RGBA32(0xffffffffu);
-    /* Empty palette colors inherit the surface's base color. */
-    switch (i)
-    {
-    case 0:
-      if (system->surface_0_noise_low_color == 0u)
-        system->surface_0_noise_low_color = *color;
-      if (system->surface_0_noise_high_color == 0u)
-        system->surface_0_noise_high_color = *color;
-      break;
-    case 1:
-      if (system->surface_1_noise_low_color == 0u)
-        system->surface_1_noise_low_color = *color;
-      if (system->surface_1_noise_high_color == 0u)
-        system->surface_1_noise_high_color = *color;
-      break;
-    case 2:
-      if (system->surface_2_noise_low_color == 0u)
-        system->surface_2_noise_low_color = *color;
-      if (system->surface_2_noise_high_color == 0u)
-        system->surface_2_noise_high_color = *color;
-      break;
-    case 3:
-      if (system->surface_3_noise_low_color == 0u)
-        system->surface_3_noise_low_color = *color;
-      if (system->surface_3_noise_high_color == 0u)
-        system->surface_3_noise_high_color = *color;
-      break;
-    case 4:
-      if (system->surface_4_noise_low_color == 0u)
-        system->surface_4_noise_low_color = *color;
-      if (system->surface_4_noise_high_color == 0u)
-        system->surface_4_noise_high_color = *color;
-      break;
-    case 5:
-      if (system->surface_5_noise_low_color == 0u)
-        system->surface_5_noise_low_color = *color;
-      if (system->surface_5_noise_high_color == 0u)
-        system->surface_5_noise_high_color = *color;
-      break;
-    case 6:
-      if (system->surface_6_noise_low_color == 0u)
-        system->surface_6_noise_low_color = *color;
-      if (system->surface_6_noise_high_color == 0u)
-        system->surface_6_noise_high_color = *color;
-      break;
-    case 7:
-      if (system->surface_7_noise_low_color == 0u)
-        system->surface_7_noise_low_color = *color;
-      if (system->surface_7_noise_high_color == 0u)
-        system->surface_7_noise_high_color = *color;
-      break;
-    }
-
-  }
+  (void)s;
+  return s_runtime.config.surfaces[i].slope_blend_degrees;
 }
 
 static bool s_config_is_valid(const LDKTerrainSystem *system)
 {
-  if (!system || system->height_channel > LDK_TERRAIN_CHANNEL_A ||
-      !isfinite(system->cell_size) || system->cell_size <= 0.0f ||
-      !isfinite(system->height_scale) || system->height_scale <= 0.0f ||
-      !isfinite(system->height_offset) ||
-      !isfinite(system->origin_x) || !isfinite(system->origin_z) ||
-      !isfinite(system->color_noise_scale) ||
-      !isfinite(system->color_noise_strength) ||
-      system->color_noise_strength < 0.0f ||
-      system->color_noise_strength > 1.0f ||
-      (!x_handle_is_null(system->color_noise_texture.h) &&
-       system->color_noise_scale <= 0.0f) ||
-      system->chunk_size == 0u || system->mesh_sample_step == 0u ||
-      system->surface_count == 0u ||
-      system->surface_count > LDK_TERRAIN_SURFACE_COUNT)
-    return false;
+  return system && system->chunk_size > 0u &&
+      system->mesh_sample_step > 0u &&
+      ldk_terrain_validate(&s_runtime.config);
+}
 
-  float previous = -INFINITY;
-  for (u32 i = 0u; i < system->surface_count; ++i)
+/* Resolve one shared Terrain Asset into a stable snapshot. An unassigned
+ * terrain uses the flat default; the legacy procedural image API can still
+ * supply a heightmap when there is no asset assigned. */
+static bool s_config_refresh(LDKTerrainSystem *system, LDKAssetManager *assets)
+{
+  (void)system;
+  LDKTerrain next;
+  LDKAssetImage heightmap = ldk_asset_image_null();
+  LDKAssetMaterial material = ldk_asset_material_null();
+  LDKAssetTextureAtlas atlas = ldk_asset_texture_atlas_null();
+  LDKAssetImage noise = ldk_asset_image_null();
+  u64 revision = 0u;
+  const LDKAssetTerrain assigned = s_runtime.desired_asset;
+  const bool has_asset = !x_handle_is_null(assigned.h);
+  const bool asset_changed = s_runtime.terrain_asset.h.index != assigned.h.index ||
+      s_runtime.terrain_asset.h.version != assigned.h.version;
+  if (has_asset)
   {
-    float h = s_surface_min_height(system, i);
-    float blend = s_surface_blend_width(system, i);
-    float weight = s_surface_texture_weight(system, i);
-    Vec2 uv = s_surface_uv_scale(system, i);
-    bool use_slope = s_surface_use_slope(system, i);
-    float min_slope = s_surface_min_slope(system, i);
-    float slope_blend = s_surface_slope_blend(system, i);
-    if (!isfinite(h) || h < 0.0f || h > 1.0f ||
-        (!use_slope && h < previous) ||
-        !isfinite(min_slope) || min_slope < 0.0f || min_slope > 90.0f ||
-        !isfinite(slope_blend) || slope_blend < 0.0f ||
-        slope_blend > 90.0f ||
-        !isfinite(blend) || blend < 0.0f || blend > 1.0f ||
-        !isfinite(weight) || weight < 0.0f || weight > 1.0f ||
-        !isfinite(uv.x) || !isfinite(uv.y))
+    const LDKAssetTerrainData *data =
+        ldk_asset_manager_terrain_get_const(assets, assigned);
+    if (!data || !ldk_terrain_validate(&data->terrain))
       return false;
-    if (!use_slope) previous = h;
+    next = data->terrain;
+    revision = data->revision;
+    heightmap = data->heightmap;
   }
+  else
+  {
+    ldk_terrain_init(&next);
+    heightmap = s_runtime.direct_heightmap;
+  }
+  if (!asset_changed && s_runtime.terrain_revision == revision &&
+      s_asset_image_equal(s_runtime.heightmap_asset, heightmap))
+  {
+    return true;
+  }
+
+  if (next.material_path.length)
+  {
+    LDKMaterialIOContext context = {0};
+    context.assets = assets;
+    material = ldk_asset_manager_material_load_shared(
+        &context, next.material_path.buf, NULL);
+    if (x_handle_is_null(material.h)) return false;
+  }
+  if (next.texture_atlas_path.length)
+  {
+    atlas = ldk_asset_manager_texture_atlas_load_shared(
+        assets, next.texture_atlas_path.buf);
+    if (x_handle_is_null(atlas.h)) return false;
+  }
+  if (next.color_noise_path.length)
+  {
+    noise = ldk_asset_manager_image_load_shared(
+        assets, next.color_noise_path.buf);
+    if (x_handle_is_null(noise.h)) return false;
+  }
+  s_runtime.config = next;
+  s_runtime.configured_material = material;
+  s_runtime.configured_atlas = atlas;
+  s_runtime.configured_noise = noise;
+  s_runtime.heightmap_asset = heightmap;
+  s_runtime.terrain_asset = assigned;
+  s_runtime.terrain_revision = revision;
+  s_runtime.geometry_hash = 0u;
+  s_runtime.appearance_hash = 0u;
   return true;
 }
 
 static bool s_source_refresh(LDKTerrainSystem *system, LDKAssetManager *assets)
 {
-  const LDKAssetImageData *data;
-  LDKAssetHandle generic;
-  const LDKAssetInfo *asset_info;
-
-  if (!system || !assets || x_handle_is_null(system->heightmap.h))
+  (void)system;
+  const LDKAssetImage image = s_runtime.heightmap_asset;
+  const LDKAssetTerrainData *terrain_data =
+      !x_handle_is_null(s_runtime.desired_asset.h)
+          ? ldk_asset_manager_terrain_get_const(assets, s_runtime.desired_asset)
+          : NULL;
+  if (terrain_data && terrain_data->heightmap_preview_enabled)
+  {
+    LDKImageInfo preview = {0};
+    if (!ldk_image_get_info(terrain_data->heightmap_preview, &preview) ||
+        preview.width != s_runtime.config.width ||
+        preview.height != s_runtime.config.height)
+      return false;
+    s_runtime.source = preview;
+    s_runtime.source_asset = image;
+    s_runtime.source_revision = terrain_data->revision;
+    return true;
+  }
+  if (terrain_data && terrain_data->heightmap_embedded &&
+      !s_runtime.config.heightmap_path.length)
+  {
+    LDKImageInfo embedded = {0};
+    if (!ldk_image_get_info(terrain_data->heightmap_embedded, &embedded) ||
+        embedded.width != s_runtime.config.width ||
+        embedded.height != s_runtime.config.height)
+      return false;
+    s_runtime.source = embedded;
+    s_runtime.source_asset = ldk_asset_image_null();
+    s_runtime.source_revision = terrain_data->revision;
+    return true;
+  }
+  const bool has_image = !x_handle_is_null(image.h);
+  if (!has_image && s_runtime.config.heightmap_path.length)
     return false;
-
-  data = ldk_asset_manager_image_get_const(assets, system->heightmap);
+  if (!has_image)
+  {
+    memset(&s_runtime.source, 0, sizeof(s_runtime.source));
+    s_runtime.source.width = s_runtime.config.width;
+    s_runtime.source.height = s_runtime.config.height;
+    s_runtime.source_asset = ldk_asset_image_null();
+    s_runtime.source_revision = 0u;
+    return true;
+  }
+  const LDKAssetImageData *data =
+      ldk_asset_manager_image_get_const(assets, image);
+  LDKImageInfo source = {0};
   if (!data || !data->image || data->is_missing ||
-      !ldk_image_get_info(data->image, &s_runtime.source) ||
-      s_runtime.source.channel_count < 4u ||
-      (s_runtime.source.format != LDK_IMAGE_FORMAT_RGBA8_UNORM &&
-       s_runtime.source.format != LDK_IMAGE_FORMAT_RGBA16_UNORM) ||
-      s_runtime.source.width == 0u || s_runtime.source.height == 0u)
+      !ldk_image_get_info(data->image, &source) ||
+      source.channel_count < 4u ||
+      (source.format != LDK_IMAGE_FORMAT_RGBA8_UNORM &&
+       source.format != LDK_IMAGE_FORMAT_RGBA16_UNORM) ||
+      !source.width || !source.height)
+  {
     return false;
-
-  generic.h = system->heightmap.h;
-  asset_info = ldk_asset_get_info_const(assets, generic);
-  s_runtime.source_asset = system->heightmap;
-  s_runtime.source_revision = asset_info ? asset_info->source_revision : 0u;
+  }
+  if (!x_handle_is_null(s_runtime.desired_asset.h))
+  {
+    if (source.width != s_runtime.config.width ||
+        source.height != s_runtime.config.height)
+    {
+      ldk_log_error("Terrain heightmap dimensions differ from .terrain resolution.\n");
+      return false;
+    }
+  }
+  else /* Existing procedural heightmap path; no asset is assigned. */
+  {
+    s_runtime.config.width = source.width;
+    s_runtime.config.height = source.height;
+  }
+  LDKAssetHandle generic = {image.h};
+  const LDKAssetInfo *info = ldk_asset_get_info_const(assets, generic);
+  s_runtime.source = source;
+  s_runtime.source_asset = image;
+  s_runtime.source_revision = info ? info->source_revision : 0u;
   return true;
 }
 
@@ -581,6 +557,7 @@ static float s_texel_channel(u32 x, u32 y, LDKTerrainChannel channel)
 static float s_vertex_normalized_height(
     const LDKTerrainSystem *system, u32 vx, u32 vy)
 {
+  (void)system;
   float total = 0.0f;
   u32 count = 0u;
   for (i32 oy = -1; oy <= 0; ++oy)
@@ -593,7 +570,7 @@ static float s_vertex_normalized_height(
       i64 x = (i64)vx + ox;
       if (x < 0 || x >= (i64)s_runtime.source.width)
         continue;
-      total += s_texel_channel((u32)x, (u32)y, system->height_channel);
+      total += s_texel_channel((u32)x, (u32)y, s_runtime.config.height_channel);
       ++count;
     }
   }
@@ -603,19 +580,20 @@ static float s_vertex_normalized_height(
 static float s_vertex_world_height(
     const LDKTerrainSystem *system, u32 x, u32 y)
 {
-  return system->height_offset +
-      s_vertex_normalized_height(system, x, y) * system->height_scale;
+  return s_runtime.config.height_offset +
+      s_vertex_normalized_height(system, x, y) * s_runtime.config.height_scale;
 }
 
 static void s_world_origin(
     const LDKTerrainSystem *system, float *out_x, float *out_z)
 {
-  float x = system->origin_x;
-  float z = system->origin_z;
-  if (system->center_on_origin)
+  (void)system;
+  float x = s_runtime.config.origin_x;
+  float z = s_runtime.config.origin_z;
+  if (s_runtime.config.center_on_origin)
   {
-    x -= (float)s_runtime.source.width * system->cell_size * 0.5f;
-    z -= (float)s_runtime.source.height * system->cell_size * 0.5f;
+    x -= (float)s_runtime.source.width * s_runtime.config.cell_size * 0.5f;
+    z -= (float)s_runtime.source.height * s_runtime.config.cell_size * 0.5f;
   }
   *out_x = x;
   *out_z = z;
@@ -655,8 +633,8 @@ static Vec3 s_vertex_normal(const LDKTerrainSystem *system,
   float h1 = s_vertex_world_height(system, sx1, sy);
   float z0 = s_vertex_world_height(system, sx, sy0);
   float z1 = s_vertex_world_height(system, sx, sy1);
-  float dx = (float)(sx1 - sx0) * system->cell_size;
-  float dz = (float)(sy1 - sy0) * system->cell_size;
+  float dx = (float)(sx1 - sx0) * s_runtime.config.cell_size;
+  float dz = (float)(sy1 - sy0) * s_runtime.config.cell_size;
   Vec3 n = vec3_make(dx > 0.0f ? -(h1 - h0) / dx : 0.0f,
       1.0f, dz > 0.0f ? -(z1 - z0) / dz : 0.0f);
   float len = sqrtf(n.x*n.x + n.y*n.y + n.z*n.z);
@@ -668,7 +646,7 @@ static void s_chunks_destroy(LDKRenderer *renderer)
 {
   if (renderer)
   {
-    for (u32 i = 0u; i < s_runtime.owner->chunk_count; ++i)
+    for (u32 i = 0u; i < s_runtime.chunk_count; ++i)
     {
       if (ldk_renderer_mesh_is_valid(renderer, s_runtime.chunks[i].mesh))
         ldk_renderer_mesh_destroy(renderer, s_runtime.chunks[i].mesh);
@@ -677,33 +655,28 @@ static void s_chunks_destroy(LDKRenderer *renderer)
   free(s_runtime.chunks);
   s_runtime.chunks = NULL;
   s_runtime.chunk_capacity = 0u;
-  if (s_runtime.owner)
-  {
-    s_runtime.owner->chunk_count = 0u;
-    s_runtime.owner->visible_chunk_count = 0u;
-    s_runtime.owner->has_geometry = false;
-  }
+  s_runtime.chunk_count = 0u;
 }
 
 static u64 s_geometry_hash(const LDKTerrainSystem *s)
 {
   u64 h = UINT64_C(14695981039346656037);
-  h=s_hash_bytes(h,&s->height_channel,sizeof(s->height_channel));
-  h=s_hash_bytes(h,&s->cell_size,sizeof(s->cell_size));
-  h=s_hash_bytes(h,&s->height_scale,sizeof(s->height_scale));
-  h=s_hash_bytes(h,&s->height_offset,sizeof(s->height_offset));
-  h=s_hash_bytes(h,&s->center_on_origin,sizeof(s->center_on_origin));
-  h=s_hash_bytes(h,&s->origin_x,sizeof(s->origin_x));
-  h=s_hash_bytes(h,&s->origin_z,sizeof(s->origin_z));
+  h=s_hash_bytes(h,&s_runtime.config.height_channel,sizeof(s_runtime.config.height_channel));
+  h=s_hash_bytes(h,&s_runtime.config.cell_size,sizeof(s_runtime.config.cell_size));
+  h=s_hash_bytes(h,&s_runtime.config.height_scale,sizeof(s_runtime.config.height_scale));
+  h=s_hash_bytes(h,&s_runtime.config.height_offset,sizeof(s_runtime.config.height_offset));
+  h=s_hash_bytes(h,&s_runtime.config.center_on_origin,sizeof(s_runtime.config.center_on_origin));
+  h=s_hash_bytes(h,&s_runtime.config.origin_x,sizeof(s_runtime.config.origin_x));
+  h=s_hash_bytes(h,&s_runtime.config.origin_z,sizeof(s_runtime.config.origin_z));
   h=s_hash_bytes(h,&s->chunk_size,sizeof(s->chunk_size));
   h=s_hash_bytes(h,&s->mesh_sample_step,sizeof(s->mesh_sample_step));
-  h=s_hash_bytes(h,&s->heightmap,sizeof(s->heightmap));
+  h=s_hash_bytes(h,&s_runtime.heightmap_asset,sizeof(s_runtime.heightmap_asset));
   h=s_hash_bytes(h,&s_runtime.source_revision,sizeof(s_runtime.source_revision));
-  h=s_hash_bytes(h,&s->color_noise_texture,sizeof(s->color_noise_texture));
+  h=s_hash_bytes(h,&s_runtime.configured_noise,sizeof(s_runtime.configured_noise));
   h=s_hash_bytes(h,&s_runtime.color_noise_revision,sizeof(s_runtime.color_noise_revision));
-  h=s_hash_bytes(h,&s->color_noise_scale,sizeof(s->color_noise_scale));
-  h=s_hash_bytes(h,&s->color_noise_strength,sizeof(s->color_noise_strength));
-  for (u32 i = 0; i < s->surface_count; ++i)
+  h=s_hash_bytes(h,&s_runtime.config.color_noise_scale,sizeof(s_runtime.config.color_noise_scale));
+  h=s_hash_bytes(h,&s_runtime.config.color_noise_strength,sizeof(s_runtime.config.color_noise_strength));
+  for (u32 i = 0; i < s_runtime.config.surface_count; ++i)
   {
     rgba32 base = s_surface_color(s, i);
     rgba32 low = s_surface_noise_low(s, i);
@@ -729,15 +702,15 @@ static u64 s_appearance_hash(const LDKTerrainSystem *s,
     const LDKAssetTextureAtlasData *atlas)
 {
   u64 h = UINT64_C(14695981039346656037);
-  h=s_hash_bytes(h,&s->material,sizeof(s->material));
-  h=s_hash_bytes(h,&s->texture_atlas,sizeof(s->texture_atlas));
+  h=s_hash_bytes(h,&s_runtime.configured_material,sizeof(s_runtime.configured_material));
+  h=s_hash_bytes(h,&s_runtime.configured_atlas,sizeof(s_runtime.configured_atlas));
   if (atlas)
   {
     h=s_hash_bytes(h,&atlas->revision,sizeof(atlas->revision));
     h=s_hash_bytes(h,&atlas->image,sizeof(atlas->image));
   }
-  h=s_hash_bytes(h,&s->surface_count,sizeof(s->surface_count));
-  for (u32 i=0;i<s->surface_count;++i)
+  h=s_hash_bytes(h,&s_runtime.config.surface_count,sizeof(s_runtime.config.surface_count));
+  for (u32 i=0;i<s_runtime.config.surface_count;++i)
   {
     float a=s_surface_min_height(s,i), b=s_surface_blend_width(s,i);
     float w=s_surface_texture_weight(s,i);
@@ -755,8 +728,8 @@ static u64 s_appearance_hash(const LDKTerrainSystem *s,
     h=s_hash_bytes(h,&min_slope,sizeof(min_slope));
     h=s_hash_bytes(h,&slope_blend,sizeof(slope_blend));
   }
-  h=s_hash_bytes(h,&s->height_scale,sizeof(s->height_scale));
-  h=s_hash_bytes(h,&s->height_offset,sizeof(s->height_offset));
+  h=s_hash_bytes(h,&s_runtime.config.height_scale,sizeof(s_runtime.config.height_scale));
+  h=s_hash_bytes(h,&s_runtime.config.height_offset,sizeof(s_runtime.config.height_offset));
   return h;
 }
 
@@ -829,8 +802,8 @@ static bool s_chunks_rebuild(LDKTerrainSystem *system, LDKRenderer *renderer)
           u32 sx = s_mesh_source_index(mx, step, s_runtime.source.width);
           u32 sy = s_mesh_source_index(my, step, s_runtime.source.height);
           u32 vi = y * vw + x;
-          float wx = origin_x + (float)sx * system->cell_size;
-          float wz = origin_z + (float)sy * system->cell_size;
+          float wx = origin_x + (float)sx * s_runtime.config.cell_size;
+          float wz = origin_z + (float)sy * s_runtime.config.cell_size;
           float wy = s_vertex_world_height(system, sx, sy);
           vertices[vi].position = vec3_make(wx, wy, wz);
           vertices[vi].normal = s_vertex_normal(system, mx, my,
@@ -875,20 +848,17 @@ static bool s_chunks_rebuild(LDKTerrainSystem *system, LDKRenderer *renderer)
       free(indices);
       if (!ldk_renderer_mesh_is_valid(renderer, chunk->mesh))
       {
-        system->chunk_count = chunk_index;
+        s_runtime.chunk_count = chunk_index;
         s_chunks_destroy(renderer);
         return false;
       }
-      system->chunk_count = chunk_index;
+      s_runtime.chunk_count = chunk_index;
     }
   }
 
   /* Preserve the data dimensions: they describe the source heightmap, not the
    * visual mesh density. Original-resolution terrain queries remain intact. */
-  system->data_width = s_runtime.source.width;
-  system->data_height = s_runtime.source.height;
   system->mesh_update_count += 1u;
-  system->has_geometry = true;
   s_runtime.geometry_hash = s_geometry_hash(system);
   return true;
 }
@@ -916,11 +886,11 @@ static void s_surface_descs(const LDKTerrainSystem *system,
 {
   memset(out, 0, sizeof(*out) * LDK_TERRAIN_SURFACE_COUNT);
   if (out_invalid_mask) *out_invalid_mask = 0u;
-  for (u32 i = 0; i < system->surface_count; ++i)
+  for (u32 i = 0; i < s_runtime.config.surface_count; ++i)
   {
-    out[i].min_height = system->height_offset +
-        s_surface_min_height(system, i) * system->height_scale;
-    out[i].blend_width = s_surface_blend_width(system, i) * system->height_scale;
+    out[i].min_height = s_runtime.config.height_offset +
+        s_surface_min_height(system, i) * s_runtime.config.height_scale;
+    out[i].blend_width = s_surface_blend_width(system, i) * s_runtime.config.height_scale;
     out[i].color = s_surface_color(system, i);
     out[i].uv_scale = s_surface_uv_scale(system, i);
     out[i].atlas_rect = vec4_make(0, 0, 1, 1);
@@ -949,7 +919,7 @@ static bool s_material_resolve(LDKTerrainSystem *system,
     LDKRenderer *renderer, LDKAssetManager *assets)
 {
   const LDKAssetTextureAtlasData *atlas_data =
-      ldk_asset_manager_texture_atlas_get_const(assets, system->texture_atlas);
+      ldk_asset_manager_texture_atlas_get_const(assets, s_runtime.configured_atlas);
   const LDKAssetImageData *image_data = atlas_data
       ? ldk_asset_manager_image_get_const(assets, atlas_data->image) : NULL;
   LDKImageInfo image = {0};
@@ -957,16 +927,16 @@ static bool s_material_resolve(LDKTerrainSystem *system,
       ldk_image_get_info(image_data->image, &image);
 
   const LDKAssetMaterialData *data =
-      ldk_asset_manager_material_get_const(assets, system->material);
+      ldk_asset_manager_material_get_const(assets, s_runtime.configured_material);
   u64 revision = data ? data->revision : 0u;
   u64 hash = s_appearance_hash(system, atlas_data);
   if (ldk_renderer_material_is_valid(renderer, s_runtime.material) &&
       s_runtime.appearance_hash == hash &&
-      s_asset_material_equal(s_runtime.material_asset, system->material) &&
+      s_asset_material_equal(s_runtime.material_asset, s_runtime.configured_material) &&
       s_runtime.material_revision == revision)
     return true;
 
-  if (!x_handle_is_null(system->texture_atlas.h) && !atlas_data)
+  if (!x_handle_is_null(s_runtime.configured_atlas.h) && !atlas_data)
     ldk_log_error("Terrain texture atlas handle is invalid.\n");
   else if (atlas_data && !has_image)
     ldk_log_error("Terrain atlas image is unavailable.\n");
@@ -975,7 +945,7 @@ static bool s_material_resolve(LDKTerrainSystem *system,
   u32 invalid_mask = 0u;
   s_surface_descs(system, atlas_data, has_image ? &image : NULL,
       surfaces, &invalid_mask);
-  for (u32 i = 0u; i < system->surface_count; ++i)
+  for (u32 i = 0u; i < s_runtime.config.surface_count; ++i)
   {
     if (invalid_mask & (1u << i))
       ldk_log_error("Terrain surface %u: sprite ID %" PRIu64
@@ -1012,10 +982,10 @@ static bool s_material_resolve(LDKTerrainSystem *system,
       desc.args.textured.texture = atlas_data->image;
     }
     if (!ldk_renderer_terrain_material_resolve(renderer, assets, &desc,
-        surfaces, system->surface_count, &s_runtime.material, &s_runtime.texture,
+        surfaces, s_runtime.config.surface_count, &s_runtime.material, &s_runtime.texture,
         &s_runtime.normal_map, &s_runtime.specular_map))
       return false;
-    s_runtime.material_asset = system->material;
+    s_runtime.material_asset = s_runtime.configured_material;
     s_runtime.material_revision = revision;
   }
   else
@@ -1025,9 +995,9 @@ static bool s_material_resolve(LDKTerrainSystem *system,
     desc.color = LDK_RGBA32(0xffffffffu);
     desc.shininess = 32.0f;
     desc.terrain = true;
-    desc.terrain_surface_count = system->surface_count;
+    desc.terrain_surface_count = s_runtime.config.surface_count;
     memcpy(desc.terrain_surfaces, surfaces,
-        (size_t)system->surface_count * sizeof(*surfaces));
+        (size_t)s_runtime.config.surface_count * sizeof(*surfaces));
     s_runtime.material = ldk_renderer_material_create(renderer, &desc);
     if (!ldk_renderer_material_is_valid(renderer, s_runtime.material))
       return false;
@@ -1036,212 +1006,359 @@ static bool s_material_resolve(LDKTerrainSystem *system,
   return true;
 }
 
-LDK_API bool ldk_terrain_heightmap_set(LDKAssetImage image)
+/* Release one entity's resources. Must be called with its cache current. */
+static void s_terrain_entry_destroy(LDKTerrainRuntime *entry,
+    LDKRenderer *renderer)
 {
-  if (s_runtime.owner)
-  {
-    s_runtime.owner->heightmap=image;
-    s_runtime.geometry_hash=0u;
-    return true;
-  }
-  s_pending_heightmap=image;
-  s_pending_heightmap_valid=true;
-  return true;
-}
-
-LDK_API bool ldk_terrain_system_is_active(void)
-{
-  return s_runtime.owner != NULL;
-}
-
-LDK_API u64 ldk_terrain_geometry_revision_get(void)
-{
-  if (!s_runtime.owner || !s_runtime.source.pixels)
-  {
-    return 0u;
-  }
-  return s_runtime.geometry_hash ? s_runtime.geometry_hash : 1u;
-}
-
-LDK_API bool ldk_terrain_height_at_world(
-    float world_x, float world_z, float *out_height)
-{
-  LDKTerrainSystem *system=s_runtime.owner;
-  if(!system||!out_height||!s_config_is_valid(system)||
-      !s_runtime.source.pixels||!isfinite(world_x)||!isfinite(world_z))
-    return false;
-
-  float ox,oz; s_world_origin(system,&ox,&oz);
-  float lx=(world_x-ox)/system->cell_size;
-  float lz=(world_z-oz)/system->cell_size;
-  if(lx<0.0f||lz<0.0f||lx>(float)s_runtime.source.width||
-      lz>(float)s_runtime.source.height) return false;
-  u32 x=(u32)floorf(lx), y=(u32)floorf(lz);
-  float tx,tz;
-  if(x>=s_runtime.source.width){x=s_runtime.source.width-1u;tx=1.0f;}
-  else tx=lx-(float)x;
-  if(y>=s_runtime.source.height){y=s_runtime.source.height-1u;tz=1.0f;}
-  else tz=lz-(float)y;
-  float h00=s_vertex_world_height(system,x,y);
-  float h10=s_vertex_world_height(system,x+1u,y);
-  float h01=s_vertex_world_height(system,x,y+1u);
-  float h11=s_vertex_world_height(system,x+1u,y+1u);
-  *out_height = tx>=tz
-      ? h00+tx*(h10-h00)+tz*(h11-h10)
-      : h00+tz*(h01-h00)+tx*(h11-h01);
-  return true;
-}
-
-LDK_API bool ldk_terrain_normal_at_world(
-    float world_x, float world_z, Vec3 *out_normal)
-{
-  LDKTerrainSystem *system = s_runtime.owner;
-  if (!system || !out_normal || !s_config_is_valid(system) ||
-      !s_runtime.source.pixels || !isfinite(world_x) || !isfinite(world_z))
-    return false;
-
-  float ox, oz;
-  s_world_origin(system, &ox, &oz);
-  float lx = (world_x - ox) / system->cell_size;
-  float lz = (world_z - oz) / system->cell_size;
-  if (lx < 0.0f || lz < 0.0f ||
-      lx > (float)s_runtime.source.width ||
-      lz > (float)s_runtime.source.height)
-    return false;
-
-  u32 x = (u32)floorf(lx), y = (u32)floorf(lz);
-  float tx, tz;
-  if (x >= s_runtime.source.width)
-  {
-    x = s_runtime.source.width - 1u;
-    tx = 1.0f;
-  }
-  else tx = lx - (float)x;
-  if (y >= s_runtime.source.height)
-  {
-    y = s_runtime.source.height - 1u;
-    tz = 1.0f;
-  }
-  else tz = lz - (float)y;
-
-  float h00 = s_vertex_world_height(system, x, y);
-  float h10 = s_vertex_world_height(system, x + 1u, y);
-  float h01 = s_vertex_world_height(system, x, y + 1u);
-  float h11 = s_vertex_world_height(system, x + 1u, y + 1u);
-  float inv_cell_size = 1.0f / system->cell_size;
-  float dx = (tx >= tz ? h10 - h00 : h11 - h01) * inv_cell_size;
-  float dz = (tx >= tz ? h11 - h10 : h01 - h00) * inv_cell_size;
-  Vec3 normal = vec3_make(-dx, 1.0f, -dz);
-  float length = vec3_len(normal);
-  *out_normal = length > 1e-8f
-      ? vec3_mul(normal, 1.0f / length)
-      : vec3_make(0.0f, 1.0f, 0.0f);
-  return true;
-}
-
-int ldk_terrain_system_initialize(void *data)
-{
-  LDKTerrainSystem *system=(LDKTerrainSystem*)data;
-  if(!system||s_runtime.owner) return -1;
-  if(system->cell_size==0.0f)system->cell_size=1.0f;
-  if(system->height_scale==0.0f)system->height_scale=1.0f;
-  if(system->chunk_size==0u)system->chunk_size=16u;
-  if(system->mesh_sample_step==0u)system->mesh_sample_step=1u;
-  if(system->surface_count==0u)system->surface_count=1u;
-  s_surface_defaults(system);
-  if(s_pending_heightmap_valid)
-  {
-    system->heightmap=s_pending_heightmap;
-    s_pending_heightmap_valid=false;
-  }
-  if(!s_config_is_valid(system))
-  {
-    ldk_log_error("Invalid TerrainSystem configuration.\n");
-    return -1;
-  }
-  memset(&s_runtime,0,sizeof(s_runtime));
-  s_runtime.owner=system;
-  s_runtime.material=ldk_renderer_material_null();
-  s_runtime.texture=ldk_renderer_texture_null();
-  s_runtime.normal_map=ldk_renderer_texture_null();
-  s_runtime.specular_map=ldk_renderer_texture_null();
-  s_runtime.material_asset=ldk_asset_material_null();
-  system->data_width=system->data_height=0u;
-  system->chunk_count=system->visible_chunk_count=0u;
-  system->mesh_update_count=0u;
-  system->has_geometry=false;
-  return 0;
-}
-
-void ldk_terrain_system_update(
-    void *data, const LDKEntityGroup *group, float dt)
-{
-  (void)group; (void)dt;
-  LDKTerrainSystem *system=(LDKTerrainSystem*)data;
-  if(!system||s_runtime.owner!=system||!s_config_is_valid(system)) return;
-  LDKRenderer *renderer=(LDKRenderer*)ldk_module_get(LDK_MODULE_RENDERER);
-  LDKAssetManager *assets=(LDKAssetManager*)ldk_module_get(LDK_MODULE_ASSET_MANAGER);
-  if(!renderer||!assets) return;
-  if(!s_color_noise_refresh(system,assets)) return;
-
-  LDKAssetHandle generic={system->heightmap.h};
-  const LDKAssetInfo *asset_info=!x_handle_is_null(system->heightmap.h)
-      ? ldk_asset_get_info_const(assets,generic):NULL;
-  u64 revision=asset_info?asset_info->source_revision:0u;
-  bool source_changed=!s_asset_image_equal(s_runtime.source_asset,system->heightmap) ||
-      s_runtime.source_revision!=revision || !s_runtime.source.pixels;
-  if(source_changed)
-  {
-    if(!s_source_refresh(system,assets))
-    {
-      s_chunks_destroy(renderer);
-      memset(&s_runtime.source,0,sizeof(s_runtime.source));
-      s_runtime.source_asset=ldk_asset_image_null();
-      return;
-    }
-    s_runtime.geometry_hash=0u;
-  }
-
-  u64 gh=s_geometry_hash(system);
-  if(!system->has_geometry||s_runtime.geometry_hash!=gh)
-  {
-    if(!s_chunks_rebuild(system,renderer)) return;
-  }
-  if(!s_material_resolve(system,renderer,assets)) return;
-
-  u32 flags=system->casts_shadows
-      ? LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS
-      : LDK_RENDERER_MESH_SUBMIT_FLAG_NONE;
-  system->visible_chunk_count=0u;
-  for(u32 i=0;i<system->chunk_count;++i)
-  {
-    LDKTerrainChunk *chunk=&s_runtime.chunks[i];
-    if(system->cull &&
-        !ldk_renderer_view_bounds_visible(renderer,renderer->game_view,
-            chunk->bounds_min,chunk->bounds_max))
-      continue;
-    if(ldk_renderer_submit_mesh_with_flags(renderer,chunk->mesh,
-        s_runtime.material,mat4_identity(),flags))
-      system->visible_chunk_count++;
-  }
-}
-
-void ldk_terrain_system_terminate(void *data)
-{
-  LDKTerrainSystem *system=(LDKTerrainSystem*)data;
-  if(!system||s_runtime.owner!=system)return;
-  LDKRenderer *renderer=(LDKRenderer*)ldk_module_get(LDK_MODULE_RENDERER);
-  if(renderer)
+  if (!entry) return;
+  s_current = entry;
+  if (renderer)
   {
     s_material_release(renderer);
     s_chunks_destroy(renderer);
   }
   else
   {
-    free(s_runtime.chunks);
+    free(entry->chunks);
   }
-  memset(&s_runtime,0,sizeof(s_runtime));
-  system->data_width=system->data_height=0u;
-  system->chunk_count=system->visible_chunk_count=0u;
-  system->has_geometry=false;
+  free(entry);
+  s_current = NULL;
+}
+
+LDK_API void ldk_terrain_system_editor_clear(void)
+{
+  LDKRenderer *renderer = ldk_module_get(LDK_MODULE_RENDERER);
+  for (u32 i = 0u; i < s_terrain_count; ++i)
+    s_terrain_entry_destroy(s_terrain_entries[i], renderer);
+  free(s_terrain_entries);
+  s_terrain_entries = NULL;
+  s_terrain_count = s_terrain_capacity = 0u;
+  s_current = NULL;
+}
+
+/* The .terrain authoring format lives in local coordinates. Render the mesh
+ * with the entity's world Transform, and cull its world-space AABB per view.
+ */
+static void s_terrain_chunk_world_bounds(const LDKTerrainChunk *chunk,
+    Mat4 world, Vec3 *minimum, Vec3 *maximum)
+{
+  *minimum = vec3_make(FLT_MAX, FLT_MAX, FLT_MAX);
+  *maximum = vec3_make(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+  for (u32 i = 0u; i < 8u; ++i)
+  {
+    Vec3 corner = vec3_make(
+        i & 1u ? chunk->bounds_max.x : chunk->bounds_min.x,
+        i & 2u ? chunk->bounds_max.y : chunk->bounds_min.y,
+        i & 4u ? chunk->bounds_max.z : chunk->bounds_min.z);
+    Vec3 point = mat4_mul_point(world, corner);
+    minimum->x = fminf(minimum->x, point.x);
+    minimum->y = fminf(minimum->y, point.y);
+    minimum->z = fminf(minimum->z, point.z);
+    maximum->x = fmaxf(maximum->x, point.x);
+    maximum->y = fmaxf(maximum->y, point.y);
+    maximum->z = fmaxf(maximum->z, point.z);
+  }
+}
+
+/* A heightfield must be upright for world X/Z height queries. Yaw and
+ * nonuniform scale are supported. Tilted terrain still renders, but does
+ * not masquerade as a single-valued heightfield to gameplay callers. */
+static bool s_terrain_upright(Mat4 world)
+{
+  const float epsilon = 0.00001f;
+  return fabsf(world.m[1]) < epsilon &&
+      fabsf(world.m[4]) < epsilon &&
+      fabsf(world.m[6]) < epsilon &&
+      fabsf(world.m[9]) < epsilon;
+}
+
+static bool s_terrain_sample_entry(LDKTerrainRuntime *entry,
+    float world_x, float world_z, float *height, Vec3 *normal)
+{
+  if (!entry || !entry->source.width || !entry->source.height ||
+      !s_terrain_upright(entry->world)) return false;
+  const Mat4 *m = &entry->world;
+  float det = m->m[0] * m->m[10] - m->m[8] * m->m[2];
+  if (!isfinite(det) || fabsf(det) < 0.00000001f) return false;
+  float dx = world_x - m->m[12];
+  float dz = world_z - m->m[14];
+  float local_x = (dx * m->m[10] - dz * m->m[8]) / det;
+  float local_z = (dz * m->m[0] - dx * m->m[2]) / det;
+  float local_height;
+  Vec3 local_normal;
+  if (!ldk_terrain_surface_sample(&entry->config,
+          entry->source.pixels ? &entry->source : NULL,
+          local_x, local_z, &local_height,
+          normal ? &local_normal : NULL)) return false;
+  if (height)
+    *height = mat4_mul_point(entry->world,
+        vec3_make(local_x, local_height, local_z)).y;
+  if (normal)
+  {
+    bool inverse_ok = false;
+    Mat4 inverse = mat4_inverse_full(entry->world, &inverse_ok);
+    if (!inverse_ok) return false;
+    /* inverse-transpose linear component, column-major. */
+    Vec3 transformed = vec3_make(
+        inverse.m[0] * local_normal.x + inverse.m[1] * local_normal.y +
+            inverse.m[2] * local_normal.z,
+        inverse.m[4] * local_normal.x + inverse.m[5] * local_normal.y +
+            inverse.m[6] * local_normal.z,
+        inverse.m[8] * local_normal.x + inverse.m[9] * local_normal.y +
+            inverse.m[10] * local_normal.z);
+    *normal = vec3_norm(transformed);
+  }
+  return true;
+}
+
+LDK_API bool ldk_terrain_heightmap_set(LDKAssetImage image)
+{
+  /* Transitional procedural input: only terrain entities with no .terrain
+   * assigned use it. No system-level Terrain Asset is introduced. */
+  s_direct_heightmap = image;
+  s_direct_heightmap_valid = true;
+  for (u32 i = 0u; i < s_terrain_count; ++i)
+  {
+    LDKTerrainRuntime *entry = s_terrain_entries[i];
+    if (!x_handle_is_null(entry->desired_asset.h)) continue;
+    entry->direct_heightmap = image;
+    entry->terrain_revision = UINT64_MAX;
+  }
+  return true;
+}
+
+LDK_API bool ldk_terrain_system_is_active(void)
+{
+  return s_terrain_count != 0u;
+}
+
+LDK_API u64 ldk_terrain_geometry_revision_get(void)
+{
+  u64 hash = UINT64_C(14695981039346656037);
+  if (!s_terrain_count) return 0u;
+  for (u32 i = 0u; i < s_terrain_count; ++i)
+  {
+    const LDKTerrainRuntime *entry = s_terrain_entries[i];
+    hash = s_hash_bytes(hash, &entry->entity, sizeof(entry->entity));
+    hash = s_hash_bytes(hash, &entry->geometry_hash,
+        sizeof(entry->geometry_hash));
+    hash = s_hash_bytes(hash, &entry->world, sizeof(entry->world));
+  }
+  return hash ? hash : 1u;
+}
+
+LDK_API bool ldk_terrain_entity_height_at_world(
+    LDKEntity entity, float world_x, float world_z, float *height)
+{
+  if (!height || !isfinite(world_x) || !isfinite(world_z)) return false;
+  return s_terrain_sample_entry(
+      s_terrain_entry_find(entity), world_x, world_z, height, NULL);
+}
+
+LDK_API bool ldk_terrain_entity_normal_at_world(
+    LDKEntity entity, float world_x, float world_z, Vec3 *normal)
+{
+  if (!normal || !isfinite(world_x) || !isfinite(world_z)) return false;
+  return s_terrain_sample_entry(
+      s_terrain_entry_find(entity), world_x, world_z, NULL, normal);
+}
+
+LDK_API bool ldk_terrain_height_at_world(
+    float world_x, float world_z, float *height)
+{
+  if (!height || !isfinite(world_x) || !isfinite(world_z)) return false;
+  bool found = false;
+  float highest = -FLT_MAX;
+  for (u32 i = 0u; i < s_terrain_count; ++i)
+  {
+    float value;
+    if (s_terrain_sample_entry(s_terrain_entries[i], world_x, world_z,
+            &value, NULL) && (!found || value > highest))
+    {
+      highest = value;
+      found = true;
+    }
+  }
+  if (found) *height = highest;
+  return found;
+}
+
+LDK_API bool ldk_terrain_normal_at_world(
+    float world_x, float world_z, Vec3 *normal)
+{
+  if (!normal || !isfinite(world_x) || !isfinite(world_z)) return false;
+  bool found = false;
+  float highest = -FLT_MAX;
+  for (u32 i = 0u; i < s_terrain_count; ++i)
+  {
+    float value;
+    Vec3 candidate;
+    if (s_terrain_sample_entry(s_terrain_entries[i], world_x, world_z,
+            &value, &candidate) && (!found || value > highest))
+    {
+      highest = value;
+      *normal = candidate;
+      found = true;
+    }
+  }
+  return found;
+}
+
+typedef struct LDKTerrainTraversal
+{
+  LDKTerrainSystem *system;
+  LDKRenderer *renderer;
+  LDKAssetManager *assets;
+} LDKTerrainTraversal;
+
+static bool s_terrain_visit(LDKEntity entity, void *user)
+{
+  LDKTerrainTraversal *context = (LDKTerrainTraversal *)user;
+  const LDKTerrainComponent *component = ldk_ecs_component_get_const(
+      entity, LDK_COMPONENT_TYPE_TERRAIN);
+  if (!component ||
+      !ldk_ecs_component_is_enabled(entity, LDK_COMPONENT_TYPE_TERRAIN) ||
+      !ldk_scenegraph_update_entity(entity)) return true;
+  Mat4 world;
+  if (!ldk_transform_get_world_matrix(entity, &world)) return true;
+  LDKTerrainRuntime *entry = s_terrain_entry_get(entity, context->system);
+  if (!entry) return false;
+  s_current = entry;
+  entry->seen = true;
+  entry->world = world;
+  entry->desired_asset = component->terrain;
+  LDKTerrainSystem *system = context->system;
+  LDKAssetManager *assets = context->assets;
+  LDKRenderer *renderer = context->renderer;
+  if (!s_config_refresh(system, assets) || !s_config_is_valid(system) ||
+      !s_color_noise_refresh(system, assets)) return true;
+
+  LDKAssetHandle generic = {entry->heightmap_asset.h};
+  const LDKAssetInfo *info = !x_handle_is_null(generic.h)
+      ? ldk_asset_get_info_const(assets, generic) : NULL;
+  const LDKAssetTerrainData *terrain_data =
+      !x_handle_is_null(entry->desired_asset.h)
+          ? ldk_asset_manager_terrain_get_const(assets, entry->desired_asset)
+          : NULL;
+  u64 revision = terrain_data && terrain_data->heightmap_preview_enabled
+      ? terrain_data->revision : (info ? info->source_revision : 0u);
+  bool source_changed =
+      !s_asset_image_equal(entry->source_asset, entry->heightmap_asset) ||
+      entry->source_revision != revision ||
+      !entry->source.width || !entry->source.height ||
+      ((!x_handle_is_null(generic.h) ||
+         (terrain_data && terrain_data->heightmap_preview_enabled)) &&
+          !entry->source.pixels) ||
+      (x_handle_is_null(generic.h) &&
+          (entry->source.width != entry->config.width ||
+           entry->source.height != entry->config.height));
+  if (source_changed)
+  {
+    if (!s_source_refresh(system, assets))
+    {
+      s_chunks_destroy(renderer);
+      memset(&entry->source, 0, sizeof(entry->source));
+      entry->source_asset = ldk_asset_image_null();
+      return true;
+    }
+    entry->geometry_hash = 0u;
+  }
+  u64 gh = s_geometry_hash(system);
+  if (!entry->chunks || entry->geometry_hash != gh)
+  {
+    if (!s_chunks_rebuild(system, renderer)) return true;
+  }
+  if (!s_material_resolve(system, renderer, assets)) return true;
+  system->has_geometry = true;
+  if (!system->data_width) system->data_width = entry->source.width;
+  if (!system->data_height) system->data_height = entry->source.height;
+  system->chunk_count += entry->chunk_count;
+
+  u32 flags = system->casts_shadows
+      ? LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS
+      : LDK_RENDERER_MESH_SUBMIT_FLAG_NONE;
+  for (u32 view_index = 0u; view_index < renderer->view_count; ++view_index)
+  {
+    const LDKRendererView *view = &renderer->views[view_index];
+    if (!view->submitted) continue;
+    for (u32 i = 0u; i < entry->chunk_count; ++i)
+    {
+      const LDKTerrainChunk *chunk = &entry->chunks[i];
+      Vec3 bmin, bmax;
+      if (system->cull)
+      {
+        s_terrain_chunk_world_bounds(chunk, world, &bmin, &bmax);
+        if (!ldk_renderer_view_bounds_visible(
+                renderer, view->id, bmin, bmax)) continue;
+      }
+      if (ldk_renderer_submit_mesh_to_view_with_flags(renderer,
+              view->id, chunk->mesh, entry->material, world, flags))
+        system->visible_chunk_count++;
+    }
+  }
+  return true;
+}
+
+static void s_terrain_process(LDKTerrainSystem *system)
+{
+  if (!system) return;
+  LDKRenderer *renderer = ldk_module_get(LDK_MODULE_RENDERER);
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  if (!renderer || !assets || !renderer->is_initialized) return;
+  if (!system->chunk_size) system->chunk_size = 16u;
+  if (!system->mesh_sample_step) system->mesh_sample_step = 1u;
+  system->data_width = system->data_height = 0u;
+  system->chunk_count = system->visible_chunk_count = 0u;
+  system->has_geometry = false;
+  for (u32 i = 0u; i < s_terrain_count; ++i)
+    s_terrain_entries[i]->seen = false;
+  LDKTerrainTraversal traversal = {system, renderer, assets};
+  (void)ldk_ecs_entity_foreach(s_terrain_visit, &traversal);
+  /* Delete cache entries for deleted/disabled entities, retaining resources
+   * of unrelated game entities and all other valid terrain components. */
+  for (u32 i = 0u; i < s_terrain_count; )
+  {
+    if (s_terrain_entries[i]->seen) {++i; continue;}
+    s_terrain_entry_destroy(s_terrain_entries[i], renderer);
+    s_terrain_entries[i] = s_terrain_entries[--s_terrain_count];
+  }
+  s_current = NULL;
+}
+
+int ldk_terrain_system_initialize(void *data)
+{
+  LDKTerrainSystem *system = (LDKTerrainSystem *)data;
+  if (!system || s_play_owner) return -1;
+  ldk_terrain_system_editor_clear();
+  s_play_owner = system;
+  if (!system->chunk_size) system->chunk_size = 16u;
+  if (!system->mesh_sample_step) system->mesh_sample_step = 1u;
+  system->mesh_update_count = 0u;
+  return 0;
+}
+
+void ldk_terrain_system_update(
+    void *data, const LDKEntityGroup *group, float dt)
+{
+  (void)group;
+  (void)dt;
+  LDKTerrainSystem *system = (LDKTerrainSystem *)data;
+  if (system && system == s_play_owner) s_terrain_process(system);
+}
+
+void ldk_terrain_system_on_editor_update(u64 system_id, void *data, float dt)
+{
+  (void)system_id;
+  (void)dt;
+  if (!s_play_owner) s_terrain_process((LDKTerrainSystem *)data);
+}
+
+void ldk_terrain_system_terminate(void *data)
+{
+  LDKTerrainSystem *system = (LDKTerrainSystem *)data;
+  if (!system || s_play_owner != system) return;
+  ldk_terrain_system_editor_clear();
+  s_play_owner = NULL;
+  system->chunk_count = system->visible_chunk_count = 0u;
+  system->has_geometry = false;
 }

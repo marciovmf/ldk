@@ -10,6 +10,7 @@
 #include <ldk_asset.h>
 #include <ldk_keyframe_animation.h>
 #include <ldk_texture_atlas.h>
+#include <ldk_terrain.h>
 #include <ldk_common.h>
 #include <ldk_ttf.h>
 #include <ldk_image.h>
@@ -135,6 +136,68 @@ extern "C" {
    */
   LDK_API void ldk_asset_foreach(LDKAssetManager* manager, LDKAssetIterFn fn, void* user);
 
+
+  // ---------------------------------------------------------------------------
+  // Terrain (.terrain)
+  // ---------------------------------------------------------------------------
+
+  /** Terrain metadata and resolved optional heightmap. Images are manager-owned.
+   * A terrain without an image describes a flat default grid.
+   * @group ldk.module.asset_manager
+   */
+  typedef struct LDKAssetTerrainData
+  {
+    LDKTerrain terrain;
+    LDKAssetImage heightmap;
+    /* Persistent height samples decoded from the .terrain document. Owned by
+     * this manager entry, just like the optional editing preview. */
+    LDKImage *heightmap_embedded;
+    /* Optional unsaved heightmap preview owned by AssetManager. Never saved
+     * to disk implicitly. If present, systems sample it instead of heightmap. */
+    LDKImage *heightmap_preview;
+    bool heightmap_preview_enabled;
+    /* Old images are retained until asset teardown so callers can finish
+     * using a source snapshot obtained before an import/size change. */
+    LDKImage **heightmap_preview_retired;
+    u32 heightmap_preview_retired_count;
+    /** Incremented whenever in-memory terrain metadata changes. */
+    u64 revision;
+  } LDKAssetTerrainData;
+
+  LDK_API LDKAssetTerrain ldk_asset_terrain_null(void);
+  LDK_API bool ldk_asset_manager_terrain_is_alive(
+      LDKAssetManager *manager, LDKAssetTerrain asset);
+  /** Create a transient terrain asset by copying validated metadata. */
+  LDK_API LDKAssetTerrain ldk_asset_manager_terrain_create(
+      LDKAssetManager *manager, const LDKTerrain *terrain);
+  /** Share one asset per logical path/source revision. */
+  LDK_API LDKAssetTerrain ldk_asset_manager_terrain_load_shared(
+      LDKAssetManager *manager, const char *path);
+  /** Reload a loaded .terrain, keeping its asset handle stable on success. */
+  LDK_API bool ldk_asset_manager_terrain_reload(
+      LDKAssetManager *manager, const char *path);
+  /** Replace metadata atomically in memory and increment the data revision.
+   * Does not write the .terrain or its referenced images to disk.
+   */
+  LDK_API bool ldk_asset_manager_terrain_update(
+      LDKAssetManager *manager, LDKAssetTerrain asset,
+      const LDKTerrain *terrain);
+  LDK_API void ldk_asset_manager_terrain_unload(
+      LDKAssetManager *manager, LDKAssetTerrain asset);
+  LDK_API const LDKAssetTerrainData *ldk_asset_manager_terrain_get_const(
+      LDKAssetManager *manager, LDKAssetTerrain asset);
+  /** Copy an unsaved RGBA8/RGBA16 pixel view into the terrain asset.
+   * The input pixels are borrowed; the manager owns its copy and increments
+   * the data revision. Dimensions must match the terrain metadata.
+   * Keeping an image-info input avoids allocating an intermediate LDKImage
+   * on each interactive brush update.
+   */
+  LDK_API bool ldk_asset_manager_terrain_preview_set(
+      LDKAssetManager *manager, LDKAssetTerrain asset,
+      const LDKImageInfo *image);
+  /** Remove the unsaved override, returning to the associated heightmap. */
+  LDK_API bool ldk_asset_manager_terrain_preview_clear(
+      LDKAssetManager *manager, LDKAssetTerrain asset);
 
   // ---------------------------------------------------------------------------
   // Text file asset

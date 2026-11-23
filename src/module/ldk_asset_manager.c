@@ -102,6 +102,19 @@ static void s_asset_info_destroy(LDKAssetInfo* info)
       free(data);
     }
   }
+  else if (info->type == LDK_ASSET_TYPE_TERRAIN)
+  {
+    LDKAssetTerrainData *data = info->data;
+    if (data)
+    {
+      ldk_image_destroy(data->heightmap_preview);
+      ldk_image_destroy(data->heightmap_embedded);
+      for (u32 i = 0u; i < data->heightmap_preview_retired_count; ++i)
+        ldk_image_destroy(data->heightmap_preview_retired[i]);
+      free(data->heightmap_preview_retired);
+      free(data); /* Referenced source images remain manager-owned. */
+    }
+  }
   else if (info->type == LDK_ASSET_TYPE_PREFAB)
   {
     LDKAssetPrefabData *data = info->data;

@@ -296,11 +296,69 @@ typedef struct LDKEditorSceneCatalog
   char error[256];
 } LDKEditorSceneCatalog;
 
+/* Dedicated Terrain Editor state. A session edits a copy of the heightmap;
+ * the shared Terrain Asset owns only the unsaved preview published to systems. */
+typedef enum LDKEditorTerrainSculptTool
+{
+  LDK_EDITOR_TERRAIN_RAISE = 0,
+  LDK_EDITOR_TERRAIN_LOWER
+} LDKEditorTerrainSculptTool;
+
+/* Range metadata is part of a sculpt stroke: extending the height interval
+ * rescales pixels, and Undo/Redo must restore the interval alongside them. */
+typedef struct LDKEditorTerrainHeightSnapshot
+{
+  float height_scale;
+  float height_offset;
+  float surface_min_height[LDK_TERRAIN_SURFACE_COUNT];
+  float surface_blend_width[LDK_TERRAIN_SURFACE_COUNT];
+} LDKEditorTerrainHeightSnapshot;
+
+typedef struct LDKEditorTerrainState
+{
+  LDKTerrain data;
+  LDKAssetTerrain asset;
+  LDKEntity owner_entity;
+  LDKEntity selection_attempt;
+  XFSPath filename;
+  char logical_path[LDK_ASSET_PATH_MAX_LENGTH + 1u];
+  u8 *pixels;
+  u8 *stroke_start;
+  LDKEditorTerrainHeightSnapshot stroke_height_start;
+  size_t pixel_bytes;
+  LDKImageFormat image_format;
+  /* Target grid dimensions for New / Import. They do not silently resize
+   * an existing terrain; importing explicitly replaces its sampled grid. */
+  u32 target_width;
+  u32 target_height;
+  float target_cell_size;
+  float height_range;
+  /* Persistent UI text allows partial numeric edits until Enter/Escape. */
+  char width_text[24];
+  char depth_text[24];
+  char cell_size_text[32];
+  char height_range_text[32];
+  float radius;
+  float strength;
+  float falloff;
+  Vec3 hover_position;
+  u64 undo_owner;
+  LDKEditorTerrainSculptTool sculpt_tool;
+  bool loaded;
+  bool enabled;
+  bool read_only;
+  bool dirty;
+  bool pixels_dirty;
+  bool hovered;
+  bool stroke_active;
+} LDKEditorTerrainState;
+
 typedef struct LDKEditorContext
 {
   LDKWindow window;
   LDKUIContext ui;
   LDKEditorUndo undo;
+  LDKEditorTerrainState terrain_editor;
   /* Scene changes not represented by the undo history. */
   bool scene_dirty;
   bool scene_load_internal;
@@ -438,6 +496,21 @@ void ldki_editor_scene_view_pick(LDKEditorContext *editor, LDKPoint cursor);
 void ldki_editor_gizmo_update(LDKEditorContext *editor);
 void ldki_editor_gizmo_submit(LDKEditorContext *editor);
 void ldki_editor_gizmo_terminate(LDKEditorContext *editor);
+/* Terrain authoring uses the scene view but never captures object gizmos. */
+void ldki_editor_terrain_window_show(LDKEditor *editor, void *data);
+bool ldki_editor_terrain_open(LDKEditorContext *editor, const char *filename,
+    const char *logical_path, bool read_only);
+void ldki_editor_terrain_view_update(
+    LDKEditorContext *editor, LDKUIRect scene_view_rect);
+void ldki_editor_terrain_submit(LDKEditorContext *editor);
+void ldki_editor_terrain_frame_end(LDKEditorContext *editor);
+void ldki_editor_terrain_terminate(LDKEditorContext *editor);
+bool ldki_editor_terrain_project_close(LDKEditorContext *editor);
+void *ldki_editor_terrain_undo_resolve(LDKEditorContext *editor,
+    LDKEditorUndoKey key, LDKFieldType type, size_t size);
+bool ldki_editor_terrain_undo_apply(LDKEditorContext *editor,
+    LDKEditorUndoKey key, LDKFieldType type, const void *value, size_t size);
+bool ldki_editor_terrain_undo_is_key(LDKEditorUndoKey key);
 bool ldki_editor_view_texture_show(LDKEditorContext *editor,
     LDKUITextureHandle texture, LDKUIId panel_id, LDKUIId image_id,
     LDKUIRect *out_image_rect);
@@ -599,6 +672,7 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 #define LDK_EDITOR_WINDOW_THEME_EDITOR ((LDKEditorWindowId)0x4C444B0Fu)
 #define LDK_EDITOR_WINDOW_ANIMATION ((LDKEditorWindowId)0x4C444B10u)
 #define LDK_EDITOR_WINDOW_TEXTURE_ATLAS ((LDKEditorWindowId)0x4C444B11u)
+#define LDK_EDITOR_WINDOW_TERRAIN ((LDKEditorWindowId)0x4C444B12u)
 
 /* Mounts a physical .box file as a read-only root in Project Explorer. */
 bool ldki_editor_file_explorer_package_mount(
