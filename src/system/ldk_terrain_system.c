@@ -30,11 +30,9 @@ typedef struct LDKTerrainRuntime
 {
   LDKTerrainSystem *owner;
   LDKEntity entity;
-  LDKAssetTerrain desired_asset;
   Mat4 world;
   bool seen;
   LDKTerrain config;
-  LDKAssetTerrain terrain_asset;
   u64 terrain_revision;
   LDKAssetImage heightmap_asset;
   LDKAssetImage direct_heightmap;
@@ -45,6 +43,9 @@ typedef struct LDKTerrainRuntime
   u32 chunk_capacity;
   u32 chunk_count;
   LDKImageInfo source;
+  /* Never keep pointers into the component's replaceable image. Terrain
+   * height queries can run between Inspector edits and the next mesh refresh. */
+  LDKImage *source_owned;
   LDKAssetImage source_asset;
   u64 source_revision;
   u64 geometry_hash;
@@ -108,8 +109,6 @@ static LDKTerrainRuntime *s_terrain_entry_get(
   entry->owner = system;
   entry->entity = entity;
   entry->world = mat4_identity();
-  entry->terrain_asset = ldk_asset_terrain_null();
-  entry->desired_asset = ldk_asset_terrain_null();
   entry->heightmap_asset = ldk_asset_image_null();
   entry->direct_heightmap = s_direct_heightmap_valid
       ? s_direct_heightmap : ldk_asset_image_null();
@@ -392,42 +391,25 @@ static bool s_config_is_valid(const LDKTerrainSystem *system)
       ldk_terrain_validate(&s_runtime.config);
 }
 
-/* Resolve one shared Terrain Asset into a stable snapshot. An unassigned
- * terrain uses the flat default; the legacy procedural image API can still
- * supply a heightmap when there is no asset assigned. */
-static bool s_config_refresh(LDKTerrainSystem *system, LDKAssetManager *assets)
+/* TerrainComponent owns the configuration and heightmap. Keep an entity-local
+ * rendering snapshot and rebuild only when its revision or image changes.
+ * The direct procedural image API remains usable for flat default terrains. */
+static bool s_config_refresh(LDKTerrainSystem *system, LDKAssetManager *assets,
+    const LDKTerrainComponent *component)
 {
   (void)system;
   LDKTerrain next;
-  LDKAssetImage heightmap = ldk_asset_image_null();
   LDKAssetMaterial material = ldk_asset_material_null();
   LDKAssetTextureAtlas atlas = ldk_asset_texture_atlas_null();
   LDKAssetImage noise = ldk_asset_image_null();
-  u64 revision = 0u;
-  const LDKAssetTerrain assigned = s_runtime.desired_asset;
-  const bool has_asset = !x_handle_is_null(assigned.h);
-  const bool asset_changed = s_runtime.terrain_asset.h.index != assigned.h.index ||
-      s_runtime.terrain_asset.h.version != assigned.h.version;
-  if (has_asset)
-  {
-    const LDKAssetTerrainData *data =
-        ldk_asset_manager_terrain_get_const(assets, assigned);
-    if (!data || !ldk_terrain_validate(&data->terrain))
-      return false;
-    next = data->terrain;
-    revision = data->revision;
-    heightmap = data->heightmap;
-  }
-  else
-  {
-    ldk_terrain_init(&next);
-    heightmap = s_runtime.direct_heightmap;
-  }
-  if (!asset_changed && s_runtime.terrain_revision == revision &&
+  if (!component || !ldk_terrain_validate(&component->terrain)) return false;
+  next = component->terrain;
+  LDKAssetImage heightmap = component->heightmap
+      ? ldk_asset_image_null() : s_runtime.direct_heightmap;
+  const u64 revision = component->revision;
+  if (s_runtime.terrain_revision == revision &&
       s_asset_image_equal(s_runtime.heightmap_asset, heightmap))
-  {
     return true;
-  }
 
   if (next.material_path.length)
   {
@@ -454,44 +436,39 @@ static bool s_config_refresh(LDKTerrainSystem *system, LDKAssetManager *assets)
   s_runtime.configured_atlas = atlas;
   s_runtime.configured_noise = noise;
   s_runtime.heightmap_asset = heightmap;
-  s_runtime.terrain_asset = assigned;
   s_runtime.terrain_revision = revision;
   s_runtime.geometry_hash = 0u;
   s_runtime.appearance_hash = 0u;
   return true;
 }
 
-static bool s_source_refresh(LDKTerrainSystem *system, LDKAssetManager *assets)
+static bool s_source_refresh(LDKTerrainSystem *system,
+    LDKAssetManager *assets, const LDKTerrainComponent *component)
 {
   (void)system;
   const LDKAssetImage image = s_runtime.heightmap_asset;
-  const LDKAssetTerrainData *terrain_data =
-      !x_handle_is_null(s_runtime.desired_asset.h)
-          ? ldk_asset_manager_terrain_get_const(assets, s_runtime.desired_asset)
-          : NULL;
-  if (terrain_data && terrain_data->heightmap_preview_enabled)
-  {
-    LDKImageInfo preview = {0};
-    if (!ldk_image_get_info(terrain_data->heightmap_preview, &preview) ||
-        preview.width != s_runtime.config.width ||
-        preview.height != s_runtime.config.height)
-      return false;
-    s_runtime.source = preview;
-    s_runtime.source_asset = image;
-    s_runtime.source_revision = terrain_data->revision;
-    return true;
-  }
-  if (terrain_data && terrain_data->heightmap_embedded &&
-      !s_runtime.config.heightmap_path.length)
+  if (component && component->heightmap)
   {
     LDKImageInfo embedded = {0};
-    if (!ldk_image_get_info(terrain_data->heightmap_embedded, &embedded) ||
+    if (!ldk_image_get_info(component->heightmap, &embedded) ||
         embedded.width != s_runtime.config.width ||
-        embedded.height != s_runtime.config.height)
+        embedded.height != s_runtime.config.height) return false;
+    /* Deep copy: an editor brush stroke replaces and frees the old image,
+     * while runtime height queries may still use this cached source. */
+    LDKImage *owned = ldk_image_create_format(
+        embedded.width, embedded.height, embedded.format, embedded.pixels);
+    LDKImageInfo stable = {0};
+    if (!owned || !ldk_image_get_info(owned, &stable))
+    {
+      ldk_image_destroy(owned);
       return false;
-    s_runtime.source = embedded;
+    }
+    LDKImage *previous = s_runtime.source_owned;
+    s_runtime.source_owned = owned;
+    s_runtime.source = stable;
     s_runtime.source_asset = ldk_asset_image_null();
-    s_runtime.source_revision = terrain_data->revision;
+    s_runtime.source_revision = component->revision;
+    ldk_image_destroy(previous);
     return true;
   }
   const bool has_image = !x_handle_is_null(image.h);
@@ -499,11 +476,13 @@ static bool s_source_refresh(LDKTerrainSystem *system, LDKAssetManager *assets)
     return false;
   if (!has_image)
   {
+    ldk_image_destroy(s_runtime.source_owned);
+    s_runtime.source_owned = NULL;
     memset(&s_runtime.source, 0, sizeof(s_runtime.source));
     s_runtime.source.width = s_runtime.config.width;
     s_runtime.source.height = s_runtime.config.height;
     s_runtime.source_asset = ldk_asset_image_null();
-    s_runtime.source_revision = 0u;
+    s_runtime.source_revision = component ? component->revision : 0u;
     return true;
   }
   const LDKAssetImageData *data =
@@ -518,22 +497,14 @@ static bool s_source_refresh(LDKTerrainSystem *system, LDKAssetManager *assets)
   {
     return false;
   }
-  if (!x_handle_is_null(s_runtime.desired_asset.h))
-  {
-    if (source.width != s_runtime.config.width ||
-        source.height != s_runtime.config.height)
-    {
-      ldk_log_error("Terrain heightmap dimensions differ from .terrain resolution.\n");
-      return false;
-    }
-  }
-  else /* Existing procedural heightmap path; no asset is assigned. */
-  {
-    s_runtime.config.width = source.width;
-    s_runtime.config.height = source.height;
-  }
+  /* Procedural heightmaps may specify a different grid than the default
+   * component. Match their dimensions without changing component data. */
+  s_runtime.config.width = source.width;
+  s_runtime.config.height = source.height;
   LDKAssetHandle generic = {image.h};
   const LDKAssetInfo *info = ldk_asset_get_info_const(assets, generic);
+  ldk_image_destroy(s_runtime.source_owned);
+  s_runtime.source_owned = NULL;
   s_runtime.source = source;
   s_runtime.source_asset = image;
   s_runtime.source_revision = info ? info->source_revision : 0u;
@@ -1021,6 +992,7 @@ static void s_terrain_entry_destroy(LDKTerrainRuntime *entry,
   {
     free(entry->chunks);
   }
+  ldk_image_destroy(entry->source_owned);
   free(entry);
   s_current = NULL;
 }
@@ -1113,14 +1085,12 @@ static bool s_terrain_sample_entry(LDKTerrainRuntime *entry,
 
 LDK_API bool ldk_terrain_heightmap_set(LDKAssetImage image)
 {
-  /* Transitional procedural input: only terrain entities with no .terrain
-   * assigned use it. No system-level Terrain Asset is introduced. */
+  /* Procedural input is used by terrain components without embedded samples. */
   s_direct_heightmap = image;
   s_direct_heightmap_valid = true;
   for (u32 i = 0u; i < s_terrain_count; ++i)
   {
     LDKTerrainRuntime *entry = s_terrain_entries[i];
-    if (!x_handle_is_null(entry->desired_asset.h)) continue;
     entry->direct_heightmap = image;
     entry->terrain_revision = UINT64_MAX;
   }
@@ -1226,35 +1196,29 @@ static bool s_terrain_visit(LDKEntity entity, void *user)
   s_current = entry;
   entry->seen = true;
   entry->world = world;
-  entry->desired_asset = component->terrain;
   LDKTerrainSystem *system = context->system;
   LDKAssetManager *assets = context->assets;
   LDKRenderer *renderer = context->renderer;
-  if (!s_config_refresh(system, assets) || !s_config_is_valid(system) ||
+  if (!s_config_refresh(system, assets, component) || !s_config_is_valid(system) ||
       !s_color_noise_refresh(system, assets)) return true;
 
   LDKAssetHandle generic = {entry->heightmap_asset.h};
   const LDKAssetInfo *info = !x_handle_is_null(generic.h)
       ? ldk_asset_get_info_const(assets, generic) : NULL;
-  const LDKAssetTerrainData *terrain_data =
-      !x_handle_is_null(entry->desired_asset.h)
-          ? ldk_asset_manager_terrain_get_const(assets, entry->desired_asset)
-          : NULL;
-  u64 revision = terrain_data && terrain_data->heightmap_preview_enabled
-      ? terrain_data->revision : (info ? info->source_revision : 0u);
+  u64 revision = component->heightmap ? component->revision
+      : (info ? info->source_revision : component->revision);
   bool source_changed =
       !s_asset_image_equal(entry->source_asset, entry->heightmap_asset) ||
       entry->source_revision != revision ||
       !entry->source.width || !entry->source.height ||
-      ((!x_handle_is_null(generic.h) ||
-         (terrain_data && terrain_data->heightmap_preview_enabled)) &&
+      ((component->heightmap || !x_handle_is_null(generic.h)) &&
           !entry->source.pixels) ||
       (x_handle_is_null(generic.h) &&
           (entry->source.width != entry->config.width ||
            entry->source.height != entry->config.height));
   if (source_changed)
   {
-    if (!s_source_refresh(system, assets))
+    if (!s_source_refresh(system, assets, component))
     {
       s_chunks_destroy(renderer);
       memset(&entry->source, 0, sizeof(entry->source));

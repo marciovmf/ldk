@@ -19,6 +19,7 @@
 #include <component/ldk_trail.h>
 #include <component/ldk_transform.h>
 #include <component/ldk_grass_interact.h>
+#include <component/ldk_terrain_component.h>
 #include <component/ldk_keyframe_animation_source.h>
 
 #include <module/ldk_asset_manager.h>
@@ -1241,32 +1242,6 @@ static bool s_apply_field_value(const TMLDocument *doc,
   }
   break;
 
-  case LDK_FIELD_ASSET_TERRAIN:
-  {
-    i64 empty;
-    TMLString reference;
-    char path[LDK_ASSET_PATH_MAX_LENGTH + 1u];
-    LDKAssetManager *assets;
-    LDKAssetTerrain terrain;
-    if (tml_entry_get_i64(entry, &empty))
-    {
-      if (empty != -1) return false;
-      *(LDKAssetTerrain *)ptr = ldk_asset_terrain_null();
-      break;
-    }
-    if (!tml_entry_get_string(entry, &reference) || !reference.size ||
-        reference.size > LDK_ASSET_PATH_MAX_LENGTH ||
-        memchr(reference.data, 0, reference.size)) return false;
-    memcpy(path, reference.data, reference.size);
-    path[reference.size] = 0;
-    assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
-    if (!assets) return false;
-    terrain = ldk_asset_manager_terrain_load_shared(assets, path);
-    if (x_handle_is_null(terrain.h)) return false;
-    *(LDKAssetTerrain *)ptr = terrain;
-  }
-  break;
-
   case LDK_FIELD_ASSET_IMAGE:
   {
     if (entry->type == TML_VALUE_I64)
@@ -2284,6 +2259,55 @@ static bool s_apply_entity_components(const TMLDocument *doc,
       {
         continue;
       }
+      if (component_type == LDK_COMPONENT_TYPE_TERRAIN)
+      {
+        const TMLNode *terrain_node = fields_node
+            ? s_node_find_child(doc, fields_node, "terrain") : NULL;
+        if (!terrain_node)
+        {
+          /* Older scene writes accidentally indented the terrain at the
+           * entity level instead of inside the component's fields. Read
+           * those files so existing sculpted heightmaps are not lost. */
+          terrain_node = s_node_find_child(doc, entity_node, "terrain");
+        }
+        if (terrain_node)
+        {
+          LDKTerrain terrain;
+          LDKImage *image = NULL;
+          LDKImageInfo info = {0};
+          bool valid = ldk_terrain_from_tml_node_with_heightmap(
+              &terrain, &image, doc, terrain_node) &&
+              (!image || ldk_image_get_info(image, &info)) &&
+              ldk_terrain_component_set((LDKTerrainComponent *)component,
+                  &terrain, image ? &info : NULL);
+          ldk_image_destroy(image);
+          if (!valid)
+          {
+            /* Never silently substitute a flat terrain for authored
+             * height samples: this would lose data on the next Save Scene. */
+            s_result_error(result, "failed to restore embedded terrain data");
+            return false;
+          }
+        }
+        else if (fields_node)
+        {
+          const TMLEntry *legacy = tml_node_find_entry(
+              doc, fields_node, "terrain");
+          if (legacy)
+          {
+            /* The old terrain asset loader has been retired. Fail instead of
+             * silently replacing an external authored terrain with a flat
+             * grid on the next scene save. A null old reference is harmless. */
+            i64 empty = 0;
+            if (!tml_entry_get_i64(legacy, &empty) || empty != -1)
+            {
+              s_result_error(result,
+                  "scene references an obsolete external .terrain asset");
+              return false;
+            }
+          }
+        }
+      }
       if (component_type == LDK_COMPONENT_TYPE_KEYFRAME_ANIMATION_SOURCE &&
           !s_apply_keyframe_animations(doc, fields_node, entity, NULL))
       {
@@ -2562,10 +2586,6 @@ static bool s_system_meta_validate(const LDKSystemMeta *meta, u32 size)
     case LDK_FIELD_ASSET_TEXTURE_ATLAS:
       field_size = sizeof(LDKAssetTextureAtlas);
       alignment = _Alignof(LDKAssetTextureAtlas);
-      break;
-    case LDK_FIELD_ASSET_TERRAIN:
-      field_size = sizeof(LDKAssetTerrain);
-      alignment = _Alignof(LDKAssetTerrain);
       break;
     case LDK_FIELD_ASSET_IMAGE:
       field_size = sizeof(LDKAssetImage);
@@ -3402,27 +3422,6 @@ static bool s_write_field_value(XStrBuilder *out,
   }
   break;
 
-  case LDK_FIELD_ASSET_TERRAIN:
-  {
-    const LDKAssetTerrain *value = (const LDKAssetTerrain *)ptr;
-    LDKAssetManager *assets;
-    const LDKAssetInfo *info;
-    LDKAssetHandle handle;
-    if (x_handle_is_null(value->h))
-    {
-      x_strbuilder_append(out, "-1");
-      break;
-    }
-    assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
-    handle.h = value->h;
-    info = assets ? ldk_asset_get_info_const(assets, handle) : NULL;
-    if (!info || info->type != LDK_ASSET_TYPE_TERRAIN ||
-        !assets->source || info->source_revision != assets->source->revision ||
-        !info->asset_path.length) return false;
-    s_append_escaped_string(out, info->asset_path.buf);
-  }
-  break;
-
   case LDK_FIELD_ASSET_IMAGE:
   {
     const LDKAssetImage *value = (const LDKAssetImage *)ptr;
@@ -3801,6 +3800,53 @@ static bool s_write_array_field(LDKSceneSaveContext *context,
   return true;
 }
 
+/* Terrain data use the existing heightfield TML schema, nested under the
+ * component's fields node. Sample data is never routed through XSmallstr.
+ * Prefix only the indentation: the encoded 16-bit samples are unchanged. */
+static bool s_write_embedded_terrain(XStrBuilder *out,
+    const LDKTerrainComponent *component)
+{
+  if (!out || !component) return false;
+  LDKImageInfo image = {0};
+  if (component->heightmap &&
+      !ldk_image_get_info(component->heightmap, &image)) return false;
+  char *text = NULL;
+  if (!ldk_terrain_to_tml_with_heightmap(&component->terrain,
+          component->heightmap ? &image : NULL, &text)) return false;
+  static const char header[] = "terrain:\n";
+  if (strncmp(text, header, sizeof(header) - 1u) != 0)
+  {
+    free(text);
+    return false;
+  }
+  /* s_write_component() puts fields at depth five. The terrain node is
+   * a field child at depth six; source lines already have relative TML
+   * indentation. Use the same two-spaces-per-level convention as the
+   * other scene fields instead of a literal six-space prefix. */
+  s_append_indent(out, 6u);
+  x_strbuilder_append(out, "terrain:\n");
+  const char *line = text + sizeof(header) - 1u;
+  while (*line)
+  {
+    const char *newline = strchr(line, '\n');
+    s_append_indent(out, 6u);
+    if (newline)
+    {
+      x_strbuilder_append_substring(out, line,
+          (size_t)(newline - line) + 1u);
+      line = newline + 1u;
+    }
+    else
+    {
+      x_strbuilder_append(out, line);
+      x_strbuilder_append_char(out, '\n');
+      break;
+    }
+  }
+  free(text);
+  return true;
+}
+
 static bool s_write_component(LDKSceneSaveContext *context,
     LDKEntity entity, u32 component_type, bool *out_wrote_any)
 {
@@ -3842,6 +3888,17 @@ static bool s_write_component(LDKSceneSaveContext *context,
   }
 
   wrote_any_field = false;
+  if (component_type == LDK_COMPONENT_TYPE_TERRAIN)
+  {
+    if (!s_write_embedded_terrain(context->out,
+            (const LDKTerrainComponent *)component))
+    {
+      s_result_error(context->result,
+          "failed to serialize embedded terrain component");
+      return false;
+    }
+    wrote_any_field = true;
+  }
   if (component_type == LDK_COMPONENT_TYPE_INSTANCED_MESH_SOURCE)
   {
     meta = ldk_scene_component_meta_find_by_type(

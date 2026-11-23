@@ -537,13 +537,6 @@ static bool ldk_meta_kind_from_type(const char* type_name, char* out_kind, size_
     return true;
   }
 
-  if (strcmp(type_name, "LDKAssetTerrain") == 0)
-  {
-    snprintf(out_kind, out_size, "LDK_FIELD_ASSET_TERRAIN");
-    snprintf(out_widget, out_widget_size, "LDK_FIELD_WIDGET_ASSET_TERRAIN");
-    return true;
-  }
-
   if (strcmp(type_name, "LDKAssetImage") == 0)
   {
     snprintf(out_kind, out_size, "LDK_FIELD_ASSET_IMAGE");
@@ -2846,8 +2839,14 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
           field->array_stable ? "true" : "false");
       fprintf(out, "};\n");
     }
-    fprintf(out, "  static const LDKComponentFieldMeta fields[] =\n");
-    fprintf(out, "  {\n");
+    /* A component can expose no reflected fields (for example, an opaque
+     * built-in editor component). Do not emit a zero-length C array: MSVC
+     * does not guarantee support for that extension. */
+    if (component->field_count)
+    {
+      fprintf(out, "  static const LDKComponentFieldMeta fields[] =\n");
+      fprintf(out, "  {\n");
+    }
 
     for (field_index = 0; field_index < component->field_count; field_index++)
     {
@@ -2893,13 +2892,14 @@ static bool ldk_meta_write_header(LDKMetaState* state, const char* output_path)
       fprintf(out, " },\n");
     }
 
-    fprintf(out, "  };\n\n");
+    if (component->field_count)
+      fprintf(out, "  };\n\n");
     fprintf(out, "  static const LDKComponentMeta meta =\n");
     fprintf(out, "  {\n");
     fprintf(out, "    \"%s\",\n", component->type_name);
     fprintf(out, "    ldk_component_type(%s),\n", component->type_name);
     fprintf(out, "    sizeof(%s),\n", component->type_name);
-    fprintf(out, "    fields,\n");
+    fprintf(out, "    %s,\n", component->field_count ? "fields" : "NULL");
     fprintf(out, "    %uu,\n", component->field_count);
     if (component->group_count)
     {
@@ -3196,29 +3196,6 @@ static void ldk_meta_print_error(const LDKMetaState *state, const char *fallback
   }
 }
 
-/* Keep diagnostic IDs aligned without changing their underlying types:
- * components are u32, systems are u64; both display 16 hex digits. */
-static void ldk_meta_print_registry_entry(const char *kind, u32 index,
-    u32 count, u64 id, const char *name)
-{
-  char prefix[64];
-  int length = snprintf(prefix, sizeof(prefix), " %-9s %u/%u",
-      kind, index, count);
-
-  if (length < 0 || (size_t)length >= sizeof(prefix))
-  {
-    return;
-  }
-
-  while (length < 20)
-  {
-    prefix[length++] = '.';
-  }
-  prefix[length] = 0;
-
-  printf("%s0x%016llX : %s\n", prefix, (unsigned long long)id, name);
-}
-
 static bool ldk_meta_validate_atlas_region_fields(LDKMetaState *state)
 {
   u32 owner_count = state->component_count + state->system_count;
@@ -3374,19 +3351,21 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
     ok = false;
   }
 
-  // Print registered components and systems with aligned 64-bit hex IDs.
-  for (u32 i = 0; i < state.component_count; ++i)
+  // print components found
+  for (u32 i = 0; i < state.component_count; i++)
   {
-    const LDKMetaComponent *meta = &state.components[i];
-    ldk_meta_print_registry_entry("Component", i + 1u,
-        state.component_count, meta->type_id, meta->type_name);
+    LDKMetaComponent* meta = &state.components[i];
+    printf(" Component %d/%d - %s : 0x%X\n",
+           (i+1), state.component_count,
+           (const char*)&meta->type_name[0],
+           state.components[i].type_id);
   }
 
   for (u32 i = 0; i < state.system_count; ++i)
   {
-    const LDKMetaSystem *meta = &state.systems[i];
-    ldk_meta_print_registry_entry("System", i + 1u,
-        state.system_count, meta->id, meta->name);
+    printf(" System %u/%u - %s : 0x%016llX\n", i + 1u,
+        state.system_count, state.systems[i].name,
+        (unsigned long long)state.systems[i].id);
   }
 
   if (ok && !ldk_meta_write_header(&state, output_header_path))

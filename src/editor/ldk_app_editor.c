@@ -5082,18 +5082,6 @@ static i32 s_editor_main(const char *project_file_path)
   }
   ldki_editor_window_hide(LDK_EDITOR_WINDOW_TEXTURE_ATLAS);
 
-  LDKEditorWindow terrain_window = {.id = LDK_EDITOR_WINDOW_TERRAIN,
-      .title = "Terrain Editor",
-      .function = ldki_editor_terrain_window_show,
-      .data = NULL};
-  if (!ldk_editor_window_add((LDKEditor *)editor, &terrain_window))
-  {
-    ldk_log_error("Failed to register the Terrain Editor window.\n");
-    ldk_engine_terminate();
-    return 1;
-  }
-  ldki_editor_window_hide(LDK_EDITOR_WINDOW_TERRAIN);
-
   LDKEditorWindow catalog_window = {.id = LDK_EDITOR_WINDOW_SCENE_CATALOG,
       .title = "Scene Catalog",
       .function = ldki_editor_scene_catalog_show,

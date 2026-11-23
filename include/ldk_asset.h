@@ -42,8 +42,7 @@ extern "C"
     LDK_ASSET_TYPE_AUDIO = 7,
     LDK_ASSET_TYPE_KEYFRAME_ANIMATION = 8,
     LDK_ASSET_TYPE_TEXTURE_ATLAS = 9,
-    LDK_ASSET_TYPE_PREFAB = 10,
-    LDK_ASSET_TYPE_TERRAIN = 11
+    LDK_ASSET_TYPE_PREFAB = 10
   } LDKAssetType;
 
   /** @group ldk.asset */
@@ -105,12 +104,6 @@ extern "C"
   {
     LDKHandle h;
   } LDKAssetPrefab;
-
-  /** @group ldk.asset */
-  typedef struct LDKAssetTerrain
-  {
-    LDKHandle h;
-  } LDKAssetTerrain;
 
   /** @group ldk.asset */
   typedef struct LDKAssetAudio

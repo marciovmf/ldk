@@ -1,5 +1,5 @@
-/* Terrain authoring window. Source images are never modified by painting:
- * every stroke updates an AssetManager-owned preview and Save is explicit. */
+/* Built-in TerrainComponent inspector and scene-view sculpting. The scene
+ * owns the editable height data; imported source images are never modified. */
 #include "ldk_editor_internal.h"
 #include "ldk_editor_ui.h"
 
@@ -33,25 +33,7 @@ typedef struct LDKEditorTerrainUndoRegion
   /* Region pixels follow, in row-major order. */
 } LDKEditorTerrainUndoRegion;
 
-static LDKAssetManager *s_terrain_assets(void)
-{
-  return ldk_module_get(LDK_MODULE_ASSET_MANAGER);
-}
-
-static bool s_terrain_logical_from_file(LDKEditorContext *editor,
-    const char *filename, char *out)
-{
-  XFSPath path = {0}, relative = {0};
-  LDKAssetPath logical = {0};
-  const XFSPath *root = editor->project.loaded
-      ? &editor->project.run_root_path : &editor->engine_runtree;
-  if (!root->length || !x_fs_path_set(&path, filename) ||
-      !x_fs_path_relative_to(root, &path, &relative) ||
-      !ldk_asset_path_set(&logical, relative.buf))
-    return false;
-  snprintf(out, LDK_ASSET_PATH_MAX_LENGTH + 1u, "%s", logical.buf);
-  return true;
-}
+static void s_terrain_stroke_finish(LDKEditorContext *editor);
 
 static size_t s_terrain_bytes(const LDKEditorTerrainState *state)
 {
@@ -99,16 +81,24 @@ static void s_terrain_height_restore(LDKTerrain *terrain,
   }
 }
 
+static LDKTerrainComponent *s_terrain_owned_component(
+    const LDKEditorTerrainState *state)
+{
+  if (!state || x_handle_is_null(state->owner_entity)) return NULL;
+  return ldk_ecs_component_get(state->owner_entity,
+      LDK_COMPONENT_TYPE_TERRAIN);
+}
+
 static bool s_terrain_publish(LDKEditorContext *editor)
 {
   LDKEditorTerrainState *state = &editor->terrain_editor;
-  LDKAssetManager *assets = s_terrain_assets();
-  if (!assets || !state->loaded || !state->pixels ||
-      !ldk_asset_manager_terrain_is_alive(assets, state->asset))
-    return false;
+  LDKTerrainComponent *component = s_terrain_owned_component(state);
+  if (!state->loaded || !component || !state->pixels) return false;
   LDKImageInfo image = s_terrain_info(state);
-  return ldk_asset_manager_terrain_preview_set(
-      assets, state->asset, &image);
+  if (!ldk_terrain_component_set(component, &state->data, &image)) return false;
+  state->observed_revision = component->revision;
+  ldki_editor_scene_dirty_set(editor, true);
+  return true;
 }
 
 static void s_terrain_undo_discard(LDKEditorContext *editor)
@@ -127,25 +117,18 @@ static void s_terrain_fields_sync(LDKEditorTerrainState *state)
       "%u", state->target_height);
   snprintf(state->cell_size_text, sizeof(state->cell_size_text),
       "%.6g", (double)state->target_cell_size);
+  /* The Inspector edits the world-space maximum, not the encoded range.
+   * Samples remain normalized; their elevation is offset + sample * scale. */
   snprintf(state->height_range_text, sizeof(state->height_range_text),
-      "%.6g", (double)state->height_range);
+      "%.6g", (double)(state->data.height_offset + state->height_range));
 }
 
-/* Discard an editing session, without unloading a shared asset handle. */
-static void s_terrain_reset(LDKEditorContext *editor, bool revert)
+/* Switching selection releases only the working brush copy. Persisted
+ * terrain data and entity Undo history remain owned by the scene. */
+static void s_terrain_reset(LDKEditorContext *editor, bool unused)
 {
+  (void)unused;
   LDKEditorTerrainState *state = &editor->terrain_editor;
-  LDKAssetManager *assets = s_terrain_assets();
-  s_terrain_undo_discard(editor);
-  if (revert && state->loaded && assets &&
-      ldk_asset_manager_terrain_is_alive(assets, state->asset))
-  {
-    /* Revert both metadata changes and unpublished heightmap pixels. */
-    if (state->logical_path[0])
-      (void)ldk_asset_manager_terrain_reload(
-          assets, state->logical_path);
-    (void)ldk_asset_manager_terrain_preview_clear(assets, state->asset);
-  }
   free(state->pixels);
   free(state->stroke_start);
   memset(state, 0, sizeof(*state));
@@ -155,87 +138,44 @@ static void s_terrain_reset(LDKEditorContext *editor, bool revert)
   state->height_range = 64.0f;
   s_terrain_fields_sync(state);
   state->radius = 8.0f;
-  state->strength = 8.0f; /* World units / second, not normalized pixels. */
+  state->strength = 8.0f;
   state->falloff = 0.65f;
   state->image_format = LDK_IMAGE_FORMAT_RGBA16_UNORM;
   state->owner_entity = x_handle_null();
   state->selection_attempt = x_handle_null();
 }
 
-static bool s_terrain_discard_confirm(LDKEditorContext *editor)
+static u64 s_terrain_undo_owner(LDKEntity entity)
 {
-  return !editor->terrain_editor.dirty ||
-      ldk_os_dialog_show_yes_no(editor->window, "Unsaved Terrain",
-          "Discard unsaved terrain modifications?");
+  return ((u64)entity.version << 32u) | entity.index;
 }
 
-static u64 s_terrain_undo_owner_hash(const char *path)
+static bool s_terrain_bind(LDKEditorContext *editor, LDKEntity entity,
+    const LDKTerrainComponent *component)
 {
-  u64 hash = UINT64_C(14695981039346656037);
-  for (const unsigned char *p = (const unsigned char *)path; *p; ++p)
-  {
-    hash ^= *p;
-    hash *= UINT64_C(1099511628211);
-  }
-  return hash;
-}
-
-bool ldki_editor_terrain_open(LDKEditorContext *editor,
-    const char *filename, const char *logical_path, bool read_only)
-{
-  LDKAssetManager *assets = s_terrain_assets();
-  LDKEditorTerrainState *state;
-  LDKAssetTerrain asset;
-  const LDKAssetTerrainData *data;
-  const LDKImage *image = NULL;
-  LDKImageInfo info = {0};
-  u8 *pixels;
-  size_t byte_count;
-  if (!editor || !filename || !logical_path || !*logical_path ||
-      !assets || !s_terrain_discard_confirm(editor))
+  if (!component || !ldk_terrain_validate(&component->terrain)) return false;
+  LDKImageInfo source = {0};
+  if (component->heightmap &&
+      (!ldk_image_get_info(component->heightmap, &source) ||
+       source.width != component->terrain.width ||
+       source.height != component->terrain.height)) return false;
+  const u64 sample_count = (u64)component->terrain.width *
+      component->terrain.height;
+  if (!sample_count || sample_count > SIZE_MAX / (4u * sizeof(u16)))
     return false;
-  asset = ldk_asset_manager_terrain_load_shared(assets, logical_path);
-  data = ldk_asset_manager_terrain_get_const(assets, asset);
-  if (!data || !ldk_terrain_validate(&data->terrain)) return false;
-  /* Discard the previous edit before borrowing pixels from the new asset.
-   * Reopening the same asset must not copy a dirty preview that is about to
-   * be reverted. */
-  s_terrain_reset(editor, editor->terrain_editor.dirty);
-  data = ldk_asset_manager_terrain_get_const(assets, asset);
-  if (!data || !ldk_terrain_validate(&data->terrain)) return false;
-  if (data->heightmap_preview_enabled)
-    image = data->heightmap_preview;
-  else if (data->heightmap_embedded)
-    image = data->heightmap_embedded;
-  else if (data->terrain.heightmap_path.length)
-  {
-    const LDKAssetImageData *source =
-        ldk_asset_manager_image_get_const(assets, data->heightmap);
-    if (!source || source->is_missing || !source->image) return false;
-    image = source->image;
-  }
-  if (image && (!ldk_image_get_info(image, &info) ||
-          info.width != data->terrain.width ||
-          info.height != data->terrain.height)) return false;
-  /* Paint in RGBA16 regardless of source bit depth. An 8-bit heightmap
-   * can otherwise quantize small per-frame brush increments to zero. */
-  const LDKImageFormat format = LDK_IMAGE_FORMAT_RGBA16_UNORM;
-  u64 count = (u64)data->terrain.width * data->terrain.height *
-      4u * sizeof(u16);
-  if (!count || count > SIZE_MAX) return false;
-  byte_count = (size_t)count;
-  pixels = calloc(1u, byte_count);
+  const size_t bytes = (size_t)sample_count * 4u * sizeof(u16);
+  u8 *pixels = calloc(1u, (size_t)bytes);
   if (!pixels) return false;
-  if (image)
+  if (component->heightmap)
   {
-    if (info.format == LDK_IMAGE_FORMAT_RGBA16_UNORM)
-      memcpy(pixels, info.pixels, byte_count);
-    else if (info.format == LDK_IMAGE_FORMAT_RGBA8_UNORM)
+    if (source.format == LDK_IMAGE_FORMAT_RGBA16_UNORM)
+      memcpy(pixels, source.pixels, (size_t)bytes);
+    else if (source.format == LDK_IMAGE_FORMAT_RGBA8_UNORM)
     {
-      for (size_t i = 0u; i < byte_count / sizeof(u16); ++i)
+      for (size_t i = 0u; i < (size_t)bytes / sizeof(u16); ++i)
       {
-        u16 v = (u16)info.pixels[i] * 257u;
-        memcpy(pixels + i * sizeof(u16), &v, sizeof(v));
+        const u16 value = (u16)source.pixels[i] * 257u;
+        memcpy(pixels + i * sizeof(u16), &value, sizeof(value));
       }
     }
     else
@@ -244,32 +184,44 @@ bool ldki_editor_terrain_open(LDKEditorContext *editor,
       return false;
     }
   }
-
-  state = &editor->terrain_editor;
-  state->data = data->terrain;
-  state->target_width = data->terrain.width;
-  state->target_height = data->terrain.height;
-  state->target_cell_size = data->terrain.cell_size;
-  state->height_range = data->terrain.height_scale;
-  s_terrain_fields_sync(state);
-  state->asset = asset;
+  LDKEditorTerrainState *state = &editor->terrain_editor;
+  state->data = component->terrain;
   state->pixels = pixels;
-  state->pixel_bytes = byte_count;
-  state->image_format = format;
-  state->read_only = read_only;
+  state->pixel_bytes = (size_t)bytes;
+  state->image_format = LDK_IMAGE_FORMAT_RGBA16_UNORM;
+  state->target_width = state->data.width;
+  state->target_height = state->data.height;
+  state->target_cell_size = state->data.cell_size;
+  state->height_range = state->data.height_scale;
+  state->owner_entity = entity;
+  state->selection_attempt = entity;
+  state->undo_owner = s_terrain_undo_owner(entity);
+  state->observed_revision = component->revision;
   state->loaded = true;
-  state->undo_owner = s_terrain_undo_owner_hash(logical_path);
-  (void)x_fs_path_set(&state->filename, filename);
-  snprintf(state->logical_path, sizeof(state->logical_path), "%s",
-      logical_path);
-  if (image && info.format == LDK_IMAGE_FORMAT_RGBA8_UNORM &&
-      !read_only && !s_terrain_publish(editor))
-  {
-    s_terrain_reset(editor, false);
-    return false;
-  }
-  (void)ldki_editor_window_show(LDK_EDITOR_WINDOW_TERRAIN);
+  s_terrain_fields_sync(state);
   return true;
+}
+
+static void s_terrain_selection_sync(LDKEditorContext *editor)
+{
+  if (!editor) return;
+  LDKEditorTerrainState *state = &editor->terrain_editor;
+  LDKEntity selected = editor->selected_entity;
+  const LDKTerrainComponent *component = !x_handle_is_null(selected)
+      ? ldk_ecs_component_get_const(selected, LDK_COMPONENT_TYPE_TERRAIN)
+      : NULL;
+  if (!component || !ldk_ecs_component_is_enabled(selected,
+          LDK_COMPONENT_TYPE_TERRAIN))
+  {
+    if (state->stroke_active) s_terrain_stroke_finish(editor);
+    if (state->loaded) s_terrain_reset(editor, false);
+    return;
+  }
+  if (state->loaded && ldki_editor_entity_equal(state->owner_entity, selected) &&
+      state->observed_revision == component->revision) return;
+  if (state->stroke_active) s_terrain_stroke_finish(editor);
+  s_terrain_reset(editor, false);
+  (void)s_terrain_bind(editor, selected, component);
 }
 
 static void s_terrain_ui_error(
@@ -280,33 +232,15 @@ static void s_terrain_ui_error(
       "Terrain Editor", message);
 }
 
-static bool s_terrain_file_path_get(LDKEditorContext *editor,
-    const char *logical_path, XFSPath *out)
-{
-  const XFSPath *root = editor->project.loaded
-      ? &editor->project.run_root_path : &editor->engine_runtree;
-  char combined[X_FS_PATH_MAX_LENGTH];
-  if (!root->length || !logical_path || !*logical_path ||
-      snprintf(combined, sizeof(combined), "%s/%s", root->buf,
-          logical_path) >= (int)sizeof(combined))
-    return false;
-  return x_fs_path_set(out, combined);
-}
-
-/* The selected terrain entity owns the editor's target. The asset remains
- * shared; editing a different asset never implicitly changes the component.
- */
 static bool s_terrain_entity_world(LDKEditorContext *editor,
     Mat4 *world, Mat4 *inverse)
 {
   const LDKEditorTerrainState *state = &editor->terrain_editor;
-  if (x_handle_is_null(state->owner_entity)) return false;
-  const LDKTerrainComponent *component = ldk_ecs_component_get_const(
-      state->owner_entity, LDK_COMPONENT_TYPE_TERRAIN);
-  if (!component || !ldk_ecs_component_is_enabled(
+  if (x_handle_is_null(state->owner_entity) ||
+      !ldk_ecs_component_get_const(
           state->owner_entity, LDK_COMPONENT_TYPE_TERRAIN) ||
-      component->terrain.h.index != state->asset.h.index ||
-      component->terrain.h.version != state->asset.h.version ||
+      !ldk_ecs_component_is_enabled(
+          state->owner_entity, LDK_COMPONENT_TYPE_TERRAIN) ||
       !ldk_scenegraph_update_entity(state->owner_entity) ||
       !ldk_transform_get_world_matrix(state->owner_entity, world))
     return false;
@@ -315,75 +249,8 @@ static bool s_terrain_entity_world(LDKEditorContext *editor,
   return inverse_ok;
 }
 
-static void s_terrain_selection_sync(LDKEditorContext *editor)
-{
-  LDKEditorTerrainState *state = &editor->terrain_editor;
-  LDKEntity selected = editor->selected_entity;
-  const LDKTerrainComponent *component = !x_handle_is_null(selected)
-      ? ldk_ecs_component_get_const(selected, LDK_COMPONENT_TYPE_TERRAIN)
-      : NULL;
-  if (!component || x_handle_is_null(component->terrain.h))
-  {
-    state->owner_entity = x_handle_null();
-    state->selection_attempt = x_handle_null();
-    return;
-  }
-  if (state->loaded &&
-      component->terrain.h.index == state->asset.h.index &&
-      component->terrain.h.version == state->asset.h.version)
-  {
-    state->owner_entity = selected;
-    return;
-  }
-  if (selected.index == state->selection_attempt.index &&
-      selected.version == state->selection_attempt.version) return;
-  state->owner_entity = x_handle_null();
-  state->selection_attempt = selected;
-  LDKAssetManager *assets = s_terrain_assets();
-  LDKAssetHandle generic = {component->terrain.h};
-  const LDKAssetInfo *info = assets
-      ? ldk_asset_get_info_const(assets, generic) : NULL;
-  XFSPath filename = {0};
-  if (!info || !info->asset_path.length ||
-      !s_terrain_file_path_get(editor, info->asset_path.buf, &filename))
-    return;
-  if (ldki_editor_terrain_open(editor, filename.buf,
-          info->asset_path.buf, false))
-  {
-    state->owner_entity = selected;
-    state->selection_attempt = selected;
-  }
-  else
-    state->selection_attempt = selected;
-}
-
-static bool s_terrain_save(LDKEditorContext *editor)
-{
-  LDKEditorTerrainState *state = &editor->terrain_editor;
-  LDKAssetManager *assets = s_terrain_assets();
-  if (!state->loaded || state->read_only || !assets || !state->pixels)
-    return false;
-  /* The PNG, if any, was an import input. Never overwrite it or create a
-   * companion _height.png. The current editable height data belongs to the
-   * .terrain file regardless of its original source. */
-  LDKTerrain candidate = state->data;
-  memset(&candidate.heightmap_path, 0, sizeof(candidate.heightmap_path));
-  LDKImageInfo image = s_terrain_info(state);
-  if (!ldk_terrain_save_with_heightmap(
-          &candidate, &image, state->filename.buf)) return false;
-  /* Reload persistent data before switching off the editor preview. */
-  if (!ldk_asset_manager_terrain_reload(assets, state->logical_path))
-    return false;
-  if (!ldk_asset_manager_terrain_preview_clear(assets, state->asset))
-    return false;
-  state->data = candidate;
-  state->dirty = false;
-  state->pixels_dirty = false;
-  return true;
-}
-
-/* Export is deliberately independent from Save. Use the current sculpted
- * values, even when they have not been saved to the .terrain yet. */
+/* Export is deliberately independent of Save Scene, and reads the currently
+ * sculpted component pixels without modifying the component. */
 static bool s_terrain_export_heightmap(LDKEditorContext *editor)
 {
   LDKEditorTerrainState *state = &editor->terrain_editor;
@@ -424,72 +291,49 @@ static bool s_terrain_export_heightmap(LDKEditorContext *editor)
   return ok;
 }
 
-static bool s_terrain_revert(LDKEditorContext *editor)
+/* Initialize or replace the component's own heightfield without requiring
+ * an external image or creating a .terrain asset. */
+static bool s_terrain_create_flat(LDKEditorContext *editor)
 {
   LDKEditorTerrainState *state = &editor->terrain_editor;
-  if (!state->loaded || !s_terrain_discard_confirm(editor)) return false;
-  char file[X_FS_PATH_MAX_LENGTH];
-  char logical[LDK_ASSET_PATH_MAX_LENGTH + 1u];
-  bool read_only = state->read_only;
-  snprintf(file, sizeof(file), "%s", state->filename.buf);
-  snprintf(logical, sizeof(logical), "%s", state->logical_path);
-  LDKAssetManager *assets = s_terrain_assets();
-  if (!assets || !ldk_asset_manager_terrain_reload(assets, logical) ||
-      !ldk_asset_manager_terrain_preview_clear(assets, state->asset))
+  if (!state->loaded || state->stroke_active ||
+      !state->target_width || !state->target_height ||
+      !isfinite(state->target_cell_size) || state->target_cell_size <= 0.0f ||
+      !isfinite(state->height_range) || state->height_range <= 0.0f)
     return false;
-  state->dirty = false;
-  return ldki_editor_terrain_open(editor, file, logical, read_only);
-}
-
-static bool s_terrain_new(LDKEditorContext *editor)
-{
-  if (!s_terrain_discard_confirm(editor)) return false;
-  XFSPath file = {0};
-  char logical[LDK_ASSET_PATH_MAX_LENGTH + 1u];
-  LDKTerrain terrain;
-  if (!ldk_os_dialog_show_save_file(editor->window,
-          "New Terrain", "Terrain Asset (*.terrain)\0*.terrain\0", &file))
-    return false;
-  if (!s_terrain_logical_from_file(editor, file.buf, logical))
+  LDKTerrain terrain = state->data;
+  terrain.width = state->target_width;
+  terrain.height = state->target_height;
+  terrain.cell_size = state->target_cell_size;
+  terrain.height_scale = state->height_range;
+  terrain.height_offset = 0.0f;
+  if (!ldk_terrain_validate(&terrain)) return false;
+  const u64 sample_count = (u64)terrain.width * terrain.height;
+  if (!sample_count || sample_count > SIZE_MAX / 8u) return false;
+  const size_t bytes = (size_t)sample_count * 8u;
+  u8 *pixels = calloc(1u, (size_t)bytes);
+  if (!pixels) return false;
+  /* Flat terrain needs no serialized samples. Keep a zeroed scratch grid
+   * for sculpting; the first brush stroke publishes the RGBA16 image. */
+  LDKTerrainComponent *component = s_terrain_owned_component(state);
+  if (!component || !ldk_terrain_component_set(component, &terrain, NULL))
   {
-    s_terrain_ui_error(editor,
-        "New Terrain must be located within the active RunTree.");
+    free(pixels);
     return false;
   }
-  const char *ext = strrchr(file.buf, '.');
-  if (!ext || strcmp(ext, ".terrain") != 0)
-  {
-    s_terrain_ui_error(editor, "Terrain files require a .terrain extension.");
-    return false;
-  }
-  ldk_terrain_init(&terrain);
-  terrain.width = editor->terrain_editor.target_width;
-  terrain.height = editor->terrain_editor.target_height;
-  terrain.cell_size = editor->terrain_editor.target_cell_size;
-  terrain.height_scale = editor->terrain_editor.height_range;
-  if (!ldk_terrain_validate(&terrain) ||
-      !ldk_terrain_save(&terrain, file.buf) ||
-      !ldki_editor_terrain_open(editor, file.buf, logical, false))
-    return false;
-
-  /* Creating a terrain from the scene editor creates a real entity, not a
-   * system-owned hidden heightmap. Standalone asset creation remains possible
-   * when no authoring scene is open. */
-  if (!editor->current_scene_path.length) return true;
-  LDKEntity entity = ldk_ecs_entity_create();
-  if (x_handle_is_null(entity)) return false;
-  LDKTerrainComponent component = ldk_terrain_component_make_default();
-  component.terrain = editor->terrain_editor.asset;
-  if (!ldk_ecs_component_add(entity, LDK_COMPONENT_TYPE_TERRAIN, &component))
-  {
-    ldk_ecs_entity_destroy(entity);
-    return false;
-  }
-  (void)ldk_ecs_entity_name_set(entity, "Terrain");
-  editor->selected_entity = entity;
-  editor->selected_system_id = 0u;
-  editor->terrain_editor.owner_entity = entity;
-  editor->terrain_editor.selection_attempt = entity;
+  s_terrain_undo_discard(editor);
+  free(state->pixels);
+  free(state->stroke_start);
+  state->stroke_start = NULL;
+  state->pixels = pixels;
+  state->pixel_bytes = (size_t)bytes;
+  state->image_format = LDK_IMAGE_FORMAT_RGBA16_UNORM;
+  state->data = terrain;
+  state->observed_revision = component->revision;
+  state->dirty = true;
+  state->pixels_dirty = true;
+  state->stroke_active = false;
+  s_terrain_fields_sync(state);
   ldki_editor_scene_dirty_set(editor, true);
   return true;
 }
@@ -497,24 +341,19 @@ static bool s_terrain_new(LDKEditorContext *editor)
 static bool s_terrain_import(LDKEditorContext *editor)
 {
   LDKEditorTerrainState *state = &editor->terrain_editor;
-  LDKAssetManager *assets = s_terrain_assets();
   XFSPath path = {0};
   LDKImage *source = NULL;
   LDKImage *scaled = NULL;
   LDKImageInfo info = {0};
-  LDKTerrain terrain;
   LDKTerrain imported;
   u8 *pixels = NULL;
   bool success = false;
-  if (!state->loaded || state->read_only || !assets ||
-      !state->target_width || !state->target_height ||
-      !isfinite(state->target_cell_size) || state->target_cell_size <= 0.0f ||
-      !s_terrain_discard_confirm(editor)) return false;
+  if (!state->loaded || !state->target_width || !state->target_height ||
+      !isfinite(state->target_cell_size) || state->target_cell_size <= 0.0f)
+    return false;
   if (!ldk_os_dialog_show_open_file(editor->window,
           "Import Heightmap", "Image Files\0*.png;*.tga;*.bmp\0", &path))
     return false;
-  /* Import is a conversion: the source may live anywhere. Its samples are
-   * copied into the working terrain and persist only on Save (.terrain). */
   source = ldk_image_load(path.buf);
   if (!source) goto done;
   scaled = ldk_terrain_heightmap_resample(source,
@@ -522,41 +361,37 @@ static bool s_terrain_import(LDKEditorContext *editor)
   if (!scaled || !ldk_image_get_info(scaled, &info) ||
       !ldk_terrain_import_heightmap(&imported, NULL, scaled,
           LDK_TERRAIN_CHANNEL_R)) goto done;
-  /* Import replaces only geometry, not the already configured materials,
-   * surfaces or vegetation distribution layers. Their masks use terrain UVs. */
-  terrain = state->data;
-  terrain.heightmap_path = imported.heightmap_path;
-  terrain.height_channel = imported.height_channel;
-  terrain.width = imported.width;
-  terrain.height = imported.height;
-  terrain.cell_size = state->target_cell_size;
-  terrain.height_scale = state->height_range;
-  if (!ldk_terrain_validate(&terrain) || info.byte_count > SIZE_MAX)
+
+  LDKTerrain candidate = state->data;
+  candidate.heightmap_path = imported.heightmap_path;
+  candidate.height_channel = imported.height_channel;
+  candidate.width = imported.width;
+  candidate.height = imported.height;
+  candidate.cell_size = state->target_cell_size;
+  candidate.height_scale = state->height_range;
+  if (!ldk_terrain_validate(&candidate) || info.byte_count > SIZE_MAX)
     goto done;
   pixels = malloc((size_t)info.byte_count);
   if (!pixels) goto done;
   memcpy(pixels, info.pixels, (size_t)info.byte_count);
-  if (!ldk_asset_manager_terrain_update(assets, state->asset, &terrain))
+  /* Publish the complete replacement atomically. On failure the component
+   * and working copy remain unchanged. */
+  LDKTerrainComponent *component = s_terrain_owned_component(state);
+  if (!component || !ldk_terrain_component_set(component, &candidate, &info))
     goto done;
-  if (!ldk_asset_manager_terrain_preview_set(assets, state->asset, &info))
-  {
-    /* Roll back metadata if creating the preview fails. */
-    (void)ldk_asset_manager_terrain_update(
-        assets, state->asset, &state->data);
-    (void)s_terrain_publish(editor);
-    goto done;
-  }
-  s_terrain_undo_discard(editor);
+  s_terrain_undo_discard(editor); /* Grid size changed: old regions are invalid. */
   free(state->pixels);
   free(state->stroke_start);
   state->stroke_start = NULL;
   state->pixels = pixels;
   state->pixel_bytes = (size_t)info.byte_count;
   state->image_format = info.format;
-  state->data = terrain;
+  state->data = candidate;
+  state->observed_revision = component->revision;
   state->dirty = true;
-  state->pixels_dirty = true; /* Save embeds samples in the .terrain. */
+  state->pixels_dirty = true;
   state->stroke_active = false;
+  ldki_editor_scene_dirty_set(editor, true);
   pixels = NULL;
   success = true;
 done:
@@ -564,17 +399,6 @@ done:
   ldk_image_destroy(scaled);
   ldk_image_destroy(source);
   return success;
-}
-
-static bool s_terrain_browse(LDKEditorContext *editor)
-{
-  XFSPath path = {0};
-  char logical[LDK_ASSET_PATH_MAX_LENGTH + 1u];
-  if (!ldk_os_dialog_show_open_file(editor->window,
-          "Open Terrain", "Terrain Asset (*.terrain)\0*.terrain\0", &path))
-    return false;
-  if (!s_terrain_logical_from_file(editor, path.buf, logical)) return false;
-  return ldki_editor_terrain_open(editor, path.buf, logical, false);
 }
 
 /* Undo payloads cover only the changed bounding rectangle, not the full
@@ -634,7 +458,7 @@ static void s_terrain_stroke_finish(LDKEditorContext *editor)
   LDKEditorUndoKey key = {state->undo_owner,
       ((u64)TERRAIN_UNDO_TAG << 32u) | 1u};
   if (ldk_editor_undo_begin_change(&editor->undo, key,
-          LDK_FIELD_ASSET_TERRAIN, before, bytes))
+          LDK_FIELD_ARRAY, before, bytes))
     (void)ldk_editor_undo_end_change(&editor->undo, after);
  done_regions:
   free(before);
@@ -649,62 +473,98 @@ bool ldki_editor_terrain_undo_is_key(LDKEditorUndoKey key)
   return (u32)(key.property >> 32u) == TERRAIN_UNDO_TAG;
 }
 
+static LDKTerrainComponent *s_terrain_undo_component(LDKEditorUndoKey key)
+{
+  LDKEntity entity = {(u32)key.owner, (u32)(key.owner >> 32u)};
+  return ldk_ecs_component_get(entity, LDK_COMPONENT_TYPE_TERRAIN);
+}
+
 void *ldki_editor_terrain_undo_resolve(LDKEditorContext *editor,
     LDKEditorUndoKey key, LDKFieldType type, size_t size)
 {
-  LDKEditorTerrainState *state = &editor->terrain_editor;
-  return type == LDK_FIELD_ASSET_TERRAIN && state->loaded &&
-      key.owner == state->undo_owner && state->pixels &&
-      size >= sizeof(LDKEditorTerrainUndoRegion) ? state : NULL;
+  (void)editor;
+  if (type != LDK_FIELD_ARRAY ||
+      size < sizeof(LDKEditorTerrainUndoRegion)) return NULL;
+  return s_terrain_undo_component(key);
 }
 
 bool ldki_editor_terrain_undo_apply(LDKEditorContext *editor,
     LDKEditorUndoKey key, LDKFieldType type, const void *bytes, size_t size)
 {
-  LDKEditorTerrainState *state = &editor->terrain_editor;
-  if (!bytes || !ldki_editor_terrain_undo_resolve(editor, key, type, size))
+  LDKTerrainComponent *component = s_terrain_undo_component(key);
+  if (!bytes || !component ||
+      !ldki_editor_terrain_undo_resolve(editor, key, type, size))
     return false;
   LDKEditorTerrainUndoRegion region;
   memcpy(&region, bytes, sizeof(region));
-  const u32 pixel_size = state->image_format ==
-      LDK_IMAGE_FORMAT_RGBA16_UNORM ? 8u : 4u;
-  if (region.pixel_size != pixel_size || !region.width || !region.height ||
-      region.x >= state->data.width || region.y >= state->data.height ||
-      region.width > state->data.width - region.x ||
-      region.height > state->data.height - region.y ||
-      (size_t)region.width * region.height >
-          (SIZE_MAX - sizeof(region)) / pixel_size ||
-      size != sizeof(region) +
-          (size_t)region.width * region.height * pixel_size)
+  if (!region.width || !region.height ||
+      region.x >= component->terrain.width ||
+      region.y >= component->terrain.height ||
+      region.width > component->terrain.width - region.x ||
+      region.height > component->terrain.height - region.y ||
+      region.pixel_size != 8u ||
+      (u64)region.width * region.height * 8u > SIZE_MAX - sizeof(region) ||
+      size != sizeof(region) + (size_t)region.width * region.height * 8u)
     return false;
-  /* Pixels and their world-space encoding must be restored as a unit. */
-  LDKTerrain candidate = state->data;
+  LDKTerrain candidate = component->terrain;
   s_terrain_height_restore(&candidate, &region.range_state);
-  LDKAssetManager *assets = s_terrain_assets();
-  if (!assets || !ldk_terrain_validate(&candidate) ||
-      !ldk_asset_manager_terrain_update(assets, state->asset, &candidate))
-    return false;
-  state->data = candidate;
-  state->height_range = candidate.height_scale;
-  s_terrain_fields_sync(state);
-  const size_t pitch = (size_t)region.width * pixel_size;
+  if (!ldk_terrain_validate(&candidate)) return false;
+  const u64 sample_count = (u64)candidate.width * candidate.height;
+  if (!sample_count || sample_count > SIZE_MAX / 8u) return false;
+  const size_t pixel_bytes = (size_t)sample_count * 8u;
+  u8 *pixels = calloc(1u, pixel_bytes);
+  if (!pixels) return false;
+  LDKImageInfo previous = {0};
+  if (component->heightmap)
+  {
+    if (!ldk_image_get_info(component->heightmap, &previous) ||
+        previous.format != LDK_IMAGE_FORMAT_RGBA16_UNORM ||
+        previous.byte_count != pixel_bytes)
+    {
+      free(pixels);
+      return false;
+    }
+    memcpy(pixels, previous.pixels, pixel_bytes);
+  }
+  const size_t pitch = (size_t)region.width * region.pixel_size;
   const u8 *source = (const u8 *)bytes + sizeof(region);
   for (u32 y = 0u; y < region.height; ++y)
   {
-    size_t offset = ((size_t)(region.y + y) * state->data.width +
-        region.x) * pixel_size;
-    memcpy(state->pixels + offset, source + (size_t)y * pitch, pitch);
+    const size_t offset = ((size_t)(region.y + y) * candidate.width +
+        region.x) * region.pixel_size;
+    memcpy(pixels + offset, source + (size_t)y * pitch, pitch);
   }
-  if (!s_terrain_publish(editor)) return false;
-  state->dirty = true;
-  state->pixels_dirty = true;
+  LDKImageInfo info = {candidate.width, candidate.height, 4u, 2u,
+      LDK_IMAGE_FORMAT_RGBA16_UNORM, pixel_bytes, pixels};
+  bool ok = ldk_terrain_component_set(component, &candidate, &info);
+  free(pixels);
+  if (!ok) return false;
+  LDKEditorTerrainState *state = &editor->terrain_editor;
+  if (state->loaded && s_terrain_undo_owner(state->owner_entity) == key.owner)
+  {
+    /* Refresh the working buffer without exiting Sculpt or resetting the
+     * user's tool settings after Undo/Redo. */
+    const bool sculpt_enabled = state->enabled;
+    const LDKEditorTerrainSculptTool tool = state->sculpt_tool;
+    const float radius = state->radius;
+    const float strength = state->strength;
+    const float falloff = state->falloff;
+    s_terrain_reset(editor, false);
+    (void)s_terrain_bind(editor, editor->selected_entity, component);
+    state->enabled = sculpt_enabled;
+    state->sculpt_tool = tool;
+    state->radius = radius;
+    state->strength = strength;
+    state->falloff = falloff;
+  }
+  ldki_editor_scene_dirty_set(editor, true);
   return true;
 }
 
 static bool s_terrain_stroke_begin(LDKEditorContext *editor)
 {
   LDKEditorTerrainState *state = &editor->terrain_editor;
-  if (state->stroke_active || state->read_only || !state->pixels) return false;
+  if (state->stroke_active || !state->pixels) return false;
   if (ldk_editor_undo_has_active_change(&editor->undo))
   {
     if (!ldk_editor_undo_end_change_resolved(&editor->undo)) return false;
@@ -725,7 +585,7 @@ static float s_terrain_clamp01(float x)
 }
 
 /* When a brush would exceed the image's [0,1] encoding, enlarge the
- * asset's world-height interval and re-encode existing samples. Apply to a
+ * component's world-height interval and re-encode existing samples. Apply to a
  * scratch copy first so failed asset updates never corrupt the stroke. */
 static bool s_terrain_brush_expand_range(LDKEditorContext *editor,
     float minimum, float maximum)
@@ -743,11 +603,6 @@ static bool s_terrain_brush_expand_range(LDKEditorContext *editor,
   memcpy(copy, state->pixels, state->pixel_bytes);
   bool ok = ldk_terrain_heightmap_range_expand(&candidate,
       (u16 *)copy, minimum, maximum);
-  LDKAssetManager *assets = s_terrain_assets();
-  if (ok && assets)
-    ok = ldk_asset_manager_terrain_update(assets, state->asset, &candidate);
-  else
-    ok = false;
   if (ok)
   {
     memcpy(state->pixels, copy, state->pixel_bytes);
@@ -786,7 +641,7 @@ static bool s_terrain_brush_apply(LDKEditorContext *editor, Vec3 center)
       ? 1.0f : -1.0f;
   const float dt = fmaxf(0.001f, fminf(0.05f, editor->ui.delta_time));
   /* Find the actual world heights requested by this stroke. A heightmap is
-   * normalized storage, not a hard sculpting limit. An older .terrain with
+   * normalized storage, not a hard sculpting limit. A component with
    * height_scale=1 must be able to grow beyond one world unit. */
   float needed_min = terrain->height_offset;
   float needed_max = terrain->height_offset + terrain->height_scale;
@@ -1015,7 +870,6 @@ void ldki_editor_terrain_view_update(
   Mat4 world, inverse;
   if (!s_terrain_entity_world(editor, &world, &inverse)) return;
   Vec3 local_hit = mat4_mul_point(inverse, hit);
-  if (state->read_only) return;
   if (!state->stroke_active &&
       ldk_os_mouse_button_down((LDKMouseState *)ui->mouse,
           LDK_MOUSE_BUTTON_LEFT))
@@ -1086,9 +940,7 @@ void ldki_editor_terrain_terminate(LDKEditorContext *editor)
 
 bool ldki_editor_terrain_project_close(LDKEditorContext *editor)
 {
-  if (!s_terrain_discard_confirm(editor)) return false;
-  ldki_editor_window_hide(LDK_EDITOR_WINDOW_TERRAIN);
-  s_terrain_reset(editor, editor->terrain_editor.dirty);
+  s_terrain_reset(editor, false);
   return true;
 }
 
@@ -1125,7 +977,7 @@ static void s_terrain_grid_input(LDKEditorContext *editor,
   u32 result = ldk_editor_ui_row_uint(editor, label, 0u, buffer,
       capacity, false, s_terrain_uint_row_input, NULL, NULL);
   ldk_ui_end_horizontal(ui);
-  if (result & LDK_UI_INPUT_BOX_COMMITTED)
+  if (result & (LDK_UI_INPUT_BOX_CHANGED | LDK_UI_INPUT_BOX_COMMITTED))
   {
     parsed = strtoul(buffer, &end, 10);
     if (end != buffer && *end == '\0' && parsed >= 1ul &&
@@ -1148,7 +1000,10 @@ static bool s_terrain_real_input(LDKEditorContext *editor,
       capacity, value, false, s_terrain_float_row_input, NULL, NULL);
   ldk_ui_end_horizontal(ui);
   bool changed = false;
-  if (result & LDK_UI_INPUT_BOX_COMMITTED)
+  /* Accept valid values as they are typed. Otherwise clicking Import or
+   * Save before pressing Enter uses the previous Height Range. Keep the
+   * text intact until commit/cancel so intermediate input is editable. */
+  if (result & (LDK_UI_INPUT_BOX_CHANGED | LDK_UI_INPUT_BOX_COMMITTED))
   {
     parsed = strtof(buffer, &end);
     if (end != buffer && *end == '\0' && isfinite(parsed) &&
@@ -1164,10 +1019,14 @@ static bool s_terrain_real_input(LDKEditorContext *editor,
   return changed;
 }
 
-void ldki_editor_terrain_window_show(LDKEditor *opaque, void *data)
+void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
+    LDKEntity entity)
 {
-  (void)data;
-  LDKEditorContext *editor = (LDKEditorContext *)opaque;
+  /* The component Inspector already resolved the selected entity. Avoid
+   * silently skipping the built-in editor on a redundant selection check. */
+  if (!editor || x_handle_is_null(entity) ||
+      !ldk_ecs_component_get_const(entity, LDK_COMPONENT_TYPE_TERRAIN))
+    return;
   LDKEditorTerrainState *state = &editor->terrain_editor;
   LDKUIContext *ui = &editor->ui;
   s_terrain_selection_sync(editor);
@@ -1181,7 +1040,10 @@ void ldki_editor_terrain_window_show(LDKEditor *opaque, void *data)
     s_terrain_fields_sync(state);
   }
   ldk_ui_push_id_cstr(ui, "terrain-editor");
-  ldk_ui_label(ui, "Target terrain grid (New / Import)");
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_label(ui, "Terrain Editor");
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_label(ui, "Target terrain grid (Import)");
   s_terrain_grid_input(editor, "Width", state->width_text,
       sizeof(state->width_text), &state->target_width);
   s_terrain_grid_input(editor, "Depth", state->depth_text,
@@ -1195,95 +1057,74 @@ void ldki_editor_terrain_window_show(LDKEditor *opaque, void *data)
       (double)(state->target_width * state->target_cell_size),
       (double)(state->target_height * state->target_cell_size));
   ldk_editor_ui_row_label(editor, "World Size", 0u, grid_info);
-  /* The height channel is normalized; world amplitude is explicit.
-   * A larger value increases the maximum height, but also stretches any
-   * heights already sculpted (height_offset remains unchanged). */
-  float height_range = state->height_range;
-  if (s_terrain_real_input(editor, "Height Range",
+  /* Change the world-space maximum without changing the minimum. An
+   * imported image keeps its normalized samples; this simply rescales the
+   * vertical range and immediately updates the scene's terrain component. */
+  const float min_height = state->data.height_offset;
+  float max_height = min_height + state->height_range;
+  if (s_terrain_real_input(editor, "Max Height",
           state->height_range_text, sizeof(state->height_range_text),
-          &height_range, 0.1f, 100000.0f))
+          &max_height, min_height + 0.001f, min_height + 100000.0f) &&
+      !state->stroke_active && state->loaded)
   {
-    if (!state->loaded)
-      state->height_range = height_range;
-    else if (!state->read_only && !state->stroke_active)
+    LDKTerrain candidate = state->data;
+    candidate.height_scale = max_height - min_height;
+    if (ldk_terrain_validate(&candidate))
     {
-      LDKTerrain candidate = state->data;
-      candidate.height_scale = height_range;
-      LDKAssetManager *assets = s_terrain_assets();
-      if (assets && ldk_terrain_validate(&candidate) &&
-          ldk_asset_manager_terrain_update(
-              assets, state->asset, &candidate))
-      {
-        /* Changing this field reinterprets every pixel, independently of a
-         * stroke. Older stroke snapshots no longer describe the same map. */
-        s_terrain_undo_discard(editor);
-        state->data = candidate;
-        state->height_range = height_range;
-        state->dirty = true;
-      }
+      s_terrain_undo_discard(editor);
+      state->data = candidate;
+      state->height_range = candidate.height_scale;
+      (void)s_terrain_publish(editor);
+      state->dirty = true;
     }
   }
-  if (!state->loaded)
+  if (!state->loaded ||
+      !ldki_editor_entity_equal(state->owner_entity, entity))
   {
-    ldk_ui_label(ui, "Open a .terrain from Project Explorer, or create one.");
-    if (ldk_ui_button(ui, "New Terrain"))
-    {
-      if (!s_terrain_new(editor))
-        ldki_editor_log_warning(editor, "New Terrain cancelled or failed.");
-    }
-    if (ldk_ui_button(ui, "Open Terrain..."))
-      (void)s_terrain_browse(editor);
+    ldk_editor_ui_row_label(editor, "Status", 0u,
+        "Unable to load terrain component.");
     ldk_ui_pop_id(ui);
     return;
   }
-  ldk_editor_ui_row_label(editor, "Terrain Asset", 0u,
-      state->logical_path);
-  if (state->dirty)
-    ldk_editor_ui_row_label(editor, "Status", 0u, "Unsaved changes *");
-  if (x_handle_is_null(state->owner_entity))
-    ldk_editor_ui_row_label(editor, "Selection", 0u,
-        "Select an entity with LDKTerrainComponent to sculpt.");
-  ldk_ui_begin_horizontal(ui);
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  if (ldk_ui_button(ui, "New")) (void)s_terrain_new(editor);
-  ldk_ui_set_next_disabled(ui, state->read_only);
+  if (ldk_ui_button(ui, "Create Flat Grid"))
+  {
+    if (!s_terrain_create_flat(editor))
+      ldki_editor_log_warning(editor, "Failed to create a flat terrain grid.");
+  }
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   if (ldk_ui_button(ui, "Import from Heightmap"))
   {
     if (!s_terrain_import(editor))
       ldki_editor_log_warning(editor, "Heightmap import cancelled or failed.");
   }
-  ldk_ui_end_horizontal(ui);
   ldk_ui_horizontal_line(ui);
-  ldk_ui_label(ui, "Editing mode");
-  ldk_ui_begin_horizontal(ui);
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_label(ui, "Editing mode");
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_begin_horizontal(ui);
   if (ldk_ui_button(ui, state->enabled ? "Exit Sculpt" : "Sculpt"))
     state->enabled = !state->enabled;
   ldk_ui_set_next_disabled(ui, true); /* Stage 6 */
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   (void)ldk_ui_button(ui, "Surface Paint");
   ldk_ui_set_next_disabled(ui, true); /* Stage 5 */
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   (void)ldk_ui_button(ui, "Vegetation");
   ldk_ui_end_horizontal(ui);
-  ldk_ui_label(ui, "Sculpt");
-  ldk_ui_begin_horizontal(ui);
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_label(ui, "Sculpt");
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  ldk_ui_begin_horizontal(ui);
   if (ldk_ui_button(ui,
           state->sculpt_tool == LDK_EDITOR_TERRAIN_RAISE ?
               "[Raise]" : "Raise"))
     state->sculpt_tool = LDK_EDITOR_TERRAIN_RAISE;
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   if (ldk_ui_button(ui,
           state->sculpt_tool == LDK_EDITOR_TERRAIN_LOWER ?
               "[Lower]" : "Lower"))
     state->sculpt_tool = LDK_EDITOR_TERRAIN_LOWER;
   ldk_ui_set_next_disabled(ui, true); /* Stage 6 */
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   (void)ldk_ui_button(ui, "Smooth");
   ldk_ui_set_next_disabled(ui, true); /* Stage 6 */
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   (void)ldk_ui_button(ui, "Flatten");
   ldk_ui_end_horizontal(ui);
   state->radius = ldk_editor_ui_row_slider_float(editor,
@@ -1299,6 +1140,7 @@ void ldki_editor_terrain_window_show(LDKEditor *opaque, void *data)
   char label[128];
   snprintf(label, sizeof(label), "Surface Layers: %u",
       state->data.surface_count);
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_label(ui, label);
   for (u32 i = 0u; i < state->data.surface_count; ++i)
   {
@@ -1308,6 +1150,7 @@ void ldki_editor_terrain_window_show(LDKEditor *opaque, void *data)
   }
   snprintf(label, sizeof(label), "Vegetation Layers: %u",
       state->data.vegetation_layer_count);
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_label(ui, label);
   for (u32 i = 0u; i < state->data.vegetation_layer_count; ++i)
   {
@@ -1319,22 +1162,6 @@ void ldki_editor_terrain_window_show(LDKEditor *opaque, void *data)
         layer->type_name, (double)layer->density_scale);
     ldk_editor_ui_row_label(editor, label, 0u, value);
   }
-  if (state->read_only)
-    ldk_editor_ui_row_label(editor, "Status", 0u,
-        "Package asset: read-only");
-  ldk_ui_horizontal_line(ui);
-  ldk_ui_set_next_disabled(ui, state->read_only ||
-      (!state->dirty && !state->data.heightmap_path.length));
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  if (ldk_ui_button(ui, "Save"))
-  {
-    if (!s_terrain_save(editor))
-      s_terrain_ui_error(editor, "Could not save the Terrain Asset.");
-  }
-  ldk_ui_set_next_disabled(ui, !state->dirty);
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  if (ldk_ui_button(ui, "Cancel"))
-    (void)s_terrain_revert(editor);
   ldk_ui_horizontal_line(ui);
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   if (ldk_ui_button(ui, "Export Heightmap..."))
@@ -1343,5 +1170,8 @@ void ldki_editor_terrain_window_show(LDKEditor *opaque, void *data)
       ldki_editor_log_warning(editor,
           "Heightmap PNG export cancelled or failed.");
   }
+  /* Let only the final spacer absorb extra vertical space. All preceding
+   * rows, sections and action buttons have their natural fixed height. */
+  ldk_ui_spacer(ui);
   ldk_ui_pop_id(ui);
 }

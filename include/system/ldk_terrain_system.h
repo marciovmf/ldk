@@ -24,10 +24,9 @@ extern "C" {
 #endif
 
 /**
- * @brief Set a direct runtime heightmap when no Terrain Asset is assigned.
- * Kept for procedural terrain providers until the shared Terrain Asset
- * creation API is integrated. The heightmap is borrowed from AssetManager.
- * Has no effect on terrain entities with a .terrain asset assigned.
+ * @brief Set a direct runtime heightmap for procedural terrain providers.
+ * The image is borrowed from AssetManager. Terrain entities with their own
+ * embedded heightmap are managed by their LDKTerrainComponent.
  * @group ldk.system.terrain_system
  */
 LDK_API bool ldk_terrain_heightmap_set(LDKAssetImage image);

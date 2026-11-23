@@ -6,7 +6,8 @@
 #define X_IMPL_TML
 #endif
 
-#include <module/ldk_asset_manager.h>
+#include <ldk_terrain.h>
+#include <module/ldk_asset_source.h>
 
 #define X_IMPL_TEST
 #include <stdx/stdx_test.h>
@@ -15,7 +16,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 static int test_terrain_defaults_and_roundtrip(void)
 {
@@ -207,120 +207,6 @@ static int test_terrain_invalid_parse_preserves_original(void)
   return 0;
 }
 
-static int test_terrain_manager_shared_reload(void)
-{
-  LDKAssetSource source = {0};
-  LDKAssetManager manager = {0};
-  LDKTerrain terrain;
-  XFSPath cwd = {0};
-  XFSPath path = {0};
-  char name[96];
-  FILE *file;
-  ldk_terrain_init(&terrain);
-  ASSERT_TRUE(x_fs_cwd_get(&cwd) != 0);
-  snprintf(name, sizeof(name), "ldk-terrain-%llu-%lu.terrain",
-      (unsigned long long)time(NULL), (unsigned long)clock());
-  ASSERT_TRUE(x_fs_path(&path, cwd.buf, name));
-  ASSERT_TRUE(ldk_terrain_save(&terrain, path.buf));
-  ASSERT_TRUE(ldk_asset_source_initialize(&source, cwd.buf));
-  ASSERT_TRUE(ldk_asset_manager_initialize(&manager, &source, 16u, 1u));
-  LDKAssetTerrain first = ldk_asset_manager_terrain_load_shared(&manager, name);
-  LDKAssetTerrain second =
-      ldk_asset_manager_terrain_load_shared(&manager, name);
-  ASSERT_TRUE(ldk_asset_manager_terrain_is_alive(&manager, first));
-  ASSERT_EQ(first.h.index, second.h.index);
-  ASSERT_EQ(first.h.version, second.h.version);
-  const LDKAssetTerrainData *data =
-      ldk_asset_manager_terrain_get_const(&manager, first);
-  ASSERT_TRUE(data != NULL);
-  ASSERT_EQ(data->revision, 1u);
-  ASSERT_EQ(data->terrain.height_scale, 1.0f);
-  ASSERT_TRUE(x_handle_is_null(data->heightmap.h));
-  terrain.height_scale = 7.5f;
-  ASSERT_TRUE(ldk_terrain_save(&terrain, path.buf));
-  ASSERT_TRUE(ldk_asset_manager_terrain_reload(&manager, name));
-  data = ldk_asset_manager_terrain_get_const(&manager, first);
-  ASSERT_EQ(data->revision, 2u);
-  ASSERT_EQ(data->terrain.height_scale, 7.5f);
-  terrain.height_offset = -3.25f;
-  ASSERT_TRUE(ldk_asset_manager_terrain_update(&manager, first, &terrain));
-  data = ldk_asset_manager_terrain_get_const(&manager, first);
-  ASSERT_EQ(data->revision, 3u);
-  ASSERT_EQ(data->terrain.height_offset, -3.25f);
-  file = fopen(path.buf, "wb");
-  ASSERT_TRUE(file != NULL);
-  ASSERT_EQ(fwrite("invalid", 1, 7, file), 7u);
-  ASSERT_EQ(fclose(file), 0);
-  ASSERT_FALSE(ldk_asset_manager_terrain_reload(&manager, name));
-  data = ldk_asset_manager_terrain_get_const(&manager, first);
-  ASSERT_EQ(data->revision, 3u);
-  ASSERT_EQ(data->terrain.height_scale, 7.5f);
-  ldk_asset_manager_terminate(&manager);
-  ldk_asset_source_terminate(&source);
-  ASSERT_EQ(remove(path.buf), 0);
-  return 0;
-}
-
-static int test_terrain_preview_lifecycle(void)
-{
-  LDKAssetSource source = {0};
-  LDKAssetManager manager = {0};
-  LDKTerrain terrain;
-  XFSPath cwd = {0};
-  u16 samples16[4u * 4u * 4u] = {0};
-  u8 samples8[4u * 4u * 4u] = {0};
-  LDKImageInfo info = {0};
-  ASSERT_TRUE(x_fs_cwd_get(&cwd) != 0);
-  ASSERT_TRUE(ldk_asset_source_initialize(&source, cwd.buf));
-  ASSERT_TRUE(ldk_asset_manager_initialize(&manager, &source, 16u, 1u));
-  ldk_terrain_init(&terrain);
-  terrain.width = 4u;
-  terrain.height = 4u;
-  LDKAssetTerrain asset = ldk_asset_manager_terrain_create(&manager, &terrain);
-  ASSERT_TRUE(ldk_asset_manager_terrain_is_alive(&manager, asset));
-  samples16[0] = 5678u;
-  LDKImage *original = ldk_image_create_format(4u, 4u,
-      LDK_IMAGE_FORMAT_RGBA16_UNORM, samples16);
-  ASSERT_TRUE(original != NULL);
-  LDKImageInfo image_info = {0};
-  ASSERT_TRUE(ldk_image_get_info(original, &image_info));
-  ASSERT_TRUE(ldk_asset_manager_terrain_preview_set(&manager, asset, &image_info));
-  ldk_image_destroy(original);
-  const LDKAssetTerrainData *data =
-      ldk_asset_manager_terrain_get_const(&manager, asset);
-  ASSERT_TRUE(data->heightmap_preview_enabled);
-  ASSERT_TRUE(ldk_image_get_info(data->heightmap_preview, &info));
-  ASSERT_EQ(info.format, LDK_IMAGE_FORMAT_RGBA16_UNORM);
-  ASSERT_EQ(((const u16 *)info.pixels)[0], 5678u);
-  const u8 *original_pixels = info.pixels;
-  samples16[0] = 2314u;
-  LDKImage *replacement = ldk_image_create_format(4u, 4u,
-      LDK_IMAGE_FORMAT_RGBA16_UNORM, samples16);
-  ASSERT_TRUE(replacement != NULL);
-  ASSERT_TRUE(ldk_image_get_info(replacement, &image_info));
-  ASSERT_TRUE(ldk_asset_manager_terrain_preview_set(&manager, asset, &image_info));
-  ldk_image_destroy(replacement);
-  ASSERT_TRUE(ldk_image_get_info(data->heightmap_preview, &info));
-  ASSERT_TRUE(info.pixels == original_pixels); /* Stable storage per stroke. */
-  ASSERT_EQ(((const u16 *)info.pixels)[0], 2314u);
-  samples8[0] = 90u;
-  replacement = ldk_image_create(4u, 4u, samples8);
-  ASSERT_TRUE(replacement != NULL);
-  ASSERT_TRUE(ldk_image_get_info(replacement, &image_info));
-  ASSERT_TRUE(ldk_asset_manager_terrain_preview_set(&manager, asset, &image_info));
-  ldk_image_destroy(replacement);
-  ASSERT_EQ(data->heightmap_preview_retired_count, 1u);
-  ASSERT_TRUE(ldk_image_get_info(data->heightmap_preview, &info));
-  ASSERT_EQ(info.format, LDK_IMAGE_FORMAT_RGBA8_UNORM);
-  ASSERT_EQ(info.pixels[0], 90u);
-  ASSERT_EQ(((const u16 *)original_pixels)[0], 2314u);
-  ASSERT_TRUE(ldk_asset_manager_terrain_preview_clear(&manager, asset));
-  ASSERT_FALSE(data->heightmap_preview_enabled);
-  ldk_asset_manager_terminate(&manager);
-  ldk_asset_source_terminate(&source);
-  return 0;
-}
-
 static int test_terrain_heightmap_embedded_roundtrip(void)
 {
   const u32 widths[] = {1u, 2u, 3u, 64u};
@@ -379,62 +265,6 @@ static int test_terrain_heightmap_embedded_roundtrip(void)
   return 0;
 }
 
-static int test_terrain_manager_embedded_reload(void)
-{
-  LDKTerrain terrain;
-  ldk_terrain_init(&terrain);
-  terrain.width = 2u;
-  terrain.height = 1u;
-  u16 pixels[8] = { 4000u, 0u, 0u, 65535u,
-                    64000u, 0u, 0u, 65535u };
-  LDKImage *heightmap = ldk_image_create_format(terrain.width,
-      terrain.height, LDK_IMAGE_FORMAT_RGBA16_UNORM, pixels);
-  LDKImageInfo image = {0};
-  ASSERT_TRUE(heightmap != NULL);
-  ASSERT_TRUE(ldk_image_get_info(heightmap, &image));
-  XFSPath cwd = {0}, path = {0};
-  ASSERT_TRUE(x_fs_cwd_get(&cwd) != 0);
-  char name[96];
-  snprintf(name, sizeof(name), "ldk-embedded-%llu-%lu.terrain",
-      (unsigned long long)time(NULL), (unsigned long)clock());
-  ASSERT_TRUE(x_fs_path(&path, cwd.buf, name));
-  ASSERT_TRUE(ldk_terrain_save_with_heightmap(&terrain, &image, path.buf));
-  LDKAssetSource source = {0};
-  LDKAssetManager manager = {0};
-  ASSERT_TRUE(ldk_asset_source_initialize(&source, cwd.buf));
-  ASSERT_TRUE(ldk_asset_manager_initialize(&manager, &source, 16u, 1u));
-  LDKAssetTerrain handle = ldk_asset_manager_terrain_load_shared(
-      &manager, name);
-  ASSERT_TRUE(ldk_asset_manager_terrain_is_alive(&manager, handle));
-  const LDKAssetTerrainData *data =
-      ldk_asset_manager_terrain_get_const(&manager, handle);
-  ASSERT_TRUE(data != NULL);
-  ASSERT_TRUE(data->heightmap_embedded != NULL);
-  ASSERT_TRUE(x_handle_is_null(data->heightmap.h));
-  LDKImageInfo restored = {0};
-  ASSERT_TRUE(ldk_image_get_info(data->heightmap_embedded, &restored));
-  const u8 *retained = restored.pixels;
-  ASSERT_EQ(((const u16*)retained)[0], 4000u);
-  pixels[0] = 6000u;
-  ldk_image_destroy(heightmap);
-  heightmap = ldk_image_create_format(terrain.width, terrain.height,
-      LDK_IMAGE_FORMAT_RGBA16_UNORM, pixels);
-  ASSERT_TRUE(heightmap != NULL);
-  ASSERT_TRUE(ldk_image_get_info(heightmap, &image));
-  ASSERT_TRUE(ldk_terrain_save_with_heightmap(&terrain, &image, path.buf));
-  ASSERT_TRUE(ldk_asset_manager_terrain_reload(&manager, name));
-  data = ldk_asset_manager_terrain_get_const(&manager, handle);
-  ASSERT_TRUE(ldk_image_get_info(data->heightmap_embedded, &restored));
-  ASSERT_EQ(((const u16*)restored.pixels)[0], 6000u);
-  ASSERT_EQ(((const u16*)retained)[0], 4000u);
-  ASSERT_EQ(data->revision, 2u);
-  ldk_asset_manager_terminate(&manager);
-  ldk_asset_source_terminate(&source);
-  ldk_image_destroy(heightmap);
-  ASSERT_EQ(remove(path.buf), 0);
-  return 0;
-}
-
 int main(void)
 {
   STDXTestCase tests[] = {
@@ -443,10 +273,7 @@ int main(void)
       X_TEST(test_heightmap_resample_explicit_grid),
       X_TEST(test_terrain_heightmap_range_expansion),
       X_TEST(test_terrain_invalid_parse_preserves_original),
-      X_TEST(test_terrain_manager_shared_reload),
-      X_TEST(test_terrain_preview_lifecycle),
       X_TEST(test_terrain_heightmap_embedded_roundtrip),
-      X_TEST(test_terrain_manager_embedded_reload),
   };
   return x_tests_run(tests, sizeof(tests) / sizeof(tests[0]), NULL);
 }

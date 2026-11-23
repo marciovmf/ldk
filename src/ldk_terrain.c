@@ -1,7 +1,6 @@
 #include <ldk_terrain.h>
 
 #include <module/ldk_asset_source.h>
-#include <stdx/stdx_io.h>
 #include <stdx/stdx_strbuilder.h>
 #include <stdx/stdx_tml.h>
 
@@ -12,10 +11,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#ifdef _WIN32
-#include <windows.h>
-#endif
 
 static bool s_path_valid(const LDKAssetPath *path)
 {
@@ -921,11 +916,9 @@ static bool s_read_vec2(const TMLDocument *doc, const TMLNode *node,
   return true;
 }
 
-bool ldk_terrain_from_tml_with_heightmap(LDKTerrain *terrain,
-    LDKImage **out_image, const char *text)
+bool ldk_terrain_from_tml_node_with_heightmap(LDKTerrain *terrain,
+    LDKImage **out_image, const TMLDocument *doc, const TMLNode *root)
 {
-  TMLParseResult parsed;
-  const TMLNode *root;
   const TMLNode *surfaces;
   const TMLNode *vegetation;
   LDKTerrain candidate;
@@ -934,27 +927,17 @@ bool ldk_terrain_from_tml_with_heightmap(LDKTerrain *terrain,
   u32 channel;
   TMLI64Slice resolution;
   bool valid;
-  if (!terrain || !text || !out_image)
-  {
-    return false;
-  }
-  parsed = tml_parse(text);
-  if (!parsed.ok)
-  {
-    return false;
-  }
+  if (!terrain || !doc || !root || !out_image) return false;
   ldk_terrain_init(&candidate);
-  root = tml_root_node_at(parsed.document, 0u);
   valid = root && root->name.size == sizeof("terrain") - 1u &&
       memcmp(root->name.data, "terrain", sizeof("terrain") - 1u) == 0 &&
-      !tml_root_node_at(parsed.document, 1u) &&
-      tml_node_get_i64(parsed.document, root, "version", &version) &&
+      tml_node_get_i64(doc, root, "version", &version) &&
       version == 1 &&
-      s_read_path(parsed.document, root, "heightmap",
+      s_read_path(doc, root, "heightmap",
           &candidate.heightmap_path) &&
-      s_read_u32(parsed.document, root, "height_channel", &channel) &&
+      s_read_u32(doc, root, "height_channel", &channel) &&
       channel <= LDK_TERRAIN_CHANNEL_A &&
-      tml_node_get_i64_array(parsed.document, root, "resolution",
+      tml_node_get_i64_array(doc, root, "resolution",
           &resolution) && resolution.count == 2u &&
       resolution.data[0] > 0 && resolution.data[0] <= UINT32_MAX &&
       resolution.data[1] > 0 && resolution.data[1] <= UINT32_MAX;
@@ -963,38 +946,38 @@ bool ldk_terrain_from_tml_with_heightmap(LDKTerrain *terrain,
     candidate.height_channel = (LDKTerrainChannel)channel;
     candidate.width = (u32)resolution.data[0];
     candidate.height = (u32)resolution.data[1];
-    valid = s_read_float(parsed.document, root, "cell_size",
+    valid = s_read_float(doc, root, "cell_size",
             &candidate.cell_size) &&
-        s_read_float(parsed.document, root, "height_scale",
+        s_read_float(doc, root, "height_scale",
             &candidate.height_scale) &&
-        s_read_float(parsed.document, root, "height_offset",
+        s_read_float(doc, root, "height_offset",
             &candidate.height_offset) &&
-        s_read_bool(parsed.document, root, "center_on_origin",
+        s_read_bool(doc, root, "center_on_origin",
             &candidate.center_on_origin) &&
-        s_read_vec2(parsed.document, root, "origin", &origin) &&
-        s_read_path(parsed.document, root, "material",
+        s_read_vec2(doc, root, "origin", &origin) &&
+        s_read_path(doc, root, "material",
             &candidate.material_path) &&
-        s_read_path(parsed.document, root, "texture_atlas",
+        s_read_path(doc, root, "texture_atlas",
             &candidate.texture_atlas_path) &&
-        s_read_path(parsed.document, root, "color_noise",
+        s_read_path(doc, root, "color_noise",
             &candidate.color_noise_path) &&
-        s_read_float(parsed.document, root, "color_noise_scale",
+        s_read_float(doc, root, "color_noise_scale",
             &candidate.color_noise_scale) &&
-        s_read_float(parsed.document, root, "color_noise_strength",
+        s_read_float(doc, root, "color_noise_strength",
             &candidate.color_noise_strength);
     candidate.origin_x = origin.x;
     candidate.origin_z = origin.y;
   }
 
   surfaces = valid
-      ? tml_node_find_child(parsed.document, root, "surfaces") : NULL;
+      ? tml_node_find_child(doc, root, "surfaces") : NULL;
   vegetation = valid
-      ? tml_node_find_child(parsed.document, root, "vegetation") : NULL;
+      ? tml_node_find_child(doc, root, "vegetation") : NULL;
   valid = valid && surfaces && vegetation &&
       surfaces->child_count >= 1u &&
       surfaces->child_count <= LDK_TERRAIN_SURFACE_COUNT &&
       vegetation->child_count <= LDK_TERRAIN_VEGETATION_LAYER_COUNT &&
-      s_read_u64(parsed.document, root, "next_vegetation_id",
+      s_read_u64(doc, root, "next_vegetation_id",
           &candidate.next_vegetation_layer_id);
   if (valid)
   {
@@ -1003,63 +986,76 @@ bool ldk_terrain_from_tml_with_heightmap(LDKTerrain *terrain,
   }
   for (u32 i = 0u; valid && i < candidate.surface_count; ++i)
   {
-    const TMLNode *node = tml_node_child_at(parsed.document, surfaces, i);
+    const TMLNode *node = tml_node_child_at(doc, surfaces, i);
     LDKTerrainSurface *s = &candidate.surfaces[i];
     valid = node &&
-        s_read_string(parsed.document, node, "name", s->name,
+        s_read_string(doc, node, "name", s->name,
             sizeof(s->name)) &&
-        s_read_float(parsed.document, node, "min_height", &s->min_height) &&
-        s_read_float(parsed.document, node, "blend_width", &s->blend_width) &&
-        s_read_u32(parsed.document, node, "color", &s->color) &&
-        s_read_u32(parsed.document, node, "noise_low_color",
+        s_read_float(doc, node, "min_height", &s->min_height) &&
+        s_read_float(doc, node, "blend_width", &s->blend_width) &&
+        s_read_u32(doc, node, "color", &s->color) &&
+        s_read_u32(doc, node, "noise_low_color",
             &s->noise_low_color) &&
-        s_read_u32(parsed.document, node, "noise_high_color",
+        s_read_u32(doc, node, "noise_high_color",
             &s->noise_high_color) &&
-        s_read_u64(parsed.document, node, "sprite_id", &s->sprite_id) &&
-        s_read_vec2(parsed.document, node, "uv_scale", &s->uv_scale) &&
-        s_read_float(parsed.document, node, "texture_weight",
+        s_read_u64(doc, node, "sprite_id", &s->sprite_id) &&
+        s_read_vec2(doc, node, "uv_scale", &s->uv_scale) &&
+        s_read_float(doc, node, "texture_weight",
             &s->texture_weight) &&
-        s_read_bool(parsed.document, node, "use_slope", &s->use_slope) &&
-        s_read_float(parsed.document, node, "min_slope_degrees",
+        s_read_bool(doc, node, "use_slope", &s->use_slope) &&
+        s_read_float(doc, node, "min_slope_degrees",
             &s->min_slope_degrees) &&
-        s_read_float(parsed.document, node, "slope_blend_degrees",
+        s_read_float(doc, node, "slope_blend_degrees",
             &s->slope_blend_degrees) &&
-        s_read_path(parsed.document, node, "paint_mask", &s->paint_mask_path);
+        s_read_path(doc, node, "paint_mask", &s->paint_mask_path);
   }
   for (u32 i = 0u; valid && i < candidate.vegetation_layer_count; ++i)
   {
-    const TMLNode *node = tml_node_child_at(parsed.document, vegetation, i);
+    const TMLNode *node = tml_node_child_at(doc, vegetation, i);
     LDKTerrainVegetationLayer *layer = &candidate.vegetation_layers[i];
     valid = node &&
-        s_read_u64(parsed.document, node, "id", &layer->id) &&
-        s_read_string(parsed.document, node, "type",
+        s_read_u64(doc, node, "id", &layer->id) &&
+        s_read_string(doc, node, "type",
             layer->type_name, sizeof(layer->type_name)) &&
-        s_read_path(parsed.document, node, "density_map",
+        s_read_path(doc, node, "density_map",
             &layer->density_map_path) &&
-        s_read_float(parsed.document, node, "density_scale",
+        s_read_float(doc, node, "density_scale",
             &layer->density_scale) &&
-        s_read_u32(parsed.document, node, "seed", &layer->seed);
+        s_read_u32(doc, node, "seed", &layer->seed);
   }
   valid = valid && ldk_terrain_validate(&candidate);
   LDKImage *embedded = NULL;
-  if (valid && tml_node_find_entry(parsed.document, root, "heightmap_samples"))
+  if (valid && tml_node_find_entry(doc, root, "heightmap_samples"))
   {
     TMLString encoding = {0}, samples = {0};
     static const char name[] = "u16le-base64";
     valid = !candidate.heightmap_path.length &&
-        tml_node_get_string(parsed.document, root,
+        tml_node_get_string(doc, root,
             "heightmap_encoding", &encoding) &&
         encoding.size == sizeof(name) - 1u &&
         memcmp(encoding.data, name, sizeof(name) - 1u) == 0 &&
-        tml_node_get_string(parsed.document, root,
+        tml_node_get_string(doc, root,
             "heightmap_samples", &samples) &&
         s_terrain_heightmap_decode(&candidate, samples, &embedded);
   }
-  tml_document_free(parsed.document);
   if (!valid) return false;
   *terrain = candidate;
   *out_image = embedded;
   return true;
+}
+
+bool ldk_terrain_from_tml_with_heightmap(LDKTerrain *terrain,
+    LDKImage **out_image, const char *text)
+{
+  if (!terrain || !out_image || !text) return false;
+  TMLParseResult parsed = tml_parse(text);
+  if (!parsed.ok) return false;
+  const TMLNode *root = tml_root_node_at(parsed.document, 0u);
+  bool valid = root && !tml_root_node_at(parsed.document, 1u) &&
+      ldk_terrain_from_tml_node_with_heightmap(terrain, out_image,
+          parsed.document, root);
+  tml_document_free(parsed.document);
+  return valid;
 }
 
 bool ldk_terrain_from_tml(LDKTerrain *terrain, const char *text)
@@ -1070,95 +1066,3 @@ bool ldk_terrain_from_tml(LDKTerrain *terrain, const char *text)
   return ok;
 }
 
-bool ldk_terrain_load(LDKTerrain *terrain, const char *filename)
-{
-  char *source;
-  size_t length;
-  bool loaded;
-  if (!terrain || !filename)
-  {
-    return false;
-  }
-  source = x_io_read_text(filename, &length);
-  if (!source)
-  {
-    return false;
-  }
-  loaded = ldk_terrain_from_tml(terrain, source);
-  free(source);
-  return loaded;
-}
-
-bool ldk_terrain_save(const LDKTerrain *terrain, const char *filename)
-{
-  char *text = NULL;
-  if (!filename || !ldk_terrain_to_tml(terrain, &text))
-  {
-    return false;
-  }
-  bool result = x_io_write_text(filename, text);
-  free(text);
-  return result;
-}
-
-/* Embedded heightfields share the same portable text serialization as the
- * metadata-only terrain. PNG export is a separate editor operation. */
-bool ldk_terrain_load_with_heightmap(LDKTerrain *terrain,
-    LDKImage **out_image, const char *filename)
-{
-  if (!terrain || !out_image || !filename) return false;
-  size_t length = 0u;
-  char *source = x_io_read_text(filename, &length);
-  if (!source) return false;
-  bool result = ldk_terrain_from_tml_with_heightmap(
-      terrain, out_image, source);
-  free(source);
-  return result;
-}
-
-bool ldk_terrain_save_with_heightmap(const LDKTerrain *terrain,
-    const LDKImageInfo *heightmap, const char *filename)
-{
-  char *text = NULL;
-  if (!filename || !ldk_terrain_to_tml_with_heightmap(
-          terrain, heightmap, &text)) return false;
-  /* Save to a sibling first. A failed write must not destroy the previous
-   * .terrain, which now contains all height samples as well as metadata. */
-  const size_t name_length = strlen(filename);
-  static const char suffix[] = ".ldk.tmp";
-  if (name_length > SIZE_MAX - sizeof(suffix))
-  {
-    free(text);
-    return false;
-  }
-  char *temporary = malloc(name_length + sizeof(suffix));
-  if (!temporary)
-  {
-    free(text);
-    return false;
-  }
-  memcpy(temporary, filename, name_length);
-  memcpy(temporary + name_length, suffix, sizeof(suffix));
-  FILE *file = fopen(temporary, "wb");
-  bool result = false;
-  if (file)
-  {
-    const size_t bytes = strlen(text);
-    result = fwrite(text, 1u, bytes, file) == bytes &&
-        fflush(file) == 0;
-    if (fclose(file) != 0) result = false;
-  }
-  if (result)
-  {
-#ifdef _WIN32
-    result = MoveFileExA(temporary, filename,
-        MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) != 0;
-#else
-    result = rename(temporary, filename) == 0;
-#endif
-  }
-  if (!result) (void)remove(temporary);
-  free(temporary);
-  free(text);
-  return result;
-}

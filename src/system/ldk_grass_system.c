@@ -88,7 +88,6 @@ typedef struct LDKGrassResolvedDesc
   float wind_direction;
   float interaction_recovery_time;
   u32 seed;
-  LDKAssetTerrain terrain;
   LDKEntity terrain_entity;
   LDKAssetImage density_mask;
   bool casts_shadows;
@@ -1237,7 +1236,6 @@ static bool s_resolved_desc_build(const LDKGrassSystem *system,
       ? type.interaction_recovery_time
       : LDK_GRASS_INTERACTION_DEFAULT_RECOVERY_TIME;
   out_desc->seed = patch->seed;
-  out_desc->terrain = patch->terrain;
   out_desc->terrain_entity = patch->terrain_entity;
   out_desc->density_mask = patch->density_mask;
   out_desc->casts_shadows = system->casts_shadows;
@@ -1744,79 +1742,42 @@ static bool s_terrain_placement_resolve(const LDKGrassResolvedDesc *desc,
     LDKGrassTerrainPlacement *out)
 {
   LDKAssetManager *assets;
-  const LDKAssetTerrainData *data;
   const LDKAssetImageData *image;
-  if (!out || !desc)
-  {
-    return false;
-  }
+  if (!out || !desc) return false;
   memset(out, 0, sizeof(*out));
-  if (!s_asset_handle_assigned(desc->terrain.h))
-  {
-    return true;
-  }
+  if (x_handle_is_null(desc->terrain_entity)) return true;
 
-  assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
-  data = assets ? ldk_asset_manager_terrain_get_const(
-      assets, desc->terrain) : NULL;
-  if (!data || !ldk_terrain_validate(&data->terrain))
-  {
+  const LDKTerrainComponent *component = ldk_ecs_component_get_const(
+      desc->terrain_entity, LDK_COMPONENT_TYPE_TERRAIN);
+  bool inverse_ok = false;
+  if (!component || !ldk_ecs_component_is_enabled(
+          desc->terrain_entity, LDK_COMPONENT_TYPE_TERRAIN) ||
+      !ldk_terrain_validate(&component->terrain) ||
+      !ldk_scenegraph_update_entity(desc->terrain_entity) ||
+      !ldk_transform_get_world_matrix(desc->terrain_entity, &out->world))
     return false;
-  }
-  if (!x_handle_is_null(desc->terrain_entity))
+  out->inverse = mat4_inverse_full(out->world, &inverse_ok);
+  if (!inverse_ok) return false;
+  out->has_entity_transform = true;
+  out->terrain = &component->terrain;
+  out->origin_x = component->terrain.origin_x;
+  out->origin_z = component->terrain.origin_z;
+  if (component->terrain.center_on_origin)
   {
-    const LDKTerrainComponent *component = ldk_ecs_component_get_const(
-        desc->terrain_entity, LDK_COMPONENT_TYPE_TERRAIN);
-    bool inverse_ok = false;
-    if (!component || !ldk_ecs_component_is_enabled(
-            desc->terrain_entity, LDK_COMPONENT_TYPE_TERRAIN) ||
-        !ldk_scenegraph_update_entity(desc->terrain_entity) ||
-        !ldk_transform_get_world_matrix(desc->terrain_entity, &out->world))
-      return false;
-    out->inverse = mat4_inverse_full(out->world, &inverse_ok);
-    if (!inverse_ok) return false;
-    out->has_entity_transform = true;
+    out->origin_x -= (float)component->terrain.width *
+        component->terrain.cell_size * 0.5f;
+    out->origin_z -= (float)component->terrain.height *
+        component->terrain.cell_size * 0.5f;
   }
-  out->terrain = &data->terrain;
-  out->origin_x = data->terrain.origin_x;
-  out->origin_z = data->terrain.origin_z;
-  if (data->terrain.center_on_origin)
+  if (component->heightmap)
   {
-    out->origin_x -= (float)data->terrain.width *
-        data->terrain.cell_size * 0.5f;
-    out->origin_z -= (float)data->terrain.height *
-        data->terrain.cell_size * 0.5f;
-  }
-  if (data->heightmap_preview_enabled)
-  {
-    if (!ldk_image_get_info(data->heightmap_preview, &out->heights) ||
-        out->heights.width != data->terrain.width ||
-        out->heights.height != data->terrain.height)
+    if (!ldk_image_get_info(component->heightmap, &out->heights) ||
+        out->heights.width != component->terrain.width ||
+        out->heights.height != component->terrain.height)
       return false;
     out->has_heights = true;
   }
-  else if (data->heightmap_embedded &&
-      !data->terrain.heightmap_path.length)
-  {
-    if (!ldk_image_get_info(data->heightmap_embedded, &out->heights) ||
-        out->heights.width != data->terrain.width ||
-        out->heights.height != data->terrain.height)
-      return false;
-    out->has_heights = true;
-  }
-  else if (data->terrain.heightmap_path.length)
-  {
-    image = ldk_asset_manager_image_get_const(assets, data->heightmap);
-    if (!image || !image->image || image->is_missing ||
-        !ldk_image_get_info(image->image, &out->heights) ||
-        out->heights.width != data->terrain.width ||
-        out->heights.height != data->terrain.height ||
-        out->heights.channel_count != 4u ||
-        (out->heights.format != LDK_IMAGE_FORMAT_RGBA8_UNORM &&
-         out->heights.format != LDK_IMAGE_FORMAT_RGBA16_UNORM))
-      return false;
-    out->has_heights = true;
-  }
+  assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
   if (s_asset_handle_assigned(desc->density_mask.h))
   {
     image = ldk_asset_manager_image_get_const(assets, desc->density_mask);
@@ -3508,7 +3469,6 @@ void ldk_grass_patch_desc_defaults(LDKGrassPatchDesc *out_desc)
   out_desc->plane.axis_u = vec3_make(1.0f, 0.0f, 0.0f);
   out_desc->plane.axis_v = vec3_make(0.0f, 0.0f, -1.0f);
   out_desc->density_scale = 1.0f;
-  out_desc->terrain = ldk_asset_terrain_null();
   out_desc->terrain_entity = x_handle_null();
   out_desc->density_mask = ldk_asset_image_null();
 }
@@ -3783,15 +3743,13 @@ static bool s_terrain_tile_has_coverage(const LDKImageInfo *mask,
 }
 
 /* Scene terrain recipes are generated from every enabled TerrainComponent.
- * The hash covers entity identity, transform, .terrain revisions and referenced
+ * The hash covers entity identity, transform, component revisions and referenced
  * image revisions. Rebuild only terrain-owned patches when inputs change.
  */
 typedef struct LDKGrassTerrainSource
 {
   LDKEntity entity;
-  LDKAssetTerrain asset;
   LDKTerrain terrain;
-  LDKAssetImage heightmap;
   u64 revision;
   Mat4 world;
 } LDKGrassTerrainSource;
@@ -3811,11 +3769,7 @@ static bool s_terrain_source_collect(LDKEntity entity, void *user)
       entity, LDK_COMPONENT_TYPE_TERRAIN);
   if (!component || !ldk_ecs_component_is_enabled(
           entity, LDK_COMPONENT_TYPE_TERRAIN) ||
-      !s_asset_handle_assigned(component->terrain.h)) return true;
-  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
-  const LDKAssetTerrainData *data = assets
-      ? ldk_asset_manager_terrain_get_const(assets, component->terrain) : NULL;
-  if (!data || !ldk_terrain_validate(&data->terrain) ||
+      !ldk_terrain_validate(&component->terrain) ||
       !ldk_scenegraph_update_entity(entity)) return true;
   Mat4 world;
   if (!ldk_transform_get_world_matrix(entity, &world)) return true;
@@ -3834,10 +3788,8 @@ static bool s_terrain_source_collect(LDKEntity entity, void *user)
   }
   LDKGrassTerrainSource *source = &list->sources[list->count++];
   source->entity = entity;
-  source->asset = component->terrain;
-  source->terrain = data->terrain;
-  source->heightmap = data->heightmap;
-  source->revision = data->revision;
+  source->terrain = component->terrain;
+  source->revision = component->revision;
   source->world = world;
   return true;
 }
@@ -3874,13 +3826,9 @@ static bool s_terrain_patches_sync(const LDKGrassSystem *system)
     const LDKGrassTerrainSource *source = &list.sources[i];
     const LDKTerrain *terrain = &source->terrain;
     s_hash_bytes(&hash, &source->entity, sizeof(source->entity));
-    s_hash_bytes(&hash, &source->asset, sizeof(source->asset));
     s_hash_bytes(&hash, &source->world, sizeof(source->world));
     s_hash_bytes(&hash, &source->revision,
         sizeof(source->revision));
-    u64 source_revision = s_terrain_image_revision(
-        assets, source->heightmap);
-    s_hash_bytes(&hash, &source_revision, sizeof(source_revision));
     for (u32 j = 0u; j < terrain->vegetation_layer_count; ++j)
     {
       const LDKTerrainVegetationLayer *layer = &terrain->vegetation_layers[j];
@@ -3974,7 +3922,6 @@ static bool s_terrain_patches_sync(const LDKGrassSystem *system)
           desc.seed = s_random_state(layer->seed ^
               (u32)layer->id ^ (u32)(layer->id >> 32u) ^
               (tx * 0x9e3779b9u) ^ (tz * 0x85ebca6bu));
-          desc.terrain = source->asset;
           desc.terrain_entity = source->entity;
           desc.density_mask = mask;
           LDKGrassPatch patch = ldk_grass_add(type_id, &desc);
@@ -4454,7 +4401,7 @@ void ldk_grass_system_update(
   if (config_hash != s_grass.config_hash)
   {
     /* Remove terrain-authored recipes before style regeneration. This also
-     * avoids referencing a stale mask while a .terrain is being reloaded. */
+     * avoids referencing stale masks when terrain data changes. */
     s_terrain_patches_remove();
     if (!s_config_rebuild(system))
     {

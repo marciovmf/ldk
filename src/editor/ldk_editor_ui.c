@@ -989,9 +989,16 @@ void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor)
   if (ldk_ui_button(ui, editor->terrain_editor.enabled
           ? "Terrain: ON" : "Terrain Edit"))
   {
-    ldki_editor_window_show(LDK_EDITOR_WINDOW_TERRAIN);
-    if (editor->terrain_editor.loaded)
+    /* Terrain Edit controls the brush in the scene view. The authoring
+     * controls live in the selected TerrainComponent's inspector. */
+    if (editor->terrain_editor.loaded &&
+        !x_handle_is_null(editor->terrain_editor.owner_entity) &&
+        ldki_editor_entity_equal(editor->selected_entity,
+            editor->terrain_editor.owner_entity))
       editor->terrain_editor.enabled = !editor->terrain_editor.enabled;
+    else
+      ldki_editor_log_warning(editor,
+          "Select an entity with TerrainComponent to sculpt.");
   }
   ldk_ui_set_next_width(ui, ldk_ui_px(LDK_UI_DEFAULT_SPACING * 2.0f));
   ldk_ui_spacer(ui);
@@ -2142,16 +2149,6 @@ LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_skybox(LDKEditorContext *editor,
   (void)undo_property;
   return s_editor_ui_row_slot_asset(editor, label, group_depth, info, readonly,
       optional, has_value, "Choose skybox", "Skyboxes\0*.skybox\0\0", path);
-}
-
-LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_terrain(LDKEditorContext *editor,
-    const char *label, u32 group_depth, const LDKAssetInfo *info,
-    bool readonly, bool has_value, XFSPath *path,
-    const LDKEditorUIUndoProperty *undo_property)
-{
-  (void)undo_property;
-  return s_editor_ui_row_slot_asset(editor, label, group_depth, info, readonly,
-      true, has_value, "Choose terrain", "Terrain\0*.terrain\0\0", path);
 }
 
 LDKEditorUIRowSlotAction ldk_editor_ui_row_slot_texture_atlas(LDKEditorContext *editor,

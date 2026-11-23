@@ -5,6 +5,7 @@
 #include <ldk_game.h>
 #include <ldk_project.h>
 #include <ldk_scene_systems.h>
+#include <ldk_terrain.h>
 #include <module/ldk_ui.h>
 #include <module/ldk_asset_manager.h>
 #include <module/ldk_renderer.h>
@@ -296,8 +297,7 @@ typedef struct LDKEditorSceneCatalog
   char error[256];
 } LDKEditorSceneCatalog;
 
-/* Dedicated Terrain Editor state. A session edits a copy of the heightmap;
- * the shared Terrain Asset owns only the unsaved preview published to systems. */
+/* Scratch brush state for the scene-owned TerrainComponent. */
 typedef enum LDKEditorTerrainSculptTool
 {
   LDK_EDITOR_TERRAIN_RAISE = 0,
@@ -317,17 +317,15 @@ typedef struct LDKEditorTerrainHeightSnapshot
 typedef struct LDKEditorTerrainState
 {
   LDKTerrain data;
-  LDKAssetTerrain asset;
   LDKEntity owner_entity;
   LDKEntity selection_attempt;
-  XFSPath filename;
-  char logical_path[LDK_ASSET_PATH_MAX_LENGTH + 1u];
+  u64 observed_revision;
   u8 *pixels;
   u8 *stroke_start;
   LDKEditorTerrainHeightSnapshot stroke_height_start;
   size_t pixel_bytes;
   LDKImageFormat image_format;
-  /* Target grid dimensions for New / Import. They do not silently resize
+  /* Target grid dimensions for Import. They do not silently resize
    * an existing terrain; importing explicitly replaces its sampled grid. */
   u32 target_width;
   u32 target_height;
@@ -346,7 +344,6 @@ typedef struct LDKEditorTerrainState
   LDKEditorTerrainSculptTool sculpt_tool;
   bool loaded;
   bool enabled;
-  bool read_only;
   bool dirty;
   bool pixels_dirty;
   bool hovered;
@@ -497,9 +494,9 @@ void ldki_editor_gizmo_update(LDKEditorContext *editor);
 void ldki_editor_gizmo_submit(LDKEditorContext *editor);
 void ldki_editor_gizmo_terminate(LDKEditorContext *editor);
 /* Terrain authoring uses the scene view but never captures object gizmos. */
-void ldki_editor_terrain_window_show(LDKEditor *editor, void *data);
-bool ldki_editor_terrain_open(LDKEditorContext *editor, const char *filename,
-    const char *logical_path, bool read_only);
+/* Terrain authoring UI is a built-in inspector for LDKTerrainComponent. */
+void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
+    LDKEntity entity);
 void ldki_editor_terrain_view_update(
     LDKEditorContext *editor, LDKUIRect scene_view_rect);
 void ldki_editor_terrain_submit(LDKEditorContext *editor);
@@ -672,7 +669,6 @@ bool ldk_editor_window_add(LDKEditor *editor, const LDKEditorWindow *window);
 #define LDK_EDITOR_WINDOW_THEME_EDITOR ((LDKEditorWindowId)0x4C444B0Fu)
 #define LDK_EDITOR_WINDOW_ANIMATION ((LDKEditorWindowId)0x4C444B10u)
 #define LDK_EDITOR_WINDOW_TEXTURE_ATLAS ((LDKEditorWindowId)0x4C444B11u)
-#define LDK_EDITOR_WINDOW_TERRAIN ((LDKEditorWindowId)0x4C444B12u)
 
 /* Mounts a physical .box file as a read-only root in Project Explorer. */
 bool ldki_editor_file_explorer_package_mount(

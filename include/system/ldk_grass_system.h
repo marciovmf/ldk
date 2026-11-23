@@ -18,7 +18,7 @@
  * ## Terrain-linked vegetation
  *
  * Terrain-authored vegetation is discovered from LDKTerrainComponent entities
- * in the scene. Each entity references a .terrain with density layers. This
+ * in the scene. Each terrain component owns density layers. This
  * does not affect programmatic patches created with ldk_grass_add().
  *
  * ## Distance LOD
@@ -348,15 +348,12 @@ typedef struct LDKGrassPatchDesc
   LDKGrassPlane plane;
   float density_scale;
   u32 seed;
-  /** Optional .terrain: project each generated blade to the real heightfield.
-   * Null preserves the original flat-plane behavior.
-   */
-  LDKAssetTerrain terrain;
-  /** Optional terrain entity for local-to-world placement. Null retains the
+  /** Optional terrain entity for height projection and local-to-world
+   * placement. A null entity preserves flat-plane behavior.
    * original world-space behavior of programmatic terrain patches. */
   LDKEntity terrain_entity;
   /** Optional density image in terrain UV space (R channel, RGBA8/16).
-   * Null means full density. Only used when terrain is assigned.
+   * Null means full density. Only used with terrain_entity.
    */
   LDKAssetImage density_mask;
 } LDKGrassPatchDesc;

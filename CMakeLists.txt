@@ -548,6 +548,7 @@ list(APPEND LDK_SOURCE
   ${INCLUDE_DIR}/ldk_property.h     src/ldk_property.c
   ${INCLUDE_DIR}/ldk_keyframe_animation.h src/ldk_keyframe_animation.c
   ${INCLUDE_DIR}/ldk_texture_atlas.h src/ldk_texture_atlas.c
+  ${INCLUDE_DIR}/ldk_terrain.h src/ldk_terrain.c
   ${INCLUDE_DIR}/component/ldk_keyframe_animation_source.h
   src/component/ldk_keyframe_animation_source.c
   ${INCLUDE_DIR}/ldk_profiler.h     src/ldk_profiler.c
@@ -618,6 +619,8 @@ list(APPEND LDK_SOURCE
   src/component/ldk_grass_interact.c
   ${INCLUDE_DIR}/component/ldk_terrain_follower.h
   src/component/ldk_terrain_follower.c
+  ${INCLUDE_DIR}/component/ldk_terrain_component.h
+  src/component/ldk_terrain_component.c
 
   # Systems
   ${INCLUDE_DIR}/system/ldk_terrain_follower_system.h
@@ -875,6 +878,7 @@ if (OPTION_BUILD_EDITOR)
     src/editor/ldk_editor_dock.c
     src/editor/ldk_editor_animation.c
     src/editor/ldk_editor_texture_atlas.c
+    src/editor/ldk_editor_terrain.c
     src/editor/ldk_editor_camera.c
     src/editor/ldk_editor_grid.c
     src/editor/ldk_editor_gizmo.c
@@ -1034,6 +1038,10 @@ if (OPTION_BUILD_TESTS AND TARGET ldk)
   ldk_test_build(TARGET test_line SOURCES src/tests/test_ldk_line.c)
   ldk_test_build(TARGET test_trail SOURCES src/tests/test_ldk_trail.c)
   ldk_test_build(TARGET test_texture_atlas SOURCES src/tests/test_ldk_texture_atlas.c)
+  ldk_test_build(TARGET test_terrain_data SOURCES src/tests/test_ldk_terrain_data.c)
+  ldk_test_build(TARGET test_terrain_component_scene SOURCES src/tests/test_ldk_terrain_component_scene.c)
+  ldk_test_build(TARGET test_ldk_image_png SOURCES src/tests/test_ldk_image_png.c)
+  ldk_test_build(TARGET test_terrain_surface SOURCES src/tests/test_ldk_terrain_surface.c)
   ldk_test_build(TARGET test_water SOURCES src/tests/test_ldk_water.c)
   ldk_test_build(TARGET test_material_io SOURCES src/tests/test_ldk_material_io.c)
   ldk_test_build(TARGET test_material_asset SOURCES src/tests/test_ldk_material_asset.c)

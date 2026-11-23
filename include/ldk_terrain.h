@@ -1,14 +1,11 @@
 /**
- * # Terrain asset data
+ * # Terrain data
  *
- * A .terrain file describes one editable heightfield, its surface definitions,
- * and optional vegetation distribution layers. It does not own rendered meshes,
- * grass instances, or GPU resources. Paths refer to logical assets in RunTree.
- *
- * When no height data is present, width/height describe a flat grid.
- * The .terrain file can embed normalized 16-bit height samples. The legacy
- * external heightmap path remains supported for existing assets.
- * Exporting a PNG is optional and never changes the asset's height source.
+ * Heightfield metadata, surface definitions and vegetation distribution layers
+ * belong to LDKTerrainComponent and are serialized with the scene.
+ * Geometry, grass instances and GPU resources belong to the systems.
+ * An absent heightmap represents a flat grid. A PNG is only an optional import
+ * or export format; height samples are embedded in scene TML as R16 Base64.
  */
 
 #ifndef LDK_TERRAIN_H
@@ -17,20 +14,21 @@
 #include <ldk_asset.h>
 #include <ldk_image.h>
 #include <stdx/stdx_math.h>
+#include <stdx/stdx_tml.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/** @group ldk.asset.terrain */
+/** @group ldk.terrain */
 #define LDK_TERRAIN_SURFACE_COUNT 8u
-/** @group ldk.asset.terrain */
+/** @group ldk.terrain */
 #define LDK_TERRAIN_VEGETATION_LAYER_COUNT 16u
-/** @group ldk.asset.terrain */
+/** @group ldk.terrain */
 #define LDK_TERRAIN_LAYER_NAME_CAPACITY 64u
 
 /** Four channels supported by the existing LDKTerrainSystem. */
-/** @group ldk.asset.terrain */
+/** @group ldk.terrain */
 //@enum
 typedef enum LDKTerrainChannel
 {
@@ -44,7 +42,7 @@ typedef enum LDKTerrainChannel
  * A mask is a grayscale image in terrain UV space; an empty path means there
  * are no manual overrides for this surface. Mask blending is implemented by
  * the future TerrainSystem integration, not by the asset loader.
- * @group ldk.asset.terrain
+ * @group ldk.terrain
  */
 typedef struct LDKTerrainSurface
 {
@@ -67,7 +65,7 @@ typedef struct LDKTerrainSurface
  * stays stable when layers are reordered or renamed. Renaming a GrassTypeDesc
  * requires updating this reference; persistent cross-asset type IDs remain
  * a separate design decision.
- * @group ldk.asset.terrain
+ * @group ldk.terrain
  */
 typedef struct LDKTerrainVegetationLayer
 {
@@ -80,7 +78,7 @@ typedef struct LDKTerrainVegetationLayer
 
 /** Portable terrain metadata. Run-time rendering settings such as chunk size,
  * culling and shadow submission deliberately stay in LDKTerrainSystem.
- * @group ldk.asset.terrain
+ * @group ldk.terrain
  */
 typedef struct LDKTerrain
 {
@@ -130,9 +128,9 @@ LDK_API bool ldk_terrain_surface_sample(const LDKTerrain *terrain,
 /** Initialize a terrain from an already loaded image (RGBA8/RGBA16).
  * The image is borrowed, not retained. A nonempty logical path may name
  * an external image in the AssetSource; NULL/empty selects embedded data,
- * supplied separately when saving/loading the .terrain file.
+ * supplied separately when serializing the scene.
  * Previous terrain data is replaced only on success.
- * The caller can adjust cell/height scale and save the resulting .terrain.
+ * The caller can adjust cell/height scale before persisting the component.
  */
 LDK_API bool ldk_terrain_import_heightmap(LDKTerrain *terrain,
     const char *image_path, const LDKImage *image,
@@ -143,7 +141,7 @@ LDK_API bool ldk_terrain_import_heightmap(LDKTerrain *terrain,
  * shrinking; RGBA16 output retains precision for subsequent sculpting.
  * The caller owns the returned image and must destroy it with
  * ldk_image_destroy(). The source is never modified.
- * @group ldk.asset.terrain
+ * @group ldk.terrain
  */
 LDK_API LDKImage *ldk_terrain_heightmap_resample(
     const LDKImage *source, u32 target_width, u32 target_height);
@@ -154,14 +152,14 @@ LDK_API LDKImage *ldk_terrain_heightmap_resample(
  * three RGBA channels are untouched. Growth is geometric, not one increment
  * per brush frame. An interval already containing the requested heights is
  * a no-op. Both metadata and pixels remain unchanged on failure.
- * The caller owns the pixels and may persist them inside the .terrain.
- * @group ldk.asset.terrain
+ * The caller owns the pixels and may persist them inside the scene.
+ * @group ldk.terrain
  */
 LDK_API bool ldk_terrain_heightmap_range_expand(LDKTerrain *terrain,
     u16 *rgba16_pixels, float required_min, float required_max);
 
 /** Add a vegetation distribution layer; an empty mask starts unpainted.
- * The returned ID is stable; IDs are never reused within the terrain asset.
+ * The returned ID is stable; IDs are never reused within the terrain.
  */
 LDK_API bool ldk_terrain_vegetation_layer_add(LDKTerrain *terrain,
     const char *type_name, const char *density_map_path,
@@ -169,7 +167,7 @@ LDK_API bool ldk_terrain_vegetation_layer_add(LDKTerrain *terrain,
 LDK_API bool ldk_terrain_vegetation_layer_remove(
     LDKTerrain *terrain, u64 layer_id);
 
-/** Serialize/parse .terrain version 1 metadata only. The returned text must
+/** Serialize/parse terrain metadata in TML form. The returned text must
  * be freed. Prefer _with_heightmap when persisting editable height data. */
 LDK_API bool ldk_terrain_to_tml(const LDKTerrain *terrain, char **out_text);
 LDK_API bool ldk_terrain_from_tml(LDKTerrain *terrain, const char *text);
@@ -185,16 +183,12 @@ LDK_API bool ldk_terrain_to_tml_with_heightmap(const LDKTerrain *terrain,
     const LDKImageInfo *heightmap, char **out_text);
 LDK_API bool ldk_terrain_from_tml_with_heightmap(LDKTerrain *terrain,
     LDKImage **out_image, const char *text);
-/** These two helpers accept physical filenames; asset manager loads by logical
- * paths and also supports packaged .terrain files.
+/** Read the same terrain TML representation from a node embedded in a scene.
+ * This avoids copying or truncating the base64 samples through XSmallstr.
+ * The caller retains the TML document and owns the decoded image.
  */
-LDK_API bool ldk_terrain_load(LDKTerrain *terrain, const char *filename);
-LDK_API bool ldk_terrain_save(const LDKTerrain *terrain, const char *filename);
-/** File operations that preserve height samples in the .terrain itself. */
-LDK_API bool ldk_terrain_load_with_heightmap(LDKTerrain *terrain,
-    LDKImage **out_image, const char *filename);
-LDK_API bool ldk_terrain_save_with_heightmap(const LDKTerrain *terrain,
-    const LDKImageInfo *heightmap, const char *filename);
+LDK_API bool ldk_terrain_from_tml_node_with_heightmap(LDKTerrain *terrain,
+    LDKImage **out_image, const TMLDocument *doc, const TMLNode *node);
 
 #ifdef __cplusplus
 }
