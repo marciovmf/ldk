@@ -28,7 +28,8 @@ enum
 {
   PROJECT_EXPLORER_INITIAL_CAPACITY = 32,
   PROJECT_EXPLORER_TREE_ICON_SIZE = 20,
-  PROJECT_EXPLORER_MIN_ICON_SIZE = 20,
+  PROJECT_EXPLORER_MIN_ICON_PIXEL_SIZE = 24,
+  PROJECT_EXPLORER_MAX_ICON_PIXEL_SIZE = 120,
   PROJECT_EXPLORER_TILE_LABEL_LINE_COUNT = 2,
   PROJECT_EXPLORER_THUMBNAIL_SIZE = 128,
   PROJECT_EXPLORER_THUMBNAIL_CAPACITY = 128,
@@ -208,15 +209,14 @@ float ldki_editor_file_explorer_zoom_get(void)
 
 void ldki_editor_file_explorer_zoom_set(float zoom)
 {
-  if (zoom < PROJECT_EXPLORER_MIN_ICON_SIZE)
+  if (zoom < PROJECT_EXPLORER_MIN_ICON_PIXEL_SIZE)
   {
-    zoom = PROJECT_EXPLORER_MIN_ICON_SIZE;
+    zoom = PROJECT_EXPLORER_MIN_ICON_PIXEL_SIZE;
   }
-  else if (zoom > 72.0f)
+  else if (zoom > PROJECT_EXPLORER_MAX_ICON_PIXEL_SIZE)
   {
-    zoom = 72.0f;
+    zoom = PROJECT_EXPLORER_MAX_ICON_PIXEL_SIZE;
   }
-
   s_project_explorer_state.icon_size = zoom;
   s_project_explorer_state.redraw_dirty = true;
 }
@@ -266,10 +266,12 @@ static const ProjectExplorerFileIcon s_project_explorer_file_icons[] = {
     {"prefab", LDK_EDITOR_ICON_OBJECT},
     {"ldk", LDK_EDITOR_ICON_DATA_OBJECT},
     {"tml", LDK_EDITOR_ICON_DATA_OBJECT},
+    {"terrain", LDK_EDITOR_ICON_TERRAIN},
     {"anim", LDK_EDITOR_ICON_DATA_OBJECT},
     {"material", LDK_EDITOR_ICON_MATERIAL},
     {"skybox", LDK_EDITOR_ICON_SKYBOX},
     {"atlas", LDK_EDITOR_ICON_ATLAS},
+    {"terrain", LDK_EDITOR_ICON_DATA_OBJECT},
     {"json", LDK_EDITOR_ICON_DATA_OBJECT},
     {"mesh", LDK_EDITOR_ICON_MESH},
     {"obj", LDK_EDITOR_ICON_OBJECT},
@@ -2327,6 +2329,23 @@ static void s_project_explorer_on_file_double_click(
       }
     }
   }
+  else if (x_slice_eq_ci(extension, x_slice("terrain")))
+  {
+    XFSPath relative = {0};
+    bool read_only = entry->package_backed ||
+        !x_fs_path_is_file(&entry->path);
+    const char *logical = NULL;
+    if (read_only)
+      logical = entry->asset_path.buf[0] ?
+          entry->asset_path.buf : entry->path.buf;
+    else if (x_fs_path_relative_to(
+            editor->project.loaded ? &editor->project.run_root_path :
+            &editor->engine_runtree, &entry->path, &relative) > 0)
+      logical = relative.buf;
+    if (!logical || !ldki_editor_terrain_open(editor,
+            entry->path.buf, logical, read_only))
+      ldki_editor_log_error(editor, "Failed to open Terrain Asset.");
+  }
   else if (x_slice_eq_ci(extension, x_slice("atlas")))
   {
     /* Package-backed entries are metadata-only and cannot be saved in-place. */
@@ -3769,7 +3788,8 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
     LDKUIIcon folder_icon, LDKUIIcon file_icon, bool *out_drop_surface_hit)
 {
   u32 total_count = x_array_count(dirs) + x_array_count(files);
-  bool compact_mode = state->icon_size <= PROJECT_EXPLORER_MIN_ICON_SIZE;
+  const float zoom = ldki_editor_file_explorer_zoom_get();
+  bool compact_mode = zoom <= (float) PROJECT_EXPLORER_MIN_ICON_PIXEL_SIZE;
   bool right_click_handled = false;
 
   if (compact_mode)
@@ -4008,8 +4028,15 @@ static void s_project_explorer_files_draw(LDKEditorContext *editor,
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_set_next_width(ui, ldk_ui_px(160.0f));
   ldk_ui_set_next_weight(ui, 0.0f);
-  state->icon_size = ldk_ui_slider_input(
-      ui, state->icon_size, PROJECT_EXPLORER_MIN_ICON_SIZE, 72.0f);
+  float zoom = 0.1f + 0.9f *
+    (state->icon_size - PROJECT_EXPLORER_MIN_ICON_PIXEL_SIZE) /
+    (PROJECT_EXPLORER_MAX_ICON_PIXEL_SIZE - PROJECT_EXPLORER_MIN_ICON_PIXEL_SIZE);
+
+  zoom = ldk_ui_slider_input(ui, zoom, 0.1f, 1.0f);
+
+  state->icon_size = PROJECT_EXPLORER_MIN_ICON_PIXEL_SIZE +
+    ((zoom - 0.1f) / 0.9f) *
+    (PROJECT_EXPLORER_MAX_ICON_PIXEL_SIZE - PROJECT_EXPLORER_MIN_ICON_PIXEL_SIZE);
   ldk_ui_end_horizontal(ui);
 
   //
