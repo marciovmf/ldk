@@ -121,6 +121,8 @@ static void s_terrain_fields_sync(LDKEditorTerrainState *state)
    * Samples remain normalized; their elevation is offset + sample * scale. */
   snprintf(state->height_range_text, sizeof(state->height_range_text),
       "%.6g", (double)(state->data.height_offset + state->height_range));
+  snprintf(state->flatten_height_text, sizeof(state->flatten_height_text),
+      "%.6g", (double)state->flatten_height);
 }
 
 /* Switching selection releases only the working brush copy. Persisted
@@ -136,6 +138,7 @@ static void s_terrain_reset(LDKEditorContext *editor, bool unused)
   state->target_height = 256u;
   state->target_cell_size = 1.0f;
   state->height_range = 64.0f;
+  state->flatten_height = 0.0f;
   s_terrain_fields_sync(state);
   state->radius = 8.0f;
   state->strength = 8.0f;
@@ -193,6 +196,7 @@ static bool s_terrain_bind(LDKEditorContext *editor, LDKEntity entity,
   state->target_height = state->data.height;
   state->target_cell_size = state->data.cell_size;
   state->height_range = state->data.height_scale;
+  state->flatten_height = state->data.height_offset;
   state->owner_entity = entity;
   state->selection_attempt = entity;
   state->undo_owner = s_terrain_undo_owner(entity);
@@ -292,7 +296,7 @@ static bool s_terrain_export_heightmap(LDKEditorContext *editor)
 }
 
 /* Initialize or replace the component's own heightfield without requiring
- * an external image or creating a .terrain asset. */
+ * an external image or creating a separate terrain asset. */
 static bool s_terrain_create_flat(LDKEditorContext *editor)
 {
   LDKEditorTerrainState *state = &editor->terrain_editor;
@@ -549,6 +553,7 @@ bool ldki_editor_terrain_undo_apply(LDKEditorContext *editor,
     const float radius = state->radius;
     const float strength = state->strength;
     const float falloff = state->falloff;
+    const float flatten_height = state->flatten_height;
     s_terrain_reset(editor, false);
     (void)s_terrain_bind(editor, editor->selected_entity, component);
     state->enabled = sculpt_enabled;
@@ -556,6 +561,8 @@ bool ldki_editor_terrain_undo_apply(LDKEditorContext *editor,
     state->radius = radius;
     state->strength = strength;
     state->falloff = falloff;
+    state->flatten_height = flatten_height;
+    s_terrain_fields_sync(state);
   }
   ldki_editor_scene_dirty_set(editor, true);
   return true;
@@ -575,6 +582,7 @@ static bool s_terrain_stroke_begin(LDKEditorContext *editor)
   if (!state->stroke_start) return false;
   memcpy(state->stroke_start, state->pixels, state->pixel_bytes);
   state->stroke_height_start = s_terrain_height_snapshot(&state->data);
+  /* Flatten uses the explicit inspector target throughout the stroke. */
   state->stroke_active = true;
   return true;
 }
@@ -582,6 +590,132 @@ static bool s_terrain_stroke_begin(LDKEditorContext *editor)
 static float s_terrain_clamp01(float x)
 {
   return fminf(1.0f, fmaxf(0.0f, x));
+}
+
+/* Brush editing always uses the configured height channel. The other
+ * channels must remain intact for imported images and Undo/Redo. */
+static u16 s_terrain_brush_sample(const LDKEditorTerrainState *state,
+    const u8 *pixels, u32 x, u32 z)
+{
+  const size_t index = ((size_t)z * state->data.width + x) * 4u +
+      (u32)state->data.height_channel;
+  if (state->image_format == LDK_IMAGE_FORMAT_RGBA16_UNORM)
+  {
+    u16 value;
+    memcpy(&value, pixels + index * sizeof(value), sizeof(value));
+    return value;
+  }
+  return (u16)pixels[index] * 257u;
+}
+
+static bool s_terrain_brush_store(LDKEditorTerrainState *state,
+    u32 x, u32 z, float normalized)
+{
+  const size_t index = ((size_t)z * state->data.width + x) * 4u +
+      (u32)state->data.height_channel;
+  normalized = s_terrain_clamp01(normalized);
+  if (state->image_format == LDK_IMAGE_FORMAT_RGBA16_UNORM)
+  {
+    const u16 value = (u16)lroundf(normalized * 65535.0f);
+    u16 previous;
+    memcpy(&previous, state->pixels + index * sizeof(value),
+        sizeof(previous));
+    if (previous == value) return false;
+    memcpy(state->pixels + index * sizeof(value), &value, sizeof(value));
+    return true;
+  }
+  const u8 value = (u8)lroundf(normalized * 255.0f);
+  if (state->pixels[index] == value) return false;
+  state->pixels[index] = value;
+  return true;
+}
+
+/* Smooth reads an immutable, one-pixel-padded snapshot. Without the snapshot,
+ * samples edited earlier in the same dab would bias later ones toward the
+ * iteration direction. Only the height channel is copied, not the whole map. */
+static bool s_terrain_brush_level_apply(LDKEditorTerrainState *state,
+    Vec3 center, float dt, int x0, int z0, int x1, int z1,
+    float origin_x, float origin_z)
+{
+  const LDKTerrain *terrain = &state->data;
+  const bool smooth = state->sculpt_tool == LDK_EDITOR_TERRAIN_SMOOTH;
+  const u32 start_x = x0 > 0 ? (u32)x0 - 1u : 0u;
+  const u32 start_z = z0 > 0 ? (u32)z0 - 1u : 0u;
+  const u32 end_x = (u32)x1 + ((u32)x1 + 1u < terrain->width ? 1u : 0u);
+  const u32 end_z = (u32)z1 + ((u32)z1 + 1u < terrain->height ? 1u : 0u);
+  const size_t copy_width = (size_t)end_x - start_x + 1u;
+  const size_t copy_height = (size_t)end_z - start_z + 1u;
+  u16 *snapshot = NULL;
+  if (smooth)
+  {
+    if (copy_height > SIZE_MAX / sizeof(u16) / copy_width) return false;
+    snapshot = malloc(copy_width * copy_height * sizeof(u16));
+    if (!snapshot) return false;
+    for (u32 z = start_z; z <= end_z; ++z)
+      for (u32 x = start_x; x <= end_x; ++x)
+        snapshot[((size_t)z - start_z) * copy_width + x - start_x] =
+            s_terrain_brush_sample(state, state->pixels, x, z);
+  }
+
+  const float radius = state->radius;
+  const float inner = radius * (1.0f - state->falloff);
+  const float target = s_terrain_clamp01((state->flatten_height -
+      terrain->height_offset) / terrain->height_scale);
+  bool changed = false;
+  for (int z = z0; z <= z1; ++z)
+  {
+    for (int x = x0; x <= x1; ++x)
+    {
+      const float wx = origin_x + ((float)x + 0.5f) * terrain->cell_size;
+      const float wz = origin_z + ((float)z + 0.5f) * terrain->cell_size;
+      const float distance = sqrtf((wx - center.x) * (wx - center.x) +
+          (wz - center.z) * (wz - center.z));
+      if (distance >= radius) continue;
+      float weight = distance <= inner ? 1.0f :
+          s_terrain_clamp01((radius - distance) /
+              fmaxf(radius - inner, 0.00001f));
+      weight = weight * weight * (3.0f - 2.0f * weight);
+      /* For both tools Strength is a relaxation rate per second. A frame
+       * never overshoots the neighborhood mean or the captured plane. */
+      const float alpha = s_terrain_clamp01(state->strength * dt * weight);
+      if (alpha <= 0.0f) continue;
+      float previous, desired;
+      if (smooth)
+      {
+        static const u32 kernel[3] = {1u, 2u, 1u};
+        const float old_value = (float)snapshot[
+            ((size_t)z - start_z) * copy_width + (size_t)x - start_x];
+        u32 sum = 0u;
+        for (int dz = -1; dz <= 1; ++dz)
+        {
+          const u32 sz = (u32)(z + dz < 0 ? 0 :
+              z + dz >= (int)terrain->height ? (int)terrain->height - 1 :
+              z + dz);
+          for (int dx = -1; dx <= 1; ++dx)
+          {
+            const u32 sx = (u32)(x + dx < 0 ? 0 :
+                x + dx >= (int)terrain->width ? (int)terrain->width - 1 :
+                x + dx);
+            const u16 sample = snapshot[
+                ((size_t)sz - start_z) * copy_width + sx - start_x];
+            sum += kernel[dz + 1] * kernel[dx + 1] * sample;
+          }
+        }
+        previous = old_value / 65535.0f;
+        desired = (float)sum / (16.0f * 65535.0f);
+      }
+      else
+      {
+        previous = (float)s_terrain_brush_sample(state, state->pixels,
+            (u32)x, (u32)z) / 65535.0f;
+        desired = target;
+      }
+      changed |= s_terrain_brush_store(state, (u32)x, (u32)z,
+          previous + (desired - previous) * alpha);
+    }
+  }
+  free(snapshot);
+  return changed;
 }
 
 /* When a brush would exceed the image's [0,1] encoding, enlarge the
@@ -637,9 +771,37 @@ static bool s_terrain_brush_apply(LDKEditorContext *editor, Vec3 center)
   if (z1 >= (int)terrain->height) z1 = (int)terrain->height - 1;
   if (x1 < x0 || z1 < z0) return false;
   const float inner = radius * (1.0f - state->falloff);
+  const float dt = fmaxf(0.001f, fminf(0.05f, editor->ui.delta_time));
+  if (state->sculpt_tool == LDK_EDITOR_TERRAIN_SMOOTH ||
+      state->sculpt_tool == LDK_EDITOR_TERRAIN_FLATTEN)
+  {
+    bool range_changed = false;
+    if (state->sculpt_tool == LDK_EDITOR_TERRAIN_FLATTEN)
+    {
+      /* The target is a world-space height, not a normalized sample. Let
+       * Flatten reach heights beyond the current encoding interval, just
+       * as Raise/Lower already do. The stroke's Undo snapshot includes both
+       * the expanded interval and the re-encoded pixels. */
+      const float min_height = terrain->height_offset;
+      const float max_height = min_height + terrain->height_scale;
+      range_changed = state->flatten_height < min_height ||
+          state->flatten_height > max_height;
+      if (range_changed && !s_terrain_brush_expand_range(editor,
+              fminf(min_height, state->flatten_height),
+              fmaxf(max_height, state->flatten_height)))
+        return false;
+    }
+    const bool changed = s_terrain_brush_level_apply(state, center, dt,
+        x0, z0, x1, z1, origin_x, origin_z);
+    if ((changed || range_changed) && s_terrain_publish(editor))
+    {
+      state->dirty = true;
+      state->pixels_dirty = true;
+    }
+    return changed || range_changed;
+  }
   const float sign = state->sculpt_tool == LDK_EDITOR_TERRAIN_RAISE
       ? 1.0f : -1.0f;
-  const float dt = fmaxf(0.001f, fminf(0.05f, editor->ui.delta_time));
   /* Find the actual world heights requested by this stroke. A heightmap is
    * normalized storage, not a hard sculpting limit. A component with
    * height_scale=1 must be able to grow beyond one world unit. */
@@ -1122,11 +1284,19 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
           state->sculpt_tool == LDK_EDITOR_TERRAIN_LOWER ?
               "[Lower]" : "Lower"))
     state->sculpt_tool = LDK_EDITOR_TERRAIN_LOWER;
-  ldk_ui_set_next_disabled(ui, true); /* Stage 6 */
-  (void)ldk_ui_button(ui, "Smooth");
-  ldk_ui_set_next_disabled(ui, true); /* Stage 6 */
-  (void)ldk_ui_button(ui, "Flatten");
+  if (ldk_ui_button(ui,
+          state->sculpt_tool == LDK_EDITOR_TERRAIN_SMOOTH ?
+              "[Smooth]" : "Smooth"))
+    state->sculpt_tool = LDK_EDITOR_TERRAIN_SMOOTH;
+  if (ldk_ui_button(ui,
+          state->sculpt_tool == LDK_EDITOR_TERRAIN_FLATTEN ?
+              "[Flatten]" : "Flatten"))
+    state->sculpt_tool = LDK_EDITOR_TERRAIN_FLATTEN;
   ldk_ui_end_horizontal(ui);
+  if (state->sculpt_tool == LDK_EDITOR_TERRAIN_FLATTEN)
+    (void)s_terrain_real_input(editor, "Target Height",
+        state->flatten_height_text, sizeof(state->flatten_height_text),
+        &state->flatten_height, -100000.0f, 100000.0f);
   state->radius = ldk_editor_ui_row_slider_float(editor,
       "Brush Radius", 0u, state->radius, 0.5f, 128.0f, false, NULL);
   ldk_ui_end_horizontal(ui);

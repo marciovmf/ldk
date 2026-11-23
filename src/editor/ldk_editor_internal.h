@@ -301,7 +301,9 @@ typedef struct LDKEditorSceneCatalog
 typedef enum LDKEditorTerrainSculptTool
 {
   LDK_EDITOR_TERRAIN_RAISE = 0,
-  LDK_EDITOR_TERRAIN_LOWER
+  LDK_EDITOR_TERRAIN_LOWER,
+  LDK_EDITOR_TERRAIN_SMOOTH,
+  LDK_EDITOR_TERRAIN_FLATTEN
 } LDKEditorTerrainSculptTool;
 
 /* Range metadata is part of a sculpt stroke: extending the height interval
@@ -323,6 +325,8 @@ typedef struct LDKEditorTerrainState
   u8 *pixels;
   u8 *stroke_start;
   LDKEditorTerrainHeightSnapshot stroke_height_start;
+  /* Desired world-space elevation of the Flatten plane, in scene units. */
+  float flatten_height;
   size_t pixel_bytes;
   LDKImageFormat image_format;
   /* Target grid dimensions for Import. They do not silently resize
@@ -336,6 +340,7 @@ typedef struct LDKEditorTerrainState
   char depth_text[24];
   char cell_size_text[32];
   char height_range_text[32];
+  char flatten_height_text[32];
   float radius;
   float strength;
   float falloff;
