@@ -2569,9 +2569,14 @@ static bool ldk_meta_resolve_array_structs(LDKMetaState *state,
         found = true;
     if (!found)
     {
+      /* Resolving this element can append to state->fields, which may move
+       * under realloc. Keep the type name outside that array for the entire
+       * parse, rather than passing a pointer into field->element_type. */
+      char element_type[sizeof(field->element_type)];
+      memcpy(element_type, field->element_type, sizeof(element_type));
       ldk_meta_error_location(state, field->source_path, field->source_line);
       if (!ldk_meta_parse_element_struct(state, files, file_count,
-              field->element_type)) return false;
+              element_type)) return false;
     }
   }
   for (u32 n = 0; n < state->structure_count; ++n)
@@ -3184,6 +3189,29 @@ static void ldk_meta_print_error(const LDKMetaState *state, const char *fallback
   }
 }
 
+/* Keep diagnostic IDs aligned without changing their underlying types:
+ * components are u32, systems are u64; both display 16 hex digits. */
+static void ldk_meta_print_registry_entry(const char *kind, u32 index,
+    u32 count, u64 id, const char *name)
+{
+  char prefix[64];
+  int length = snprintf(prefix, sizeof(prefix), " %-9s %u/%u",
+      kind, index, count);
+
+  if (length < 0 || (size_t)length >= sizeof(prefix))
+  {
+    return;
+  }
+
+  while (length < 20)
+  {
+    prefix[length++] = '.';
+  }
+  prefix[length] = 0;
+
+  printf("%s0x%016llX : %s\n", prefix, (unsigned long long)id, name);
+}
+
 static bool ldk_meta_validate_atlas_region_fields(LDKMetaState *state)
 {
   u32 owner_count = state->component_count + state->system_count;
@@ -3339,21 +3367,19 @@ bool ldk_meta_generate_header(const char **input_files, u32 input_file_count,
     ok = false;
   }
 
-  // print components found
-  for (u32 i = 0; i < state.component_count; i++)
+  // Print registered components and systems with aligned 64-bit hex IDs.
+  for (u32 i = 0; i < state.component_count; ++i)
   {
-    LDKMetaComponent* meta = &state.components[i];
-    printf(" Component %d/%d - %s : 0x%X\n",
-           (i+1), state.component_count,
-           (const char*)&meta->type_name[0],
-           state.components[i].type_id);
+    const LDKMetaComponent *meta = &state.components[i];
+    ldk_meta_print_registry_entry("Component", i + 1u,
+        state.component_count, meta->type_id, meta->type_name);
   }
 
   for (u32 i = 0; i < state.system_count; ++i)
   {
-    printf(" System %u/%u - %s : 0x%016llX\n", i + 1u,
-        state.system_count, state.systems[i].name,
-        (unsigned long long)state.systems[i].id);
+    const LDKMetaSystem *meta = &state.systems[i];
+    ldk_meta_print_registry_entry("System", i + 1u,
+        state.system_count, meta->id, meta->name);
   }
 
   if (ok && !ldk_meta_write_header(&state, output_header_path))
