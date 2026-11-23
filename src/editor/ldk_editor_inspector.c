@@ -4874,7 +4874,7 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
       XFSPath path = {0};
 
       if (ldk_os_dialog_show_save_file(
-              editor->window, "Create material", "Materials\0*.tml\0\0", &path))
+              editor->window, "Create material", "Materials\0*.material\0\0", &path))
       {
         LDKAssetPath asset_path;
         if (s_editor_inspector_asset_path_validate(editor, &path,
@@ -4950,7 +4950,7 @@ static bool s_editor_material_asset_editor(LDKEditorContext *editor,
     XFSPath path = {0};
 
     if (ldk_os_dialog_show_save_file(
-            editor->window, "Create material", "Materials\0*.tml\0\0", &path))
+            editor->window, "Create material", "Materials\0*.material\0\0", &path))
     {
       LDKAssetPath asset_path;
       if (s_editor_inspector_asset_path_validate(editor, &path,
@@ -5069,7 +5069,7 @@ static void s_editor_inspector_material_slot(LDKEditorContext *editor,
   {
     XFSPath path = {0};
     if (ldk_os_dialog_show_save_file(
-            editor->window, "Create material", "Materials\0*.tml\0\0", &path))
+            editor->window, "Create material", "Materials\0*.material\0\0", &path))
     {
       LDKAssetPath asset_path;
       if (s_editor_inspector_asset_path_validate(editor, &path,
