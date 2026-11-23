@@ -327,6 +327,10 @@ typedef struct LDKEditorContext
   u32 selected_instance;
   u64 selected_system_id;
   bool scene_properties_selected;
+  /* Material selected in File Explorer, independent of scene entity fields. */
+  LDKAssetMaterial selected_material_asset;
+  XFSPath selected_material_file;
+  bool selected_material_readonly;
   LDKEntity editor_camera;
   LDKRendererViewId scene_view;
   LDKEditorCameraControllerState camera_controller;

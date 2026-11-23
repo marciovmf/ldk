@@ -7,6 +7,7 @@
 #include "stdx/stdx_filesystem.h"
 #include <ldk_image.h>
 #include <ldk_material_io.h>
+#include <ldk_material_asset.h>
 #include <ldk_keyframe_animation.h>
 #include <ldk_texture_atlas.h>
 #include <ldk_package.h>
@@ -1626,6 +1627,18 @@ static void s_project_explorer_update(
   state->root_available =
       root_path != NULL && s_project_explorer_root_set(state, root_path);
 
+  /* Folder navigation, deletion, rename and project changes may invalidate
+   * File Explorer's selection without passing through a file click. */
+  if (editor->selected_material_file.length != 0 &&
+      (state->selected_file.length == 0 ||
+          x_fs_path_compare(&state->selected_file,
+              &editor->selected_material_file) != 0))
+  {
+    editor->selected_material_asset = ldk_asset_material_null();
+    editor->selected_material_file = (XFSPath){0};
+    editor->selected_material_readonly = false;
+  }
+
   if (state->root_available != previous_root_available ||
       (state->root_available &&
           x_fs_path_compare(&state->root, &previous_root) != 0))
@@ -2178,6 +2191,80 @@ static ProjectExplorerEntry *s_project_explorer_entry_get(
 }
 
 
+/* Files with .tml are not necessarily materials. Let the existing material
+ * loader validate their root node before changing the Inspector selection. */
+static void s_project_explorer_material_inspect(
+    LDKEditorContext *editor, const ProjectExplorerEntry *entry)
+{
+  XFSPath relative = {0};
+  const char *logical = NULL;
+  LDKAssetManager *assets;
+  LDKAssetSource *source;
+  LDKAssetSourceFile file = {0};
+  LDKMaterialIOContext context = {0};
+  LDKMaterialIOResult result = {0};
+  LDKAssetMaterial material;
+
+  if (!editor)
+  {
+    return;
+  }
+
+  editor->selected_material_asset = ldk_asset_material_null();
+  editor->selected_material_file = (XFSPath){0};
+  editor->selected_material_readonly = false;
+
+  if (!entry || entry->is_directory)
+  {
+    return;
+  }
+
+  XSlice extension = x_fs_path_extension_as_slice(&entry->path);
+  if (!x_slice_eq_ci(extension, x_slice("tml")) &&
+      !x_slice_eq_ci(extension, x_slice("material")))
+  {
+    return;
+  }
+
+  if (entry->package_backed)
+  {
+    logical = entry->asset_path.buf;
+  }
+  else if (x_fs_path_relative_to(
+               editor->project.loaded ? &editor->project.run_root_path
+                                      : &editor->engine_runtree,
+               &entry->path, &relative) > 0)
+  {
+    logical = relative.buf;
+  }
+
+  assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  source = ldk_module_get(LDK_MODULE_ASSET_SOURCE);
+  if (!logical || !logical[0] || !assets || !source ||
+      !ldk_asset_source_find(source, logical, &file))
+  {
+    return;
+  }
+
+  context.assets = assets;
+  material = ldk_asset_manager_material_load_shared(
+      &context, logical, &result);
+  const LDKAssetMaterialData *data =
+      ldk_asset_manager_material_get_const(assets, material);
+  if (!data || data->is_missing)
+  {
+    return;
+  }
+
+  editor->selected_material_asset = material;
+  editor->selected_material_file = entry->path;
+  editor->selected_material_readonly = entry->package_backed ||
+      file.origin != LDK_ASSET_SOURCE_ORIGIN_FILESYSTEM;
+  editor->selected_entity = x_handle_null();
+  editor->selected_system_id = 0;
+  editor->scene_properties_selected = false;
+}
+
 static void s_project_explorer_on_file_double_click(
     LDKEditorContext *editor, const ProjectExplorerEntry *entry)
 {
@@ -2332,7 +2419,9 @@ static void s_project_explorer_entry_activate(LDKEditorContext *editor,
     return;
   }
 
-  if (s_project_explorer_entry_double_click(state, entry))
+  bool double_click = s_project_explorer_entry_double_click(state, entry);
+  s_project_explorer_material_inspect(editor, entry);
+  if (double_click)
   {
     s_project_explorer_on_file_double_click(editor, entry);
   }
@@ -2584,6 +2673,8 @@ static bool s_project_explorer_rename_commit(
   else if (x_fs_path_compare(&state->selected_file, &old_path) == 0)
   {
     state->selected_file = renamed;
+    ProjectExplorerEntry selected = {.path = renamed};
+    s_project_explorer_material_inspect(editor, &selected);
   }
 
   s_project_explorer_directory_cache_dirty(state);
@@ -3063,6 +3154,8 @@ static bool s_project_explorer_create_material(
   s_project_explorer_directory_select(state, &parent, true);
   s_project_explorer_directory_cache_dirty(state);
   state->selected_file = created;
+  ProjectExplorerEntry selected = {.path = created};
+  s_project_explorer_material_inspect(editor, &selected);
   state->context_target.path = created;
   state->context_target.is_directory = false;
   state->context_target.surface = PROJECT_EXPLORER_SURFACE_FILES;

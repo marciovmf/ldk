@@ -283,6 +283,7 @@ typedef enum LDKEditorInspectorSelectionKind
   LDK_EDITOR_INSPECTOR_SELECTION_ENTITY,
   LDK_EDITOR_INSPECTOR_SELECTION_SYSTEM,
   LDK_EDITOR_INSPECTOR_SELECTION_SCENE,
+  LDK_EDITOR_INSPECTOR_SELECTION_MATERIAL,
 } LDKEditorInspectorSelectionKind;
 
 typedef struct LDKEditorInspectorSelection
@@ -523,7 +524,7 @@ static void s_editor_inspector_group_expanded_set(
   group->expanded = expanded;
 }
 
-static void s_editor_inspector_selection_sync(const LDKEditorContext *editor)
+static void s_editor_inspector_selection_sync(LDKEditorContext *editor)
 {
   LDKEditorInspectorSelection selection = {0};
   if (editor->scene_properties_selected)
@@ -541,6 +542,23 @@ static void s_editor_inspector_selection_sync(const LDKEditorContext *editor)
     selection.owner = ((u64)editor->selected_entity.version << 32) |
         editor->selected_entity.index;
   }
+  else if (editor->selected_material_file.length != 0 &&
+           !x_handle_is_null(editor->selected_material_asset.h))
+  {
+    selection.kind = LDK_EDITOR_INSPECTOR_SELECTION_MATERIAL;
+    selection.owner = ((u64)editor->selected_material_asset.h.version << 32) |
+        editor->selected_material_asset.h.index;
+  }
+
+  /* A new hierarchy selection supersedes File Explorer's material Inspector. */
+  if (selection.kind != LDK_EDITOR_INSPECTOR_SELECTION_MATERIAL &&
+      selection.kind != LDK_EDITOR_INSPECTOR_SELECTION_NONE)
+  {
+    editor->selected_material_asset = ldk_asset_material_null();
+    editor->selected_material_file = (XFSPath){0};
+    editor->selected_material_readonly = false;
+  }
+
   if (selection.kind == s_editor_inspector_selection.kind &&
       selection.owner == s_editor_inspector_selection.owner)
   {
@@ -6145,6 +6163,53 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
       return;
     }
     editor->selected_system_id = 0;
+  }
+
+  if (editor->selected_material_file.length != 0 &&
+      !x_handle_is_null(editor->selected_material_asset.h))
+  {
+    LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    LDKAssetSource *source = ldk_module_get(LDK_MODULE_ASSET_SOURCE);
+    LDKAssetHandle handle = {.h = editor->selected_material_asset.h};
+    const LDKAssetInfo *asset = assets
+        ? ldk_asset_get_info_const(assets, handle) : NULL;
+    if (asset && source && asset->type == LDK_ASSET_TYPE_MATERIAL &&
+        asset->source_revision == source->revision)
+    {
+      LDKMaterialIOContext context = {.assets = assets};
+      scroll = s_editor_inspector_scroll_begin(ui, scroll);
+      ldk_ui_label(ui, asset->asset_path.buf);
+      ldk_ui_push_id_cstr(ui, "explorer_material");
+      if (s_editor_material_asset_editor(editor,
+              &editor->selected_material_asset,
+              editor->selected_material_readonly, &context))
+      {
+        /* Save As changes the asset binding. Reveal the new selected file. */
+        handle.h = editor->selected_material_asset.h;
+        asset = ldk_asset_get_info_const(assets, handle);
+        if (asset && asset->type == LDK_ASSET_TYPE_MATERIAL &&
+            ldki_editor_file_explorer_reveal_asset(
+                editor, asset->asset_path.buf))
+        {
+          LDKAssetSourceFile file = {0};
+          if (ldk_asset_source_find(
+                  source, asset->asset_path.buf, &file) &&
+              file.origin == LDK_ASSET_SOURCE_ORIGIN_FILESYSTEM)
+          {
+            editor->selected_material_file = file.location.filesystem_path;
+            editor->selected_material_readonly = false;
+          }
+        }
+      }
+      ldk_ui_pop_id(ui);
+      ldk_ui_end_scrollview(ui);
+      s_editor_inspector_column_update(editor);
+      return;
+    }
+
+    editor->selected_material_asset = ldk_asset_material_null();
+    editor->selected_material_file = (XFSPath){0};
+    editor->selected_material_readonly = false;
   }
 
   if (!ecs || !game || !ldki_editor_selected_entity_get(editor, ecs, &entity))
