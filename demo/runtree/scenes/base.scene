@@ -662,11 +662,11 @@ scene:
               color_noise_scale: 1.0
               color_noise_strength: 0.0
               surfaces:
-                - name: "Surface 0"
+                - name: "Dirt"
                   min_height: 0.0
                   blend_width: 0.0
-                  color: 4294967295
-                  noise_low_color: 4294967295
+                  color: 1783845887
+                  noise_low_color: 1296122367
                   noise_high_color: 4294967295
                   sprite_id: 0
                   uv_scale: 1.0, 1.0
@@ -675,8 +675,34 @@ scene:
                   min_slope_degrees: 0.0
                   slope_blend_degrees: 0.0
                   paint_mask: ""
-              next_vegetation_id: 1
+              next_vegetation_id: 2
               vegetation:
+                - id: 1
+                  density_scale: 2.79649591
+                  seed: 1015568748
+                  type_settings:
+                    name: "grass"
+                    blade_preset: 0
+                    density: 1.0
+                    clumping: 0.0
+                    clump_radius: 0.5
+                    min_height: 0.800000012
+                    max_height: 1.0
+                    use_noise_height: false
+                    blade_width: 0.100000001
+                    curvature: 0.0799999982
+                    wind_strength: 0.0799999982
+                    interaction_recovery_time: 2.5
+                    bottom_color: 894446335
+                    top_color: 2309577983
+                    use_noise_color: false
+                    use_custom_noise_palette: false
+                    noise_color_stop_0_color: 3401742847
+                    noise_color_stop_1_color: 2797234943
+                    noise_color_stop_2_color: 1890277119
+                    noise_color_stop_3_color: 1115506943
+                  density_encoding: "u8-base64"
+                  density_samples: "AAAAAAAAAAAAAAAlRUVFRUVFRUVFRThWVlZhhISEnaamo4RFXHh4mpt4eHh4eUVFRXh4hp2duLi4uMvLy7i4nQAAAAAAAAAAAAADRUVFRUVFRUVFRUWEYlmRjISEhJCmpqa4mp7Cy8vLw514eJx4RUV4eJ2duMLFzsvLy8u4uLgAAAAAAAAAAAAARUVFRUVFRUVFRUVjpqampqamppWEpqa+0N3Hy8vLy8vLvnmUeHhgeIuwuMvL4/Dw8uvj0MvLAAAAAAAAAAAABEVFRUVFRUVFRUVfpaa4rqampqampqa80N3d3cvZ2eHj4c3CUHh4mni4uMHj6/Dw9PT09u7jzgAAAAAAAAAAAEVFRUVFS0VFRUVVeKamwMa1trOrpqam0N3d5urd4+Pj5uvr67t4eJehuLjj6/Dw9Pb39/Tz8OQAAAAAAAAAABV4eJ2dnZGHm6WFoJOuuNHUyszMy8Owwt/d3e3x6+Pq6+vu8OrlppiZuLjZ6+vw9Pf39/f09PDwAAAAAAAAAEVFoKqzuMDQ18nG0Mi21Nzb39PU2d3d2ODg1+jx8Ovr6/Dw8Ovr8Ozj2dnh6vDw8/f39/f09PT08AUAAAAAF4Gkx93b2eDj5+Tg1Nrb4ejw7uji6e3u7+7z7uPm8uzw7vDw7Oz3+/v78vbz7/Ty8vf5+ff09PT09OsXFxckRZ2ouNHW4+ju7uvo5uLm6Ozr9PPz8/b29vb2+vn18O7m7Ovr8Pr9/v7+/v37+fj29Pf5+fj39PT09PLrFxdDVpqmuNDW2Ofs8/Pu7Onr7+7v8/P4+fn5+fj29vv7+ffv7PDr9Pv9/v7+/v7+/vz7+/Pw+vf39/f09PPw6xcdVoSourrU1tvi8PPz8e7u7vHw8/Tx+/v7+vz8/Pv9/vr59PXx9/r+/v7+/v7+/v7+/Pv79Pz7+vv5+PTz8OgXVmSEr77E1tfd4vDz8/Pw8+/z8PT29vr8/P3+/v38/f79+/r49/n9/v7+/v7+/v7+/f78/Pn5/Pv6+fn09PHoGVaPpsjR1tbZ3ePt8PPz9PPv8PP29vj8/v7+/v7+/Pz+/fz7+Pr7/v7+/v7+/v7+/v3+/v389/v5+/r59fDt422EpqbJ1Nnk493j7e7u8Pbz8O7x9/j7/f7+/v79/fz8+/79/P78/f7+/v7+/v7+/v3+/v79/vr59vf39/Dw4+OEhLy+2N7h6+vs5Ovu7u/z7+3u7vj4+/7+/v3+/v38/P38/v7+/P7+/v7+/v7+/v3+/v7+/f77+Pb29/f27OPjhKa+x+Hn6PDw8e/o7u7u8+/u7ur2+Pv+/v7+/v7+/f3+/fz+/v7+/v7+/v7+/v79/v7+/f3++vjy+Pj48Ozry6Om0NDe7O7w8/Xz9uzu7vHv7+ns8vH8/v7+/v7+/v7+/v77/Pz8/P7+/v7+/v7+/v7+/f37/fn29vb29vLx2biEvtfd3eru7vH09fbz7e7t8O7i6+jt+v7+/f7+/v7+/f7+/Pr6+/j9/v7+/v7+/v7+/fz9+vft4efy8u7Y0bmdps3Q3d3f7Ozu8fT19uvs6PDk4ODj7/r+/v7+/v7+/v3+/fz68PTz+/7+/v7+/v7+/v38+/r08NvT0NHb3d3Rnqe+0Nfd3d/j8fPz9/Xz3tvh497u8O74/P7+/v7+/v79/v379+zw6+/8/v7+/v7+/v7+/fv48ebd3ebd0NDQw52+vsTQ2d3j5evw8/Xy7syovN/x9vj6+v39/v7+/v7+/vz79/Pv3unz+/7+/v7+/v7+/v748+3m4Obd3d3Q0L6lvr6+vtbZ6+vr6+zw8PLk5+7x8/j6/Pz+/P3+/v7+/vz6+PPx7cvL+/n8/v7+/v7+/v79++7x7O3r5t3d3dCnp76+vrrL2ePj5uvz9vj3/Pz8/fz7+vz7/P78/P3+/vz7+Pfy7urZ9vf4+/3+/v7+/f39+/j15+3t7e3o5Objv6y4uLjL2dnZ4+Pu+fv9/v7+/v7+/v79+/v8/vz8/f38+vj18+7j2ff4+fz9/fz7+vr9/fz7/fn79+3y8u/m0L++uLi52dnZ4+Pr+fv+/v7+/v7+/v7+/v37+/z9+/z9/Pr39uXZ4tn3+/z9/vz7+/v+/v7+/v78+/z8/PLu4dDCo7i4y9nZ4+Pq+Pv9/v7+/v7+/v7+/v7+/vv8+/X6+/v17uPj2cvX9/z9/v78/fv+/v7+/v7+/Pz9/Pz76ubBup2wuNPZ4+Pk6/v7/v7+/v7+/v7+/v7+/v7+/fz49vfz7u7j2dnT3vv+/v7+/f7+/v7+/v7+/v39/fz7+vbdv7WdPp3T2ePj6/P7/v7+/v7+/v7+/v7+/v7+/v7+/v7+/vzs49nLy9/8/v7+/v7+/v7+/v7+/v79/Pz8+/r789PAtwBGucvZ2eP2+/7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/PrZy8zd+/3+/v7+/v7+/v7+/v7+/v38/P38+/fWuLgAAHHBy9bj8/v+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7797iuxvj+/v7+/v7+/v7+/v7+/v7+/Pz8/Pv4z7i4AAAA0OHr8fj7/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/PXrmdD8/v7+/v7+/v7+/v7+/v7+/v78/Pv596KdnQB9uM/r8Pb6/f7+/v7+/v7+/v7+/v7+/v7+/v7+/v79/fz29tf7/v7+/v7+/v7+/v7+/v7+/v7+/fz7+faknZ2buMvM6e/2+f3+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/P39/Pz9/v7+/v7+/v7+/v7+/v7+/v7+/v78+/junZ2duMvZ2e7x+fv8/v7+/v7+/v7+/v7+/v7+/v7+/v7+/fv9/v3+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/Pr25p2dlMvZ2ePj8fr8/f7+/v7+/v7+/v7+/v7+/v7+/v7+/vz8/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v356+F4eHjZ2ePm9Pn8/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v79/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+9/Knr4h42dvs+fn5+f3+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/ffZy724ndnm+fn5+fn7/P38/Pz8/f3+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v3O2dnLxp3Z+Pn5+fn5+vv6+fn5+fr8/f7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7228vLuLif4fn5+fn5+Pj39vPw8PP2+Pv9/v79/v7+/v7+/v3+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+9N3Wy7i4uO38/f39+vj38evi2trh6vH1/P7+/v7+/v7+/v39/f3+/v77/f7+/v7+/v7+/v7+/v7+/v7+/v7+/vrl49nLy7j7/v7+/v357te+raOfpbTO5fX8/v79/f7+/v78/fv8/f35/P7+/v7+/v7+/v7+/v7+/v7+/v7+/v387Obhy8vL/P7+/v7878qli3tvZ2ZwiKzY8Pz+/vv69/by9Pb47vD4/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/PPu6MvLwPj+/v7+986fgW9dUElHSVBnmc7x/f348+3l2ciwxuXy/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/vv39enLuLPz/P7+/eGrg2xVQTgxLzA2QF+UzvX99O3t4M3JytLs/f7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/v379/b02cud4/j7/PjFkXVYPS8oJSUlKDBCZp3b+vbt7dvUy8W/9/zQfnT5/v7+/v7+/v7+/v7+/v7+/v7+/v7+/vz09OvEp9n3+fjssoRoRi8kIBwaGRsiLkp3s/Hy5tvb2tjEtWRmMQwPNv7+/v7+/v7+/v7+/v7+/v7+/v7+/v7+/fPr07jZ2fT35Kh9XjclHRcSEQ8QExwyWY7Z5tTb29rYfTk8KRsEBgYc6v7++uz+2oPM/v7+/v7+/v7+/v7+/v785tuf2dnZ9OGlelcwHhURDQsLCw0SHjlmuc3a2dvbzIFONzVfGQwGBw1QcDg3BwQLFcz+/v7+/v7+/v7+/v7+/vfZttnj4+LcrXtXKxgQDAkIBwgICxEfP5vI2dnY2dmiisPnu9teCgYLDQsEAQEBBRLE/v7+/v7+/v7+/v7+/v7738Pj4+Pm4LJ/UikUDAgFBQQEBAUJECNjvtbW1tbZ39v7/P7+/qwcDAIBAgECBBB6+/7+/v7+/v7+/v7+/v7+/e3I4+jo6OLIlV0oEQoFAwICAgICAwYOPabE08HLy9vg+/3+/l01HxgHBgoUM/j72+P9/v7+/v7+/v7+/v7+/v7rnejo6Ojm3bh6LxAIBAICAgICAgICBBl6u7y8sMvI4/b9/v5KNTVxPFDw+/r65tvj+/7+/v7+/v7+/v7+/v7+8Xno6Ojo6OPVpUgRBQICAgICAgICAgIIP5GooqG0y+Xu/P7+skZa/v38/Pr6+M7O0Pz+/v7+/v7+/v7+/v7+/etX6Ojo6Ojn4speFgQCAgICAgICAgICBBhtZpJ1ksrb7fD8/v7+/v79/Pz6+LyayOv+/v7+/v7+/v7+/v7+/v3OK8bn6Ojo3sS7ch0FAgICAgICAgICAgQMOB8kaoy53ePw8Pv9/v39/Pv67t7k5fH4/v7+/v7+/v7+/v7+/v35uACurrC7vLCurokkBAICAgICAgICAgIDCiVRU2B4ts7r8fT08fj7/ProzvDw8O/59/z+/v7+/v7+/v7+/vz72ZsAj66urq6urq6WJQQCAgICAgICAgIDBAkqd31Va4fB093r8+7w6urize7y8/P5+/n6/P7+/v7+/v7+/vz77dkxAGVoj6aurp1sajcGAgICAgICAgICAwQKQ3R4fVyXq8DP4ubp4+jj2fPs8PDx+vn6+Pr8/v7+/v39/f3989mYAABlZWVlZWVlZYlRDQQDAgICAgICAwQFE1R3eHh6h5Wmt9PX4+nd187v8+7u7/n3+fj5+vz+/v7+/f379+i4AAAAZWVlZWVlZWWNcSAHBAMDAwMDAwQFCCR1eHh4fHuDjre+0tTf0MrZ7fHt7PH4+Pf49fX4+/39+ff28fDDAAAAAGVlZWVlZWVlf4xJDgcFBAQEBAUFCBZJlHh4hJF4e32mqcPU09HA7Ozw8Ovv9vj09vT08/f5+/Dr6+qyOgAAAABlZWVlZWVlZWWGWB8QCAYFBQYHCRE6f514eJ2TeHh4np+6zs3Ouuvr8PDr7PT39PTz9PDw8fTZyrudnQAAAAAALC1lZWVlZWQsZWA6OBsQCwsMDxozfJ14eHidgHh4eJ2duMvLy7jo6/Dw6+v09vT08/Dr7vDvu52dnZwAAAAAAA=="
   systems:
     - id: "0x2b2d1d8cc2f66d1e"
     - id: "0x05047ea6f003fb8f"
@@ -688,3 +714,27 @@ scene:
         mesh_sample_step: 1
         cull: true
         casts_shadows: true
+    - id: "0x0da6bbd10b0612d1"
+      data:
+        min_tilt_degrees: 0.00000000
+        max_tilt_degrees: 0.00000000
+        tilt_direction_degrees: 0.00000000
+        wind_direction_degrees: 0.00000000
+        wind_force: 1.75446427
+        wind_speed: 0.412946463
+        color_noise_texture: -1
+        color_noise_scale: 0.0199999996
+        color_stop_1_position: 0.300000012
+        color_stop_2_position: 0.720000029
+        color_stop_0_color: 3401742847
+        color_stop_1_color: 2797234943
+        color_stop_2_color: 1890277119
+        color_stop_3_color: 1115506943
+        specular: 0.00000000
+        shininess: 1.00000000
+        emission: 0.00000000
+        casts_shadows: false
+        unlit: false
+        lod_start_distance: 0.00000000
+        lod_end_distance: 0.00000000
+        lod_min_density: 0.00000000

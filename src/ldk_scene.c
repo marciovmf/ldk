@@ -2274,12 +2274,25 @@ static bool s_apply_entity_components(const TMLDocument *doc,
         {
           LDKTerrain terrain;
           LDKImage *image = NULL;
+          u8 *masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT] = {0};
           LDKImageInfo info = {0};
-          bool valid = ldk_terrain_from_tml_node_with_heightmap(
-              &terrain, &image, doc, terrain_node) &&
+          bool valid = ldk_terrain_from_tml_node_with_component_data(
+              &terrain, &image, masks, doc, terrain_node) &&
               (!image || ldk_image_get_info(image, &info)) &&
               ldk_terrain_component_set((LDKTerrainComponent *)component,
                   &terrain, image ? &info : NULL);
+          if (valid)
+            for (u32 i = 0u; i < terrain.vegetation_layer_count; ++i)
+              if (masks[i] &&
+                  !ldk_terrain_component_vegetation_density_set(
+                      (LDKTerrainComponent *)component,
+                      terrain.vegetation_layers[i].id, masks[i]))
+              {
+                valid = false;
+                break;
+              }
+          for (u32 i = 0u; i < LDK_TERRAIN_VEGETATION_LAYER_COUNT; ++i)
+            free(masks[i]);
           ldk_image_destroy(image);
           if (!valid)
           {
@@ -3811,8 +3824,12 @@ static bool s_write_embedded_terrain(XStrBuilder *out,
   if (component->heightmap &&
       !ldk_image_get_info(component->heightmap, &image)) return false;
   char *text = NULL;
-  if (!ldk_terrain_to_tml_with_heightmap(&component->terrain,
-          component->heightmap ? &image : NULL, &text)) return false;
+  if (!ldk_terrain_to_tml_with_component_data(&component->terrain,
+          component->heightmap ? &image : NULL,
+          component->vegetation_density
+              ? (const u8 *const *)component->vegetation_density->samples
+              : NULL, &text))
+    return false;
   static const char header[] = "terrain:\n";
   if (strncmp(text, header, sizeof(header) - 1u) != 0)
   {

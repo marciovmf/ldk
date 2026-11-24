@@ -13,6 +13,7 @@
 
 #include <ldk_asset.h>
 #include <ldk_image.h>
+#include <system/ldk_grass_system.h>
 #include <stdx/stdx_math.h>
 #include <stdx/stdx_tml.h>
 
@@ -61,17 +62,15 @@ typedef struct LDKTerrainSurface
   LDKAssetPath paint_mask_path;
 } LDKTerrainSurface;
 
-/** A distribution layer references a GrassSystem type by name. The layer ID
- * stays stable when layers are reordered or renamed. Renaming a GrassTypeDesc
- * requires updating this reference; persistent cross-asset type IDs remain
- * a separate design decision.
+/** One vegetation layer contains its full type description and distribution.
+ * No registry, name lookup, or type IDs are involved. Density samples are
+ * owned by LDKTerrainComponent; multiple layers overlap independently.
  * @group ldk.terrain
  */
 typedef struct LDKTerrainVegetationLayer
 {
   u64 id;
-  char type_name[LDK_TERRAIN_LAYER_NAME_CAPACITY];
-  LDKAssetPath density_map_path;
+  LDKGrassTypeDesc type;
   float density_scale;
   u32 seed;
 } LDKTerrainVegetationLayer;
@@ -162,8 +161,8 @@ LDK_API bool ldk_terrain_heightmap_range_expand(LDKTerrain *terrain,
  * The returned ID is stable; IDs are never reused within the terrain.
  */
 LDK_API bool ldk_terrain_vegetation_layer_add(LDKTerrain *terrain,
-    const char *type_name, const char *density_map_path,
-    float density_scale, u32 seed, u64 *out_id);
+    const LDKGrassTypeDesc *type, float density_scale,
+    u32 seed, u64 *out_id);
 LDK_API bool ldk_terrain_vegetation_layer_remove(
     LDKTerrain *terrain, u64 layer_id);
 
@@ -189,6 +188,17 @@ LDK_API bool ldk_terrain_from_tml_with_heightmap(LDKTerrain *terrain,
  */
 LDK_API bool ldk_terrain_from_tml_node_with_heightmap(LDKTerrain *terrain,
     LDKImage **out_image, const TMLDocument *doc, const TMLNode *node);
+/** Scene-owned R8 vegetation masks use one Base64 string per layer. An
+ * absent mask is NULL. Each present mask has width * height bytes. The
+ * decoder allocates every output; the caller must free each non-NULL mask. */
+LDK_API bool ldk_terrain_to_tml_with_component_data(
+    const LDKTerrain *terrain, const LDKImageInfo *heightmap,
+    const u8 *const masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT],
+    char **out_text);
+LDK_API bool ldk_terrain_from_tml_node_with_component_data(
+    LDKTerrain *terrain, LDKImage **out_image,
+    u8 *masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT],
+    const TMLDocument *doc, const TMLNode *node);
 
 #ifdef __cplusplus
 }

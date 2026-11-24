@@ -983,11 +983,18 @@ void ldki_editor_scene_view_toolbar_show(LDKEditorContext *editor)
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT + 2 * LDK_UI_DEFAULT_PADDING) );
   ldk_ui_begin_horizontal(ui);
   s_editor_gizmo_mode_buttons(editor);
-  ldk_ui_set_next_width(ui, ldk_ui_px(110.0f));
+  LDKUIIcon terrain_icon = {0};
+  terrain_icon.color_role = LDK_UI_ICON_COLOR_DEFAULT;
+  terrain_icon.texture = ldk_renderer_texture_ui_handle(
+      editor->renderer, editor->ui_atlas);
+  terrain_icon.size.w = terrain_icon.size.h =
+      LDK_UI_DEFAULT_CONTROL_HEIGHT;
+  terrain_icon.uv = ldk_editor_icon_rects[LDK_EDITOR_ICON_TERRAIN_EDITOR];
+  ldk_ui_set_next_width(ui, ldk_ui_px(136.0f));
   ldk_ui_set_next_disabled(ui, editor->gizmo.dragging ||
       editor->editor_state != LDK_EDITOR_STATE_STOPED);
-  if (ldk_ui_button(ui, editor->terrain_editor.enabled
-          ? "Terrain: ON" : "Terrain Edit"))
+  if (ldk_ui_toggle_icon_button(ui, terrain_icon, "Terrain Edit",
+          editor->terrain_editor.enabled) != editor->terrain_editor.enabled)
   {
     /* Terrain Edit controls the brush in the scene view. The authoring
      * controls live in the selected TerrainComponent's inspector. */

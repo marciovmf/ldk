@@ -79,8 +79,11 @@ typedef struct IslandBiomeDesc
 {
   //@inspect headline
   XSmallstr name;
-  /** Grass type resolved by name; empty means no grass. */
-  XSmallstr grass_type_name;
+  /** Bit i enables terrain vegetation layer i for this biome. Multiple
+   * bits may coexist in the same cell. Zero disables procedural vegetation.
+   * Layer appearance and distribution settings live in TerrainComponent. */
+  //@inspect min=0 max=65535
+  u32 vegetation_layer_mask;
 
   /** Explicit surface association takes precedence over gameplay_tag. */
   bool generator_surface_enabled;
@@ -176,10 +179,6 @@ typedef struct TFTFIslandSystem
   float elevation;
   /** Camera offset used only by the legacy atlas when TerrainSystem is off. */
   float forward_offset;
-  /** Extra preload margin around the main camera frustum, in world units.
-   * Zero selects a default margin of four island cells. */
-  //@inspect min=0
-  float grass_stream_margin;
   LDKAssetMaterial material;
   //@end_group
 
@@ -198,9 +197,6 @@ typedef struct TFTFIslandSystem
   u32 map_revision;
   //@inspect runtime
   u32 active_tile_count;
-  /** Frustum-streamed grass cells outside the nearby gameplay window. */
-  //@inspect runtime
-  u32 streamed_grass_tile_count;
   //@inspect runtime
   u32 tiles_added;
   //@inspect runtime

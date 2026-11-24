@@ -17,6 +17,14 @@
 #include <stdlib.h>
 #include <string.h>
 
+static LDKGrassTypeDesc s_vegetation_type(const char *name)
+{
+  LDKGrassTypeDesc type;
+  ldk_grass_type_desc_defaults(&type);
+  (void)x_smallstr_init(&type.name, name);
+  return type;
+}
+
 static int test_terrain_defaults_and_roundtrip(void)
 {
   LDKTerrain terrain, restored;
@@ -27,8 +35,9 @@ static int test_terrain_defaults_and_roundtrip(void)
   ASSERT_TRUE(ldk_terrain_validate(&terrain));
   ASSERT_EQ(terrain.surface_count, 1u);
   ASSERT_EQ(terrain.heightmap_path.length, 0u);
+  LDKGrassTypeDesc grass = s_vegetation_type("Tall Grass");
   ASSERT_TRUE(ldk_terrain_vegetation_layer_add(&terrain,
-      "Tall Grass", "terrain/grass.png", 0.7f, 123u, &layer_id));
+      &grass, 0.7f, 123u, &layer_id));
   ASSERT_EQ(layer_id, 1u);
   terrain.surfaces[0].color = 0x885522ffu;
   terrain.surfaces[0].sprite_id = 23u;
@@ -45,15 +54,14 @@ static int test_terrain_defaults_and_roundtrip(void)
   ASSERT_EQ(restored.vegetation_layer_count, 1u);
   ASSERT_EQ(restored.vegetation_layers[0].id, layer_id);
   ASSERT_EQ(restored.vegetation_layers[0].seed, 123u);
-  ASSERT_TRUE(strcmp(restored.vegetation_layers[0].type_name,
-      "Tall Grass") == 0);
-  ASSERT_TRUE(strcmp(restored.vegetation_layers[0].density_map_path.buf,
-      "terrain/grass.png") == 0);
+  ASSERT_TRUE(strcmp(x_smallstr_cstr(
+      &restored.vegetation_layers[0].type.name), "Tall Grass") == 0);
   ASSERT_TRUE(restored.vegetation_layers[0].density_scale > 0.69f &&
       restored.vegetation_layers[0].density_scale < 0.71f);
   ASSERT_TRUE(ldk_terrain_vegetation_layer_remove(&restored, layer_id));
+  LDKGrassTypeDesc flowers = s_vegetation_type("Flowers");
   ASSERT_TRUE(ldk_terrain_vegetation_layer_add(&restored,
-      "Flowers", "", 1.0f, 11u, &layer_id));
+      &flowers, 1.0f, 11u, &layer_id));
   ASSERT_EQ(layer_id, 2u);
   free(text);
   return 0;
@@ -265,6 +273,121 @@ static int test_terrain_heightmap_embedded_roundtrip(void)
   return 0;
 }
 
+/* Each terrain layer owns its type without global registration. */
+static int test_terrain_vegetation_type_roundtrip(void)
+{
+  LDKTerrain terrain, loaded;
+  ldk_terrain_init(&terrain);
+  u64 flowers_id = 0u, grass_id = 0u;
+  LDKGrassTypeDesc flowers_type = s_vegetation_type("Flowers");
+  LDKGrassTypeDesc grass_type = s_vegetation_type("Tall Grass");
+  ASSERT_TRUE(ldk_terrain_vegetation_layer_add(&terrain,
+      &flowers_type, 1.0f, 11u, &flowers_id));
+  ASSERT_TRUE(ldk_terrain_vegetation_layer_add(&terrain,
+      &grass_type, 0.4f, 22u, &grass_id));
+  LDKTerrainVegetationLayer *flowers = &terrain.vegetation_layers[0];
+  LDKTerrainVegetationLayer *grass = &terrain.vegetation_layers[1];
+  flowers->type.blade_preset = LDK_GRASS_BLADE_PRESET_PLUMED_STEM;
+  flowers->type.density = 0.3f;
+  flowers->type.clumping = 0.6f;
+  flowers->type.clump_radius = 0.8f;
+  flowers->type.min_height = 0.4f;
+  flowers->type.max_height = 0.9f;
+  flowers->type.blade_width = 0.17f;
+  flowers->type.curvature = 0.2f;
+  flowers->type.wind_strength = 0.11f;
+  flowers->type.interaction_recovery_time = 2.0f;
+  flowers->type.bottom_color = 0x112233ffu;
+  flowers->type.top_color = 0x557799ffu;
+  flowers->type.use_noise_height = true;
+  flowers->type.use_noise_color = true;
+  flowers->type.use_custom_noise_palette = true;
+  flowers->type.noise_color_stop_0_color = 1u;
+  flowers->type.noise_color_stop_1_color = 2u;
+  flowers->type.noise_color_stop_2_color = 3u;
+  flowers->type.noise_color_stop_3_color = 4u;
+  grass->type = flowers->type;
+  (void)x_smallstr_init(&grass->type.name, "Tall Grass");
+  grass->type.blade_preset = LDK_GRASS_BLADE_PRESET_THORNY;
+  grass->type.density = 4.2f;
+  grass->type.top_color = 0xaabbccffu;
+  ASSERT_TRUE(ldk_terrain_validate(&terrain));
+  char *serialized = NULL;
+  ASSERT_TRUE(ldk_terrain_to_tml(&terrain, &serialized));
+  ASSERT_TRUE(serialized != NULL);
+  ASSERT_TRUE(strstr(serialized, "type_settings:") != NULL);
+  ASSERT_TRUE(strstr(serialized, "        name: ") != NULL);
+  ASSERT_TRUE(strstr(serialized, "      type: ") == NULL);
+  ASSERT_TRUE(ldk_terrain_from_tml(&loaded, serialized));
+  ASSERT_EQ(loaded.vegetation_layer_count, 2u);
+  ASSERT_EQ(loaded.vegetation_layers[0].id, flowers_id);
+  ASSERT_EQ(loaded.vegetation_layers[1].id, grass_id);
+  ASSERT_EQ(loaded.vegetation_layers[0].type.blade_preset,
+      LDK_GRASS_BLADE_PRESET_PLUMED_STEM);
+  ASSERT_EQ(loaded.vegetation_layers[1].type.blade_preset,
+      LDK_GRASS_BLADE_PRESET_THORNY);
+  ASSERT_TRUE(loaded.vegetation_layers[0].type.density > 0.29f &&
+      loaded.vegetation_layers[0].type.density < 0.31f);
+  ASSERT_TRUE(loaded.vegetation_layers[1].type.density > 4.19f &&
+      loaded.vegetation_layers[1].type.density < 4.21f);
+  ASSERT_EQ(loaded.vegetation_layers[0].type.bottom_color,
+      0x112233ffu);
+  ASSERT_EQ(loaded.vegetation_layers[0].type.noise_color_stop_2_color,
+      3u);
+  ASSERT_EQ(loaded.vegetation_layers[1].type.top_color,
+      0xaabbccffu);
+  ASSERT_TRUE(strcmp(x_smallstr_cstr(
+      &loaded.vegetation_layers[1].type.name), "Tall Grass") == 0);
+  /* Every layer owns a complete, valid type; names are labels only. */
+  (void)x_smallstr_init(&loaded.vegetation_layers[0].type.name, "");
+  ASSERT_FALSE(ldk_terrain_validate(&loaded));
+  free(serialized);
+  return 0;
+}
+
+/* Older terrain components that already contain a full local descriptor
+ * remain readable. The duplicate sibling name is consumed once, never saved. */
+static int test_terrain_previous_type_settings_migrate(void)
+{
+  LDKTerrain terrain;
+  ldk_terrain_init(&terrain);
+  LDKGrassTypeDesc flowers = s_vegetation_type("Flowers");
+  flowers.blade_preset = LDK_GRASS_BLADE_PRESET_PLUMED_STEM;
+  u64 id = 0u;
+  ASSERT_TRUE(ldk_terrain_vegetation_layer_add(&terrain,
+      &flowers, 1.0f, 7u, &id));
+  char *modern = NULL;
+  ASSERT_TRUE(ldk_terrain_to_tml(&terrain, &modern));
+  const char *settings = strstr(modern, "      type_settings:\n");
+  const char *name = strstr(modern, "        name: \"Flowers\"\n");
+  ASSERT_TRUE(settings != NULL && name != NULL && name > settings);
+  const char *after_name = strchr(name, '\n') + 1u;
+  const char *legacy_name = "      type: \"Flowers\"\n";
+  size_t before = (size_t)(settings - modern);
+  size_t between = (size_t)(name - settings);
+  char *legacy = calloc(strlen(modern) + strlen(legacy_name) + 1u, 1u);
+  ASSERT_TRUE(legacy != NULL);
+  memcpy(legacy, modern, before);
+  strcpy(legacy + before, legacy_name);
+  memcpy(legacy + before + strlen(legacy_name), settings, between);
+  strcpy(legacy + before + strlen(legacy_name) + between, after_name);
+  LDKTerrain decoded;
+  ASSERT_TRUE(ldk_terrain_from_tml(&decoded, legacy));
+  ASSERT_EQ(decoded.vegetation_layer_count, 1u);
+  ASSERT_EQ(decoded.vegetation_layers[0].type.blade_preset,
+      LDK_GRASS_BLADE_PRESET_PLUMED_STEM);
+  ASSERT_TRUE(strcmp(x_smallstr_cstr(
+      &decoded.vegetation_layers[0].type.name), "Flowers") == 0);
+  char *resaved = NULL;
+  ASSERT_TRUE(ldk_terrain_to_tml(&decoded, &resaved));
+  ASSERT_TRUE(strstr(resaved, "      type: ") == NULL);
+  ASSERT_TRUE(strstr(resaved, "        name: \"Flowers\"") != NULL);
+  free(resaved);
+  free(legacy);
+  free(modern);
+  return 0;
+}
+
 int main(void)
 {
   STDXTestCase tests[] = {
@@ -274,6 +397,8 @@ int main(void)
       X_TEST(test_terrain_heightmap_range_expansion),
       X_TEST(test_terrain_invalid_parse_preserves_original),
       X_TEST(test_terrain_heightmap_embedded_roundtrip),
+      X_TEST(test_terrain_vegetation_type_roundtrip),
+      X_TEST(test_terrain_previous_type_settings_migrate),
   };
   return x_tests_run(tests, sizeof(tests) / sizeof(tests[0]), NULL);
 }

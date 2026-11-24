@@ -316,6 +316,12 @@ typedef struct LDKEditorTerrainHeightSnapshot
   float surface_blend_width[LDK_TERRAIN_SURFACE_COUNT];
 } LDKEditorTerrainHeightSnapshot;
 
+typedef enum LDKEditorTerrainEditMode
+{
+  LDK_EDITOR_TERRAIN_EDIT_SCULPT = 0,
+  LDK_EDITOR_TERRAIN_EDIT_VEGETATION
+} LDKEditorTerrainEditMode;
+
 typedef struct LDKEditorTerrainState
 {
   LDKTerrain data;
@@ -324,6 +330,13 @@ typedef struct LDKEditorTerrainState
   u64 observed_revision;
   u8 *pixels;
   u8 *stroke_start;
+  /* Scratch R8 mask for the selected vegetation layer. */
+  u8 *vegetation_pixels;
+  u64 vegetation_layer_id;
+  u64 stroke_layer_id;
+  char vegetation_type_text[LDK_TERRAIN_LAYER_NAME_CAPACITY];
+  LDKEditorTerrainEditMode edit_mode;
+  bool vegetation_erase;
   LDKEditorTerrainHeightSnapshot stroke_height_start;
   /* Desired world-space elevation of the Flatten plane, in scene units. */
   float flatten_height;

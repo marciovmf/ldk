@@ -12,6 +12,27 @@
 #include <stdlib.h>
 #include <string.h>
 
+static bool s_terrain_grass_type_valid(const LDKTerrainVegetationLayer *layer)
+{
+  const LDKGrassTypeDesc *type = &layer->type;
+  return x_smallstr_length(&type->name) > 0u &&
+      type->blade_preset >= LDK_GRASS_BLADE_PRESET_THIN &&
+      type->blade_preset <= LDK_GRASS_BLADE_PRESET_CUSTOM_7 &&
+      isfinite(type->density) && type->density >= 0.0f &&
+      isfinite(type->clumping) && type->clumping >= 0.0f &&
+      type->clumping <= 1.0f &&
+      isfinite(type->clump_radius) && type->clump_radius >= 0.0f &&
+      isfinite(type->min_height) && type->min_height > 0.0f &&
+      isfinite(type->max_height) &&
+      type->max_height >= type->min_height &&
+      isfinite(type->blade_width) && type->blade_width > 0.0f &&
+      isfinite(type->curvature) && type->curvature >= 0.0f &&
+      isfinite(type->wind_strength) && type->wind_strength >= 0.0f &&
+      isfinite(type->interaction_recovery_time) &&
+      type->interaction_recovery_time >= 0.0f &&
+      type->interaction_recovery_time <= 16.0f;
+}
+
 static bool s_path_valid(const LDKAssetPath *path)
 {
   LDKAssetPath normalized;
@@ -132,10 +153,8 @@ bool ldk_terrain_validate(const LDKTerrain *terrain)
     const LDKTerrainVegetationLayer *layer =
         &terrain->vegetation_layers[i];
     if (!layer->id || layer->id >= terrain->next_vegetation_layer_id ||
-        !memchr(layer->type_name, '\0', sizeof(layer->type_name)) ||
-        !layer->type_name[0] ||
-        !s_path_valid(&layer->density_map_path) ||
-        !isfinite(layer->density_scale) || layer->density_scale < 0.0f)
+        !isfinite(layer->density_scale) || layer->density_scale < 0.0f ||
+        !s_terrain_grass_type_valid(layer))
     {
       return false;
     }
@@ -474,31 +493,26 @@ LDKImage *ldk_terrain_heightmap_resample(
 }
 
 bool ldk_terrain_vegetation_layer_add(LDKTerrain *terrain,
-    const char *type_name, const char *density_map_path,
-    float density_scale, u32 seed, u64 *out_id)
+    const LDKGrassTypeDesc *type, float density_scale,
+    u32 seed, u64 *out_id)
 {
   LDKTerrainVegetationLayer layer = {0};
-  size_t length = type_name ? strlen(type_name) : 0u;
-  if (!terrain || !ldk_terrain_validate(terrain) || !length ||
-      length >= sizeof(layer.type_name) || !density_map_path ||
+  if (!terrain || !ldk_terrain_validate(terrain) || !type ||
       terrain->vegetation_layer_count >=
           LDK_TERRAIN_VEGETATION_LAYER_COUNT ||
       terrain->next_vegetation_layer_id == INT64_MAX ||
-      !isfinite(density_scale) || density_scale < 0.0f ||
-      !s_optional_path_set(&layer.density_map_path, density_map_path))
+      !isfinite(density_scale) || density_scale < 0.0f)
   {
     return false;
   }
-  memcpy(layer.type_name, type_name, length + 1u);
   layer.id = terrain->next_vegetation_layer_id;
+  layer.type = *type;
   layer.seed = seed;
   layer.density_scale = density_scale;
+  if (!s_terrain_grass_type_valid(&layer)) return false;
   terrain->vegetation_layers[terrain->vegetation_layer_count++] = layer;
   ++terrain->next_vegetation_layer_id;
-  if (out_id)
-  {
-    *out_id = layer.id;
-  }
+  if (out_id) *out_id = layer.id;
   return true;
 }
 
@@ -709,8 +723,89 @@ invalid:
   return false;
 }
 
+
+/* R8 vegetation masks are stored at terrain-grid resolution. Keep the
+ * encoding separate from heightmap R16 so a scene does not pay for redundant
+ * RGBA channels or external PNG assets. */
+static bool s_terrain_density_encode(XStrBuilder *out, const u8 *bytes,
+    u64 count)
+{
+  if (!out || !bytes || !count || count > (UINT32_MAX / 4u) * 3u - 2u)
+    return false;
+  char encoded[4096];
+  size_t used = 0u;
+  u32 accumulator = 0u, bits = 0u;
+  x_strbuilder_append(out, "      density_encoding: \"u8-base64\"\n"
+      "      density_samples: \"");
+  for (u64 i = 0u; i < count; ++i)
+  {
+    accumulator = (accumulator << 8u) | bytes[i];
+    bits += 8u;
+    while (bits >= 6u)
+    {
+      bits -= 6u;
+      encoded[used++] = s_terrain_base64[(accumulator >> bits) & 63u];
+    }
+    if (used >= sizeof(encoded) - 8u)
+    {
+      x_strbuilder_append_substring(out, encoded, used);
+      used = 0u;
+    }
+  }
+  if (bits)
+    encoded[used++] = s_terrain_base64[(accumulator << (6u - bits)) & 63u];
+  for (u32 i = 0u; i < (3u - count % 3u) % 3u; ++i)
+    encoded[used++] = '=';
+  if (used) x_strbuilder_append_substring(out, encoded, used);
+  x_strbuilder_append(out, "\"\n");
+  return true;
+}
+
+static bool s_terrain_density_decode(TMLString encoded, u64 count,
+    u8 **out_bytes)
+{
+  if (!out_bytes || !count || count > SIZE_MAX ||
+      count > (UINT32_MAX / 4u) * 3u - 2u ||
+      encoded.size != 4u * ((count + 2u) / 3u)) return false;
+  u8 *bytes = malloc((size_t)count);
+  if (!bytes) return false;
+  const u32 padding = (u32)((3u - count % 3u) % 3u);
+  u64 written = 0u;
+  u32 bits = 0u, accumulator = 0u;
+  bool ok = true;
+  for (u32 i = 0u; i < encoded.size; ++i)
+  {
+    char c = encoded.data[i];
+    if (i >= encoded.size - padding)
+    {
+      if (c != '=') {ok = false; break;}
+      continue;
+    }
+    int digit = s_terrain_base64_value(c);
+    if (digit < 0) {ok = false; break;}
+    accumulator = (accumulator << 6u) | (u32)digit;
+    bits += 6u;
+    if (bits >= 8u)
+    {
+      bits -= 8u;
+      if (written >= count) {ok = false; break;}
+      bytes[written++] = (u8)((accumulator >> bits) & 255u);
+    }
+  }
+  if (!ok || written != count ||
+      (bits && (accumulator & ((1u << bits) - 1u))))
+  {
+    free(bytes);
+    return false;
+  }
+  *out_bytes = bytes;
+  return true;
+}
+
 static bool s_terrain_to_tml_internal(const LDKTerrain *terrain,
-    const LDKImageInfo *heightmap, char **out_text)
+    const LDKImageInfo *heightmap,
+    const u8 *const masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT],
+    char **out_text)
 {
   XStrBuilder *out;
   const char *text;
@@ -793,12 +888,47 @@ static bool s_terrain_to_tml_internal(const LDKTerrain *terrain,
         &terrain->vegetation_layers[i];
     x_strbuilder_append_format(out, "    - id: %llu\n",
         (unsigned long long)layer->id);
-    s_write_string_entry(out, "      type: ", layer->type_name);
-    s_write_string_entry(out, "      density_map: ",
-        layer->density_map_path.buf);
     s_write_float_entry(out, "      density_scale: ",
         layer->density_scale);
     x_strbuilder_append_format(out, "      seed: %u\n", layer->seed);
+    const LDKGrassTypeDesc *type = &layer->type;
+    x_strbuilder_append(out, "      type_settings:\n");
+    s_write_string_entry(out, "        name: ", x_smallstr_cstr(&type->name));
+    x_strbuilder_append_format(out, "        blade_preset: %u\n",
+        (u32)type->blade_preset);
+    s_write_float_entry(out, "        density: ", type->density);
+    s_write_float_entry(out, "        clumping: ", type->clumping);
+    s_write_float_entry(out, "        clump_radius: ", type->clump_radius);
+    s_write_float_entry(out, "        min_height: ", type->min_height);
+    s_write_float_entry(out, "        max_height: ", type->max_height);
+    x_strbuilder_append_format(out, "        use_noise_height: %s\n",
+        type->use_noise_height ? "true" : "false");
+    s_write_float_entry(out, "        blade_width: ", type->blade_width);
+    s_write_float_entry(out, "        curvature: ", type->curvature);
+    s_write_float_entry(out, "        wind_strength: ", type->wind_strength);
+    s_write_float_entry(out, "        interaction_recovery_time: ",
+        type->interaction_recovery_time);
+    x_strbuilder_append_format(out, "        bottom_color: %u\n"
+        "        top_color: %u\n"
+        "        use_noise_color: %s\n"
+        "        use_custom_noise_palette: %s\n"
+        "        noise_color_stop_0_color: %u\n"
+        "        noise_color_stop_1_color: %u\n"
+        "        noise_color_stop_2_color: %u\n"
+        "        noise_color_stop_3_color: %u\n",
+        type->bottom_color, type->top_color,
+        type->use_noise_color ? "true" : "false",
+        type->use_custom_noise_palette ? "true" : "false",
+        type->noise_color_stop_0_color,
+        type->noise_color_stop_1_color,
+        type->noise_color_stop_2_color,
+        type->noise_color_stop_3_color);
+    if (masks && masks[i] && !s_terrain_density_encode(out, masks[i],
+            (u64)terrain->width * terrain->height))
+    {
+      x_strbuilder_destroy(out);
+      return false;
+    }
   }
 
   text = x_strbuilder_to_string(out);
@@ -817,13 +947,13 @@ static bool s_terrain_to_tml_internal(const LDKTerrain *terrain,
 
 bool ldk_terrain_to_tml(const LDKTerrain *terrain, char **out_text)
 {
-  return s_terrain_to_tml_internal(terrain, NULL, out_text);
+  return s_terrain_to_tml_internal(terrain, NULL, NULL, out_text);
 }
 
 bool ldk_terrain_to_tml_with_heightmap(const LDKTerrain *terrain,
     const LDKImageInfo *heightmap, char **out_text)
 {
-  return s_terrain_to_tml_internal(terrain, heightmap, out_text);
+  return s_terrain_to_tml_internal(terrain, heightmap, NULL, out_text);
 }
 
 static bool s_read_string(const TMLDocument *doc, const TMLNode *node,
@@ -847,6 +977,14 @@ static bool s_read_path(const TMLDocument *doc, const TMLNode *node,
   char buffer[LDK_ASSET_PATH_MAX_LENGTH + 1u];
   return s_read_string(doc, node, key, buffer, sizeof(buffer)) &&
       s_optional_path_set(out_path, buffer);
+}
+
+bool ldk_terrain_to_tml_with_component_data(const LDKTerrain *terrain,
+    const LDKImageInfo *heightmap,
+    const u8 *const masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT],
+    char **out_text)
+{
+  return s_terrain_to_tml_internal(terrain, heightmap, masks, out_text);
 }
 
 static bool s_read_float(const TMLDocument *doc, const TMLNode *node,
@@ -916,8 +1054,10 @@ static bool s_read_vec2(const TMLDocument *doc, const TMLNode *node,
   return true;
 }
 
-bool ldk_terrain_from_tml_node_with_heightmap(LDKTerrain *terrain,
-    LDKImage **out_image, const TMLDocument *doc, const TMLNode *root)
+static bool s_terrain_from_tml_node_internal(LDKTerrain *terrain,
+    LDKImage **out_image,
+    u8 *masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT],
+    const TMLDocument *doc, const TMLNode *root)
 {
   const TMLNode *surfaces;
   const TMLNode *vegetation;
@@ -928,6 +1068,9 @@ bool ldk_terrain_from_tml_node_with_heightmap(LDKTerrain *terrain,
   TMLI64Slice resolution;
   bool valid;
   if (!terrain || !doc || !root || !out_image) return false;
+  if (masks)
+    for (u32 i = 0u; i < LDK_TERRAIN_VEGETATION_LAYER_COUNT; ++i)
+      masks[i] = NULL;
   ldk_terrain_init(&candidate);
   valid = root && root->name.size == sizeof("terrain") - 1u &&
       memcmp(root->name.data, "terrain", sizeof("terrain") - 1u) == 0 &&
@@ -1015,13 +1158,60 @@ bool ldk_terrain_from_tml_node_with_heightmap(LDKTerrain *terrain,
     LDKTerrainVegetationLayer *layer = &candidate.vegetation_layers[i];
     valid = node &&
         s_read_u64(doc, node, "id", &layer->id) &&
-        s_read_string(doc, node, "type",
-            layer->type_name, sizeof(layer->type_name)) &&
-        s_read_path(doc, node, "density_map",
-            &layer->density_map_path) &&
         s_read_float(doc, node, "density_scale",
             &layer->density_scale) &&
         s_read_u32(doc, node, "seed", &layer->seed);
+    /* Do not silently drop an older external mask when converting to the
+     * one-owned-R8-mask model. It must first be imported by an older build. */
+    if (valid && tml_node_find_entry(doc, node, "density_map"))
+    {
+      TMLString old_path = {0};
+      valid = tml_node_get_string(doc, node, "density_map", &old_path) &&
+          (old_path.size == 0u ||
+              tml_node_find_entry(doc, node, "density_samples") != NULL);
+    }
+    if (!valid) break;
+    const TMLNode *settings = tml_node_find_child(doc, node,
+        "type_settings");
+    /* Previously a name was stored in 'type' beside type_settings. Accept
+     * that complete representation on load but write one description only. */
+    if (!settings) { valid = false; break; }
+    LDKGrassTypeDesc *type = &layer->type;
+    char name[X_SMALLSTR_MAX_LENGTH + 1u] = {0};
+    u32 preset = 0u;
+    valid = (s_read_string(doc, settings, "name", name, sizeof(name)) ||
+        s_read_string(doc, node, "type", name, sizeof(name))) &&
+        x_smallstr_init(&type->name, name) >= 0 &&
+        s_read_u32(doc, settings, "blade_preset", &preset) &&
+        preset <= LDK_GRASS_BLADE_PRESET_CUSTOM_7 &&
+        s_read_float(doc, settings, "density", &type->density) &&
+        s_read_float(doc, settings, "clumping", &type->clumping) &&
+        s_read_float(doc, settings, "clump_radius",
+            &type->clump_radius) &&
+        s_read_float(doc, settings, "min_height", &type->min_height) &&
+        s_read_float(doc, settings, "max_height", &type->max_height) &&
+        s_read_bool(doc, settings, "use_noise_height",
+            &type->use_noise_height) &&
+        s_read_float(doc, settings, "blade_width", &type->blade_width) &&
+        s_read_float(doc, settings, "curvature", &type->curvature) &&
+        s_read_float(doc, settings, "wind_strength", &type->wind_strength) &&
+        s_read_float(doc, settings, "interaction_recovery_time",
+            &type->interaction_recovery_time) &&
+        s_read_u32(doc, settings, "bottom_color", &type->bottom_color) &&
+        s_read_u32(doc, settings, "top_color", &type->top_color) &&
+        s_read_bool(doc, settings, "use_noise_color",
+            &type->use_noise_color) &&
+        s_read_bool(doc, settings, "use_custom_noise_palette",
+            &type->use_custom_noise_palette) &&
+        s_read_u32(doc, settings, "noise_color_stop_0_color",
+            &type->noise_color_stop_0_color) &&
+        s_read_u32(doc, settings, "noise_color_stop_1_color",
+            &type->noise_color_stop_1_color) &&
+        s_read_u32(doc, settings, "noise_color_stop_2_color",
+            &type->noise_color_stop_2_color) &&
+        s_read_u32(doc, settings, "noise_color_stop_3_color",
+            &type->noise_color_stop_3_color);
+    type->blade_preset = (LDKGrassBladePreset)preset;
   }
   valid = valid && ldk_terrain_validate(&candidate);
   LDKImage *embedded = NULL;
@@ -1038,10 +1228,54 @@ bool ldk_terrain_from_tml_node_with_heightmap(LDKTerrain *terrain,
             "heightmap_samples", &samples) &&
         s_terrain_heightmap_decode(&candidate, samples, &embedded);
   }
-  if (!valid) return false;
+  if (valid && masks)
+  {
+    const u64 count = (u64)candidate.width * candidate.height;
+    for (u32 i = 0u; i < candidate.vegetation_layer_count; ++i)
+    {
+      const TMLNode *node = tml_node_child_at(doc, vegetation, i);
+      if (!tml_node_find_entry(doc, node, "density_samples")) continue;
+      TMLString encoding = {0}, samples = {0};
+      static const char name[] = "u8-base64";
+      valid = tml_node_get_string(doc, node, "density_encoding", &encoding) &&
+          encoding.size == sizeof(name) - 1u &&
+          memcmp(encoding.data, name, sizeof(name) - 1u) == 0 &&
+          tml_node_get_string(doc, node, "density_samples", &samples) &&
+          s_terrain_density_decode(samples, count, &masks[i]);
+      if (!valid) break;
+    }
+  }
+  if (!valid)
+  {
+    ldk_image_destroy(embedded);
+    if (masks)
+      for (u32 i = 0u; i < LDK_TERRAIN_VEGETATION_LAYER_COUNT; ++i)
+      {
+        free(masks[i]);
+        masks[i] = NULL;
+      }
+    return false;
+  }
   *terrain = candidate;
   *out_image = embedded;
   return true;
+}
+
+bool ldk_terrain_from_tml_node_with_heightmap(LDKTerrain *terrain,
+    LDKImage **out_image, const TMLDocument *doc, const TMLNode *node)
+{
+  return s_terrain_from_tml_node_internal(terrain, out_image, NULL,
+      doc, node);
+}
+
+bool ldk_terrain_from_tml_node_with_component_data(LDKTerrain *terrain,
+    LDKImage **out_image,
+    u8 *masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT],
+    const TMLDocument *doc, const TMLNode *node)
+{
+  if (!masks) return false;
+  return s_terrain_from_tml_node_internal(terrain, out_image, masks,
+      doc, node);
 }
 
 bool ldk_terrain_from_tml_with_heightmap(LDKTerrain *terrain,

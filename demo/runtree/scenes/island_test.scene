@@ -338,6 +338,248 @@ scene:
             material_specular: 0
             material_shininess: 32
             material_emission: 0
+    - entity: 11
+      parent: -1
+      flags: 0
+      name: "Terrain"
+      name_hash: "0x6a63c902245f5e0e"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.00000000, 0.00000000
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967276 # LDKTerrainComponent
+          fields:
+            terrain:
+              version: 1
+              heightmap: ""
+              height_channel: 0
+              resolution: 64, 64
+              cell_size: 1.00000000
+              height_scale: 10.0000000
+              height_offset: 0.00000000
+              center_on_origin: true
+              origin: 0.00000000, 0.00000000
+              material: ""
+              texture_atlas: "terrain_test.atlas"
+              color_noise: "assets/textures/grass_color_noise.png"
+              color_noise_scale: 0.0199999996
+              color_noise_strength: 1.00000000
+              surfaces:
+                - name: "Shallow Water"
+                  min_height: 0.00000000
+                  blend_width: 0.00000000
+                  color: 3586760191
+                  noise_low_color: 3350694911
+                  noise_high_color: 3856118015
+                  sprite_id: 1
+                  uv_scale: 1.00000000, 1.00000000
+                  texture_weight: 0.0799999982
+                  use_slope: false
+                  min_slope_degrees: 0.00000000
+                  slope_blend_degrees: 0.00000000
+                  paint_mask: ""
+                - name: "Sand"
+                  min_height: 0.140000001
+                  blend_width: 0.131164595
+                  color: 3905259519
+                  noise_low_color: 3585112319
+                  noise_high_color: 4073954559
+                  sprite_id: 2
+                  uv_scale: 1.00000000, 1.00000000
+                  texture_weight: 0.0799999982
+                  use_slope: false
+                  min_slope_degrees: 0.00000000
+                  slope_blend_degrees: 0.00000000
+                  paint_mask: ""
+                - name: "Dry"
+                  min_height: 0.170000002
+                  blend_width: 0.0153194265
+                  color: 2660722175
+                  noise_low_color: 2963632639
+                  noise_high_color: 2222740991
+                  sprite_id: 3
+                  uv_scale: 1.00000000, 1.00000000
+                  texture_weight: 0.0799999982
+                  use_slope: false
+                  min_slope_degrees: 0.00000000
+                  slope_blend_degrees: 0.00000000
+                  paint_mask: ""
+                - name: "Grass"
+                  min_height: 0.200000003
+                  blend_width: 0.176042676
+                  color: 2679204607
+                  noise_low_color: 3132979711
+                  noise_high_color: 2073908991
+                  sprite_id: 4
+                  uv_scale: 1.00000000, 1.00000000
+                  texture_weight: 0.0799999982
+                  use_slope: false
+                  min_slope_degrees: 0.00000000
+                  slope_blend_degrees: 0.00000000
+                  paint_mask: ""
+                - name: "Forest"
+                  min_height: 0.211200893
+                  blend_width: 0.0404324383
+                  color: 1854947583
+                  noise_low_color: 2191476991
+                  noise_high_color: 1400648447
+                  sprite_id: 5
+                  uv_scale: 1.00000000, 1.00000000
+                  texture_weight: 0.0799999982
+                  use_slope: false
+                  min_slope_degrees: 0.00000000
+                  slope_blend_degrees: 0.00000000
+                  paint_mask: ""
+                - name: "Thorns"
+                  min_height: 0.250000000
+                  blend_width: 0.00499999989
+                  color: 2393275647
+                  noise_low_color: 2814086399
+                  noise_high_color: 1855155455
+                  sprite_id: 6
+                  uv_scale: 1.00000000, 1.00000000
+                  texture_weight: 0.0799999982
+                  use_slope: false
+                  min_slope_degrees: 0.00000000
+                  slope_blend_degrees: 0.00000000
+                  paint_mask: ""
+                - name: "Mountain"
+                  min_height: 0.258184999
+                  blend_width: 0.00800000038
+                  color: 2829950719
+                  noise_low_color: 2493222911
+                  noise_high_color: 3234182655
+                  sprite_id: 0
+                  uv_scale: 1.00000000, 1.00000000
+                  texture_weight: 0.0799999982
+                  use_slope: false
+                  min_slope_degrees: 0.00000000
+                  slope_blend_degrees: 0.00000000
+                  paint_mask: ""
+              next_vegetation_id: 6
+              vegetation:
+                - id: 1
+                  density_scale: 1.00000000
+                  seed: 1015570075
+                  type_settings:
+                    name: "dry_grass"
+                    blade_preset: 0
+                    density: 6.00000000
+                    clumping: 0.00000000
+                    clump_radius: 0.00000000
+                    min_height: 0.200000003
+                    max_height: 2.00000000
+                    use_noise_height: false
+                    blade_width: 0.00999999978
+                    curvature: 0.500000000
+                    wind_strength: 0.00000000
+                    interaction_recovery_time: 0.00000000
+                    bottom_color: 3603797759
+                    top_color: 2744809727
+                    use_noise_color: false
+                    use_custom_noise_palette: false
+                    noise_color_stop_0_color: 0
+                    noise_color_stop_1_color: 0
+                    noise_color_stop_2_color: 0
+                    noise_color_stop_3_color: 0
+                - id: 2
+                  density_scale: 1.00000000
+                  seed: 1015571402
+                  type_settings:
+                    name: "grass"
+                    blade_preset: 0
+                    density: 40.0000000
+                    clumping: 0.00000000
+                    clump_radius: 3.00000000
+                    min_height: 1.00000000
+                    max_height: 1.00000000
+                    use_noise_height: false
+                    blade_width: 0.200000003
+                    curvature: 0.00000000
+                    wind_strength: 0.171109781
+                    interaction_recovery_time: 16.0000000
+                    bottom_color: 3201866751
+                    top_color: 3201866751
+                    use_noise_color: true
+                    use_custom_noise_palette: true
+                    noise_color_stop_0_color: 1266361343
+                    noise_color_stop_1_color: 4091990271
+                    noise_color_stop_2_color: 2074292735
+                    noise_color_stop_3_color: 1451963135
+                - id: 3
+                  density_scale: 1.00000000
+                  seed: 1015572729
+                  type_settings:
+                    name: "forest_grass"
+                    blade_preset: 0
+                    density: 30.0000000
+                    clumping: 0.839608490
+                    clump_radius: 1.56212354
+                    min_height: 0.300000012
+                    max_height: 0.349999994
+                    use_noise_height: false
+                    blade_width: 0.0299999993
+                    curvature: 0.500000000
+                    wind_strength: 0.380340666
+                    interaction_recovery_time: 16.0000000
+                    bottom_color: 2074292735
+                    top_color: 2074292735
+                    use_noise_color: true
+                    use_custom_noise_palette: true
+                    noise_color_stop_0_color: 3941590015
+                    noise_color_stop_1_color: 4159754239
+                    noise_color_stop_2_color: 2949677567
+                    noise_color_stop_3_color: 2276087551
+                - id: 4
+                  density_scale: 1.00000000
+                  seed: 1015574056
+                  type_settings:
+                    name: "thorn_grass"
+                    blade_preset: 4
+                    density: 18.0000000
+                    clumping: 0.00000000
+                    clump_radius: 0.00000000
+                    min_height: 0.500000000
+                    max_height: 0.850000024
+                    use_noise_height: false
+                    blade_width: 0.119999997
+                    curvature: 0.158864960
+                    wind_strength: 0.00849212985
+                    interaction_recovery_time: 0.636288345
+                    bottom_color: 1505008383
+                    top_color: 1729237759
+                    use_noise_color: true
+                    use_custom_noise_palette: true
+                    noise_color_stop_0_color: 3165736447
+                    noise_color_stop_1_color: 908994559
+                    noise_color_stop_2_color: 943601407
+                    noise_color_stop_3_color: 1565674239
+                - id: 5
+                  density_scale: 1.00000000
+                  seed: 1015575383
+                  type_settings:
+                    name: "shallow_grass"
+                    blade_preset: 0
+                    density: 0.0799999982
+                    clumping: 0.00000000
+                    clump_radius: 0.00000000
+                    min_height: 0.0599999987
+                    max_height: 0.119999997
+                    use_noise_height: false
+                    blade_width: 0.00800000038
+                    curvature: 0.0855928510
+                    wind_strength: 0.0199999996
+                    interaction_recovery_time: 2.00000000
+                    bottom_color: 1130446591
+                    top_color: 1922456575
+                    use_noise_color: false
+                    use_custom_noise_palette: false
+                    noise_color_stop_0_color: 3401742847
+                    noise_color_stop_1_color: 2797234943
+                    noise_color_stop_2_color: 1890277119
+                    noise_color_stop_3_color: 1115506943
   systems:
     - id: "0x0da6bbd10b0612d1"
       data:
@@ -363,107 +605,6 @@ scene:
         lod_start_distance: 25.0000000
         lod_end_distance: 30.0000000
         lod_min_density: 0.300000012
-        types:
-          - name: "dry_grass"
-            blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
-            density: 6.00000000
-            clumping: 0.00000000
-            clump_radius: 0.00000000
-            min_height: 0.200000003
-            max_height: 2.00000000
-            use_noise_height: false
-            blade_width: 0.00999999978
-            curvature: 0.500000000
-            wind_strength: 0.00000000
-            interaction_recovery_time: 0.00000000
-            bottom_color: 3603797759
-            top_color: 2744809727
-            use_noise_color: false
-            use_custom_noise_palette: false
-            noise_color_stop_0_color: 0
-            noise_color_stop_1_color: 0
-            noise_color_stop_2_color: 0
-            noise_color_stop_3_color: 0
-          - name: "grass"
-            blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
-            density: 40.0000000
-            clumping: 0.00000000
-            clump_radius: 3.00000000
-            min_height: 1.00000000
-            max_height: 1.00000000
-            use_noise_height: false
-            blade_width: 0.200000003
-            curvature: 0.00000000
-            wind_strength: 0.171109781
-            interaction_recovery_time: 16.0000000
-            bottom_color: 3201866751
-            top_color: 3201866751
-            use_noise_color: true
-            use_custom_noise_palette: true
-            noise_color_stop_0_color: 1266361343
-            noise_color_stop_1_color: 4091990271
-            noise_color_stop_2_color: 2074292735
-            noise_color_stop_3_color: 1451963135
-          - name: "forest_grass"
-            blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
-            density: 30.0000000
-            clumping: 0.839608490
-            clump_radius: 1.56212354
-            min_height: 0.300000012
-            max_height: 0.349999994
-            use_noise_height: false
-            blade_width: 0.0299999993
-            curvature: 0.500000000
-            wind_strength: 0.380340666
-            interaction_recovery_time: 16.0000000
-            bottom_color: 2074292735
-            top_color: 2074292735
-            use_noise_color: true
-            use_custom_noise_palette: true
-            noise_color_stop_0_color: 3941590015
-            noise_color_stop_1_color: 4159754239
-            noise_color_stop_2_color: 2949677567
-            noise_color_stop_3_color: 2276087551
-          - name: "thorn_grass"
-            blade_preset: "LDK_GRASS_BLADE_PRESET_THORNY"
-            density: 18.0000000
-            clumping: 0.00000000
-            clump_radius: 0.00000000
-            min_height: 0.500000000
-            max_height: 0.850000024
-            use_noise_height: false
-            blade_width: 0.119999997
-            curvature: 0.158864960
-            wind_strength: 0.00849212985
-            interaction_recovery_time: 0.636288345
-            bottom_color: 1505008383
-            top_color: 1729237759
-            use_noise_color: true
-            use_custom_noise_palette: true
-            noise_color_stop_0_color: 3165736447
-            noise_color_stop_1_color: 908994559
-            noise_color_stop_2_color: 943601407
-            noise_color_stop_3_color: 1565674239
-          - name: "shallow_grass"
-            blade_preset: "LDK_GRASS_BLADE_PRESET_THIN"
-            density: 0.0799999982
-            clumping: 0.00000000
-            clump_radius: 0.00000000
-            min_height: 0.0599999987
-            max_height: 0.119999997
-            use_noise_height: false
-            blade_width: 0.00800000038
-            curvature: 0.0855928510
-            wind_strength: 0.0199999996
-            interaction_recovery_time: 2.00000000
-            bottom_color: 1130446591
-            top_color: 1922456575
-            use_noise_color: false
-            use_custom_noise_palette: false
-            noise_color_stop_0_color: 3401742847
-            noise_color_stop_1_color: 2797234943
-            noise_color_stop_2_color: 1890277119
-            noise_color_stop_3_color: 1115506943
     - id: "0x16579764b6b8ca95"
       data:
         seed: 10013
@@ -476,7 +617,7 @@ scene:
         underwater_depth_scale: 0.500000000
         biomes:
           - name: "Deep Water"
-            grass_type_name: ""
+            vegetation_layer_mask: 0
             generator_surface_enabled: true
             generator_surface: 0
             gameplay_tag: 0
@@ -494,7 +635,7 @@ scene:
             decoration_6_chance: 0.00000000
             decoration_7_chance: 0.00000000
           - name: "Shallow Water"
-            grass_type_name: "shallow_grass"
+            vegetation_layer_mask: 16
             generator_surface_enabled: true
             generator_surface: 1
             gameplay_tag: 1
@@ -512,7 +653,7 @@ scene:
             decoration_6_chance: 0.00000000
             decoration_7_chance: 0.00000000
           - name: "Sand"
-            grass_type_name: ""
+            vegetation_layer_mask: 0
             generator_surface_enabled: true
             generator_surface: 2
             gameplay_tag: 2
@@ -530,7 +671,7 @@ scene:
             decoration_6_chance: 0.00000000
             decoration_7_chance: 0.00000000
           - name: "Grass"
-            grass_type_name: "grass"
+            vegetation_layer_mask: 2
             generator_surface_enabled: true
             generator_surface: 3
             gameplay_tag: 4
@@ -548,7 +689,7 @@ scene:
             decoration_6_chance: 0.00000000
             decoration_7_chance: 0.00000000
           - name: "Dry"
-            grass_type_name: "dry_grass"
+            vegetation_layer_mask: 1
             generator_surface_enabled: true
             generator_surface: 4
             gameplay_tag: 3
@@ -566,7 +707,7 @@ scene:
             decoration_6_chance: 0.00000000
             decoration_7_chance: 0.00000000
           - name: "Forest"
-            grass_type_name: "forest_grass"
+            vegetation_layer_mask: 4
             generator_surface_enabled: true
             generator_surface: 5
             gameplay_tag: 5
@@ -584,7 +725,7 @@ scene:
             decoration_6_chance: 0.00000000
             decoration_7_chance: 0.00000000
           - name: "Tall Grass"
-            grass_type_name: "grass"
+            vegetation_layer_mask: 2
             generator_surface_enabled: true
             generator_surface: 6
             gameplay_tag: 4
@@ -602,7 +743,7 @@ scene:
             decoration_6_chance: 0.00000000
             decoration_7_chance: 0.00000000
           - name: "Thorns"
-            grass_type_name: "thorn_grass"
+            vegetation_layer_mask: 8
             generator_surface_enabled: true
             generator_surface: 7
             gameplay_tag: 6
@@ -620,7 +761,7 @@ scene:
             decoration_6_chance: 0.00000000
             decoration_7_chance: 0.00000000
           - name: "Rock"
-            grass_type_name: ""
+            vegetation_layer_mask: 0
             generator_surface_enabled: true
             generator_surface: 8
             gameplay_tag: 7
@@ -641,7 +782,6 @@ scene:
         cell_size: 1.00000000
         elevation: 0.100000001
         forward_offset: 4.00000000
-        grass_stream_margin: 0.00000000
         material: "assets/tftf_island.material"
     - id: "0x05047ea6f003fb8f"
       data:
@@ -721,114 +861,8 @@ scene:
     - id: "0xc438be868c0566d0"
     - id: "0x1e2c227aa2362f6a"
       data:
-        heightmap: -1
-        height_channel: "LDK_TERRAIN_CHANNEL_R"
-        cell_size: 1.00000000
-        height_scale: 10.0000000
-        height_offset: 0.00000000
-        center_on_origin: true
-        origin_x: 0.00000000
-        origin_z: 0.00000000
         chunk_size: 16
-        material: -1
-        texture_atlas: "terrain_test.atlas"
-        color_noise_texture: "assets/textures/grass_color_noise.png"
-        color_noise_scale: 0.0199999996
-        color_noise_strength: 1.00000000
-        surface_count: 7
-        surface_0_name: "Shallow Water"
-        surface_0_min_height: 0.00000000
-        surface_0_blend_width: 0.00000000
-        surface_0_color: 3586760191
-        surface_0_noise_low_color: 3350694911
-        surface_0_noise_high_color: 3856118015
-        surface_0_sprite_id: "1"
-        surface_0_uv_scale: 1.00000000, 1.00000000
-        surface_0_texture_weight: 0.0799999982
-        surface_1_name: "Sand"
-        surface_1_min_height: 0.140000001
-        surface_1_blend_width: 0.131164595
-        surface_1_color: 3905259519
-        surface_1_noise_low_color: 3585112319
-        surface_1_noise_high_color: 4073954559
-        surface_1_sprite_id: "2"
-        surface_1_uv_scale: 1.00000000, 1.00000000
-        surface_1_texture_weight: 0.0799999982
-        surface_1_use_slope: false
-        surface_1_min_slope_degrees: 0.00000000
-        surface_1_slope_blend_degrees: 0.00000000
-        surface_2_name: "Dry"
-        surface_2_min_height: 0.170000002
-        surface_2_blend_width: 0.0153194265
-        surface_2_color: 2660722175
-        surface_2_noise_low_color: 2963632639
-        surface_2_noise_high_color: 2222740991
-        surface_2_sprite_id: "3"
-        surface_2_uv_scale: 1.00000000, 1.00000000
-        surface_2_texture_weight: 0.0799999982
-        surface_2_use_slope: false
-        surface_2_min_slope_degrees: 0.00000000
-        surface_2_slope_blend_degrees: 0.00000000
-        surface_3_name: "Grass"
-        surface_3_min_height: 0.200000003
-        surface_3_blend_width: 0.176042676
-        surface_3_color: 2679204607
-        surface_3_noise_low_color: 3132979711
-        surface_3_noise_high_color: 2073908991
-        surface_3_sprite_id: "4"
-        surface_3_uv_scale: 1.00000000, 1.00000000
-        surface_3_texture_weight: 0.0799999982
-        surface_3_use_slope: false
-        surface_3_min_slope_degrees: 0.00000000
-        surface_3_slope_blend_degrees: 0.00000000
-        surface_4_name: "Forest"
-        surface_4_min_height: 0.211200893
-        surface_4_blend_width: 0.0404324383
-        surface_4_color: 1854947583
-        surface_4_noise_low_color: 2191476991
-        surface_4_noise_high_color: 1400648447
-        surface_4_sprite_id: "5"
-        surface_4_uv_scale: 1.00000000, 1.00000000
-        surface_4_texture_weight: 0.0799999982
-        surface_4_use_slope: false
-        surface_4_min_slope_degrees: 0.00000000
-        surface_4_slope_blend_degrees: 0.00000000
-        surface_5_name: "Thorns"
-        surface_5_min_height: 0.250000000
-        surface_5_blend_width: 0.00499999989
-        surface_5_color: 2393275647
-        surface_5_noise_low_color: 2814086399
-        surface_5_noise_high_color: 1855155455
-        surface_5_sprite_id: "6"
-        surface_5_uv_scale: 1.00000000, 1.00000000
-        surface_5_texture_weight: 0.0799999982
-        surface_5_use_slope: false
-        surface_5_min_slope_degrees: 0.00000000
-        surface_5_slope_blend_degrees: 0.00000000
-        surface_6_name: "Mountain"
-        surface_6_min_height: 0.258184999
-        surface_6_blend_width: 0.00800000038
-        surface_6_color: 2829950719
-        surface_6_noise_low_color: 2493222911
-        surface_6_noise_high_color: 3234182655
-        surface_6_sprite_id: "0"
-        surface_6_uv_scale: 1.00000000, 1.00000000
-        surface_6_texture_weight: 0.0799999982
-        surface_6_use_slope: false
-        surface_6_min_slope_degrees: 0.00000000
-        surface_6_slope_blend_degrees: 0.00000000
-        surface_7_name: ""
-        surface_7_min_height: 0.00000000
-        surface_7_blend_width: 0.00000000
-        surface_7_color: 4294967295
-        surface_7_noise_low_color: 4294967295
-        surface_7_noise_high_color: 4294967295
-        surface_7_sprite_id: "0"
-        surface_7_uv_scale: 1.00000000, 1.00000000
-        surface_7_texture_weight: 0.00000000
-        surface_7_use_slope: false
-        surface_7_min_slope_degrees: 0.00000000
-        surface_7_slope_blend_degrees: 0.00000000
+        mesh_sample_step: 1
         cull: true
         casts_shadows: false
     - id: "0x00e9968219b6aae4"

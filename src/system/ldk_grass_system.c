@@ -90,6 +90,7 @@ typedef struct LDKGrassResolvedDesc
   u32 seed;
   LDKEntity terrain_entity;
   LDKAssetImage density_mask;
+  u64 terrain_vegetation_layer_id;
   bool casts_shadows;
   bool unlit;
 } LDKGrassResolvedDesc;
@@ -97,7 +98,7 @@ typedef struct LDKGrassResolvedDesc
 typedef struct LDKGrassPatchEntry
 {
   LDKGrassPatchDesc desc;
-  LDKGrassTypeId type_id;
+  LDKGrassTypeDesc type;
   Mat4 *instances;
   u32 instance_count;
   u32 instance_offset;
@@ -980,40 +981,6 @@ static bool s_blade_preset_is_valid(LDKGrassBladePreset preset)
          preset <= LDK_GRASS_BLADE_PRESET_CUSTOM_7;
 }
 
-static bool s_type_slot_read(const LDKGrassSystem *system,
-    LDKGrassTypeId type_id, LDKGrassTypeDesc *out_desc)
-{
-  if (!system || !out_desc || !system->types ||
-      type_id >= x_array_count(system->types))
-  {
-    return false;
-  }
-  const LDKGrassTypeDesc *type = x_array_get(system->types, type_id);
-  if (!type)
-  {
-    return false;
-  }
-  *out_desc = *type;
-  return true;
-}
-
-static bool s_type_slot_write(LDKGrassSystem *system,
-    LDKGrassTypeId type_id, const LDKGrassTypeDesc *desc)
-{
-  if (!system || !desc || !system->types ||
-      type_id >= x_array_count(system->types))
-  {
-    return false;
-  }
-  LDKGrassTypeDesc *type = x_array_get(system->types, type_id);
-  if (!type)
-  {
-    return false;
-  }
-  *type = *desc;
-  return true;
-}
-
 static bool s_type_desc_is_valid(const LDKGrassTypeDesc *desc)
 {
   return desc && x_smallstr_length(&desc->name) > 0u &&
@@ -1035,9 +1002,6 @@ static bool s_type_desc_is_valid(const LDKGrassTypeDesc *desc)
 
 static bool s_system_config_is_valid(const LDKGrassSystem *system)
 {
-  LDKGrassTypeDesc desc;
-  LDKGrassTypeDesc other;
-
   if (!system || !isfinite(system->min_tilt_degrees) ||
       system->min_tilt_degrees < 0.0f ||
       !isfinite(system->max_tilt_degrees) ||
@@ -1067,39 +1031,6 @@ static bool s_system_config_is_valid(const LDKGrassSystem *system)
     return false;
   }
 
-  u32 type_count = system->types ? x_array_count(system->types) : 0u;
-  if (type_count > LDK_GRASS_TYPE_COUNT)
-  {
-    return false;
-  }
-  for (LDKGrassTypeId i = 0u; i < type_count; ++i)
-  {
-    if (!s_type_slot_read(system, i, &desc))
-    {
-      return false;
-    }
-    if (x_smallstr_length(&desc.name) == 0u)
-    {
-      continue;
-    }
-    if (!s_type_desc_is_valid(&desc))
-    {
-      return false;
-    }
-
-    for (LDKGrassTypeId j = i + 1u; j < type_count; ++j)
-    {
-      if (!s_type_slot_read(system, j, &other))
-      {
-        return false;
-      }
-      if (x_smallstr_length(&other.name) > 0u &&
-          x_smallstr_cmp(&desc.name, &other.name) == 0)
-      {
-        return false;
-      }
-    }
-  }
 
   return true;
 }
@@ -1177,14 +1108,10 @@ static bool s_shape_from_type(
 }
 
 static bool s_resolved_desc_build(const LDKGrassSystem *system,
-    LDKGrassTypeId type_id, const LDKGrassPatchDesc *patch,
+    const LDKGrassTypeDesc *type, const LDKGrassPatchDesc *patch,
     LDKGrassResolvedDesc *out_desc)
 {
-  LDKGrassTypeDesc type;
-
-  if (!system || !patch || !out_desc ||
-      !s_type_slot_read(system, type_id, &type) ||
-      !s_type_desc_is_valid(&type) ||
+  if (!system || !type || !patch || !out_desc ||
       !s_vec3_is_finite(patch->plane.origin) ||
       !s_vec3_is_finite(patch->plane.axis_u) ||
       !s_vec3_is_finite(patch->plane.axis_v) ||
@@ -1192,52 +1119,54 @@ static bool s_resolved_desc_build(const LDKGrassSystem *system,
   {
     return false;
   }
+  if (!s_type_desc_is_valid(type)) return false;
 
   memset(out_desc, 0, sizeof(*out_desc));
   out_desc->plane = patch->plane;
-  if (!s_shape_from_type(&type, &out_desc->shape))
+  if (!s_shape_from_type(type, &out_desc->shape))
   {
     return false;
   }
-  out_desc->density = type.density * patch->density_scale;
-  out_desc->clumping = type.clumping;
-  out_desc->clump_radius = type.clump_radius;
-  out_desc->min_height = type.min_height;
-  out_desc->max_height = type.max_height;
+  out_desc->density = type->density * patch->density_scale;
+  out_desc->clumping = type->clumping;
+  out_desc->clump_radius = type->clump_radius;
+  out_desc->min_height = type->min_height;
+  out_desc->max_height = type->max_height;
   out_desc->use_noise_height =
-      type.use_noise_height && s_grass.color_noise_image != NULL;
+      type->use_noise_height && s_grass.color_noise_image != NULL;
   out_desc->min_tilt = deg_to_rad(system->min_tilt_degrees);
   out_desc->max_tilt = deg_to_rad(system->max_tilt_degrees);
   out_desc->tilt_direction = deg_to_rad(system->tilt_direction_degrees);
   out_desc->use_noise_color =
-      type.use_noise_color && s_grass.color_noise_image != NULL;
-  out_desc->use_custom_noise_palette = type.use_custom_noise_palette;
-  out_desc->noise_color_stop_0_color = type.use_custom_noise_palette
-      ? type.noise_color_stop_0_color : system->color_stop_0_color;
-  out_desc->noise_color_stop_1_color = type.use_custom_noise_palette
-      ? type.noise_color_stop_1_color : system->color_stop_1_color;
-  out_desc->noise_color_stop_2_color = type.use_custom_noise_palette
-      ? type.noise_color_stop_2_color : system->color_stop_2_color;
-  out_desc->noise_color_stop_3_color = type.use_custom_noise_palette
-      ? type.noise_color_stop_3_color : system->color_stop_3_color;
+      type->use_noise_color && s_grass.color_noise_image != NULL;
+  out_desc->use_custom_noise_palette = type->use_custom_noise_palette;
+  out_desc->noise_color_stop_0_color = type->use_custom_noise_palette
+      ? type->noise_color_stop_0_color : system->color_stop_0_color;
+  out_desc->noise_color_stop_1_color = type->use_custom_noise_palette
+      ? type->noise_color_stop_1_color : system->color_stop_1_color;
+  out_desc->noise_color_stop_2_color = type->use_custom_noise_palette
+      ? type->noise_color_stop_2_color : system->color_stop_2_color;
+  out_desc->noise_color_stop_3_color = type->use_custom_noise_palette
+      ? type->noise_color_stop_3_color : system->color_stop_3_color;
 
   out_desc->bottom_color = out_desc->use_noise_color
-      ? 0xffffffffu : type.bottom_color;
+      ? 0xffffffffu : type->bottom_color;
   out_desc->top_color = out_desc->use_noise_color
-      ? 0xffffffffu : type.top_color;
+      ? 0xffffffffu : type->top_color;
   out_desc->specular = system->specular;
   out_desc->shininess = system->shininess;
   out_desc->emission = system->emission;
-  out_desc->curvature = type.curvature;
-  out_desc->wind_strength = type.wind_strength * system->wind_force;
+  out_desc->curvature = type->curvature;
+  out_desc->wind_strength = type->wind_strength * system->wind_force;
   out_desc->wind_speed = system->wind_speed;
   out_desc->wind_direction = deg_to_rad(system->wind_direction_degrees);
-  out_desc->interaction_recovery_time = type.interaction_recovery_time > 0.0f
-      ? type.interaction_recovery_time
+  out_desc->interaction_recovery_time = type->interaction_recovery_time > 0.0f
+      ? type->interaction_recovery_time
       : LDK_GRASS_INTERACTION_DEFAULT_RECOVERY_TIME;
   out_desc->seed = patch->seed;
   out_desc->terrain_entity = patch->terrain_entity;
   out_desc->density_mask = patch->density_mask;
+  out_desc->terrain_vegetation_layer_id = patch->terrain_vegetation_layer_id;
   out_desc->casts_shadows = system->casts_shadows;
   out_desc->unlit = system->unlit;
   return isfinite(out_desc->density) && isfinite(out_desc->wind_strength);
@@ -1722,6 +1651,7 @@ typedef struct LDKGrassTerrainPlacement
   const LDKTerrain *terrain;
   LDKImageInfo heights;
   LDKImageInfo density;
+  const u8 *density_samples;
   bool has_heights;
   bool has_density;
   float origin_x;
@@ -1777,6 +1707,14 @@ static bool s_terrain_placement_resolve(const LDKGrassResolvedDesc *desc,
       return false;
     out->has_heights = true;
   }
+  if (desc->terrain_vegetation_layer_id)
+  {
+    out->density_samples = ldk_terrain_component_vegetation_density_get(
+        component, desc->terrain_vegetation_layer_id);
+    if (!out->density_samples) return false;
+    out->has_density = true;
+    return true;
+  }
   assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
   if (s_asset_handle_assigned(desc->density_mask.h))
   {
@@ -1816,24 +1754,40 @@ static float s_terrain_mask_sample(
     return 1.0f;
   }
   const LDKImageInfo *m = &p->density;
+  /* Embedded masks use one u8 sample per terrain grid cell. */
+  const u32 width = p->density_samples
+      ? p->terrain->width : m->width;
+  const u32 height = p->density_samples
+      ? p->terrain->height : m->height;
   float u = s_clamp01((x - p->origin_x) /
       ((float)p->terrain->width * p->terrain->cell_size));
   float v = s_clamp01((z - p->origin_z) /
       ((float)p->terrain->height * p->terrain->cell_size));
-  float fx = fmaxf(0.0f, fminf((float)m->width - 1.0f,
-      u * (float)m->width - 0.5f));
-  float fz = fmaxf(0.0f, fminf((float)m->height - 1.0f,
-      v * (float)m->height - 0.5f));
+  float fx = fmaxf(0.0f, fminf((float)width - 1.0f,
+      u * (float)width - 0.5f));
+  float fz = fmaxf(0.0f, fminf((float)height - 1.0f,
+      v * (float)height - 0.5f));
   u32 x0 = (u32)floorf(fx);
   u32 z0 = (u32)floorf(fz);
-  u32 x1 = x0 + (x0 + 1u < m->width ? 1u : 0u);
-  u32 z1 = z0 + (z0 + 1u < m->height ? 1u : 0u);
+  u32 x1 = x0 + (x0 + 1u < width ? 1u : 0u);
+  u32 z1 = z0 + (z0 + 1u < height ? 1u : 0u);
   float tx = fx - (float)x0;
   float tz = fz - (float)z0;
-  float a = s_terrain_mask_texel(m, x0, z0);
-  float b = s_terrain_mask_texel(m, x1, z0);
-  float c = s_terrain_mask_texel(m, x0, z1);
-  float d = s_terrain_mask_texel(m, x1, z1);
+  float a, b, c, d;
+  if (p->density_samples)
+  {
+    a = p->density_samples[(size_t)z0 * width + x0] / 255.0f;
+    b = p->density_samples[(size_t)z0 * width + x1] / 255.0f;
+    c = p->density_samples[(size_t)z1 * width + x0] / 255.0f;
+    d = p->density_samples[(size_t)z1 * width + x1] / 255.0f;
+  }
+  else
+  {
+    a = s_terrain_mask_texel(m, x0, z0);
+    b = s_terrain_mask_texel(m, x1, z0);
+    c = s_terrain_mask_texel(m, x0, z1);
+    d = s_terrain_mask_texel(m, x1, z1);
+  }
   return (a + (b - a) * tx) * (1.0f - tz) +
       (c + (d - c) * tx) * tz;
 }
@@ -3006,7 +2960,6 @@ static void s_hash_bytes(u64 *hash, const void *data, size_t size)
 static u64 s_system_config_hash(const LDKGrassSystem *system)
 {
   u64 hash = UINT64_C(14695981039346656037);
-  LDKGrassTypeDesc desc;
 
 #define LDK_GRASS_HASH_FIELD(field)                                           \
   s_hash_bytes(&hash, &system->field, sizeof(system->field))
@@ -3044,48 +2997,6 @@ static u64 s_system_config_hash(const LDKGrassSystem *system)
 #undef LDK_GRASS_HASH_FIELD
 
   s_hash_bytes(&hash, s_custom_generations, sizeof(s_custom_generations));
-  u32 type_count = system->types ? x_array_count(system->types) : 0u;
-  s_hash_bytes(&hash, &type_count, sizeof(type_count));
-
-  for (LDKGrassTypeId i = 0u; i < (system->types ? x_array_count(system->types) : 0u); ++i)
-  {
-    size_t name_length;
-
-    if (!s_type_slot_read(system, i, &desc))
-    {
-      continue;
-    }
-
-    name_length = x_smallstr_length(&desc.name);
-    s_hash_bytes(&hash, &name_length, sizeof(name_length));
-    if (name_length == 0u)
-    {
-      continue;
-    }
-
-    s_hash_bytes(&hash, x_smallstr_cstr(&desc.name), name_length);
-    s_hash_bytes(&hash, &desc.blade_preset, sizeof(desc.blade_preset));
-    s_hash_bytes(&hash, &desc.density, sizeof(desc.density));
-    s_hash_bytes(&hash, &desc.clumping, sizeof(desc.clumping));
-    s_hash_bytes(&hash, &desc.clump_radius, sizeof(desc.clump_radius));
-    s_hash_bytes(&hash, &desc.min_height, sizeof(desc.min_height));
-    s_hash_bytes(&hash, &desc.max_height, sizeof(desc.max_height));
-    s_hash_bytes(&hash, &desc.use_noise_height, sizeof(desc.use_noise_height));
-    s_hash_bytes(&hash, &desc.blade_width, sizeof(desc.blade_width));
-    s_hash_bytes(&hash, &desc.curvature, sizeof(desc.curvature));
-    s_hash_bytes(&hash, &desc.wind_strength, sizeof(desc.wind_strength));
-    s_hash_bytes(&hash, &desc.interaction_recovery_time,
-        sizeof(desc.interaction_recovery_time));
-    s_hash_bytes(&hash, &desc.bottom_color, sizeof(desc.bottom_color));
-    s_hash_bytes(&hash, &desc.top_color, sizeof(desc.top_color));
-    s_hash_bytes(&hash, &desc.use_noise_color, sizeof(desc.use_noise_color));
-    s_hash_bytes(&hash, &desc.use_custom_noise_palette, sizeof(desc.use_custom_noise_palette));
-    s_hash_bytes(&hash, &desc.noise_color_stop_0_color, sizeof(desc.noise_color_stop_0_color));
-    s_hash_bytes(&hash, &desc.noise_color_stop_1_color, sizeof(desc.noise_color_stop_1_color));
-    s_hash_bytes(&hash, &desc.noise_color_stop_2_color, sizeof(desc.noise_color_stop_2_color));
-    s_hash_bytes(&hash, &desc.noise_color_stop_3_color, sizeof(desc.noise_color_stop_3_color));
-
-  }
 
   return hash;
 }
@@ -3177,26 +3088,7 @@ static void s_color_noise_defaults(LDKGrassSystem *system)
     system->color_stop_2_color = 0x70ab56ffu;
     system->color_stop_3_color = 0x427d48ffu;
   }
-  for (LDKGrassTypeId i = 0u; i < (system->types ? x_array_count(system->types) : 0u); ++i)
-  {
-    LDKGrassTypeDesc type;
-    if (!s_type_slot_read(system, i, &type) ||
-        !type.use_custom_noise_palette)
-    {
-      continue;
-    }
-    if (type.noise_color_stop_0_color == 0u &&
-        type.noise_color_stop_1_color == 0u &&
-        type.noise_color_stop_2_color == 0u &&
-        type.noise_color_stop_3_color == 0u)
-    {
-      type.noise_color_stop_0_color = system->color_stop_0_color;
-      type.noise_color_stop_1_color = system->color_stop_1_color;
-      type.noise_color_stop_2_color = system->color_stop_2_color;
-      type.noise_color_stop_3_color = system->color_stop_3_color;
-      s_type_slot_write(system, i, &type);
-    }
-  }
+
 }
 
 static LDKImage *s_color_noise_resolve(const LDKGrassSystem *system)
@@ -3226,7 +3118,7 @@ static bool s_config_rebuild(LDKGrassSystem *system)
   s_grass.color_noise_image = new_image;
 
   if (!system || !s_system_config_is_valid(system) ||
-      !s_batches_reserve(LDK_GRASS_TYPE_COUNT))
+      !s_batches_reserve(LDK_TERRAIN_VEGETATION_LAYER_COUNT))
   {
     s_grass.color_noise_image = old_image;
     
@@ -3262,11 +3154,10 @@ static bool s_config_rebuild(LDKGrassSystem *system)
       continue;
     }
 
-    if (!s_resolved_desc_build(
-            system, entry->type_id, &entry->desc, &item->resolved))
+    if (!s_resolved_desc_build(system, &entry->type, &entry->desc,
+            &item->resolved))
     {
-      /* Removing a configured type leaves existing patch handles alive but
-       * with no rendered blades until the patch is updated to a valid type. */
+      /* An invalid stored description cannot be rebuilt. */
       continue;
     }
 
@@ -3361,97 +3252,6 @@ void ldk_grass_type_desc_defaults(LDKGrassTypeDesc *out_desc)
 
 }
 
-void ldk_grass_type_desc_initialize(void *element)
-{
-  ldk_grass_type_desc_defaults((LDKGrassTypeDesc *)element);
-}
-
-LDKGrassTypeId ldk_grass_get_id_by_name(const char *name)
-{
-  LDKGrassTypeDesc desc;
-
-  if (!s_grass.initialized || !s_grass.owner || !name || name[0] == 0)
-  {
-    return LDK_GRASS_TYPE_ID_INVALID;
-  }
-
-  for (LDKGrassTypeId i = 0u; i < (s_grass.owner->types ? x_array_count(s_grass.owner->types) : 0u); ++i)
-  {
-    if (!s_type_slot_read(s_grass.owner, i, &desc) ||
-        x_smallstr_length(&desc.name) == 0u)
-    {
-      continue;
-    }
-    if (x_smallstr_cmp_cstr(&desc.name, name) == 0)
-    {
-      return i;
-    }
-  }
-
-  return LDK_GRASS_TYPE_ID_INVALID;
-}
-
-bool ldk_grass_type_is_valid(LDKGrassTypeId type_id)
-{
-  LDKGrassTypeDesc desc;
-
-  return s_grass.initialized && s_grass.owner &&
-         s_type_slot_read(s_grass.owner, type_id, &desc) &&
-         s_type_desc_is_valid(&desc);
-}
-
-bool ldk_grass_type_get(
-    LDKGrassTypeId type_id, LDKGrassTypeDesc *out_desc)
-{
-  if (!out_desc || !s_grass.initialized || !s_grass.owner ||
-      !s_type_slot_read(s_grass.owner, type_id, out_desc) ||
-      !s_type_desc_is_valid(out_desc))
-  {
-    return false;
-  }
-  return true;
-}
-
-LDKGrassTypeId ldk_grass_type_register(const LDKGrassTypeDesc *desc)
-{
-  LDKGrassTypeDesc current;
-
-  if (!s_grass.initialized || !s_grass.owner ||
-      !s_type_desc_is_valid(desc) ||
-      ldk_grass_get_id_by_name(x_smallstr_cstr(&desc->name)) !=
-          LDK_GRASS_TYPE_ID_INVALID)
-  {
-    return LDK_GRASS_TYPE_ID_INVALID;
-  }
-
-  u32 count = s_grass.owner->types
-      ? x_array_count(s_grass.owner->types) : 0u;
-  for (LDKGrassTypeId i = 0u; i < count; ++i)
-  {
-    if (s_type_slot_read(s_grass.owner, i, &current) &&
-        x_smallstr_length(&current.name) == 0u &&
-        s_type_slot_write(s_grass.owner, i, desc))
-    {
-      return i;
-    }
-  }
-
-  if (count >= LDK_GRASS_TYPE_COUNT)
-  {
-    return LDK_GRASS_TYPE_ID_INVALID;
-  }
-  if (!s_grass.owner->types)
-  {
-    s_grass.owner->types = x_array_create(sizeof(*desc), 0u);
-    if (!s_grass.owner->types)
-    {
-      return LDK_GRASS_TYPE_ID_INVALID;
-    }
-  }
-  return x_array_add(s_grass.owner->types, (void *)desc) == XARRAY_OK
-      ? count : LDK_GRASS_TYPE_ID_INVALID;
-}
-
 bool ldk_grass_interact(
     Vec3 from, Vec3 to, float radius, float strength)
 {
@@ -3471,6 +3271,7 @@ void ldk_grass_patch_desc_defaults(LDKGrassPatchDesc *out_desc)
   out_desc->density_scale = 1.0f;
   out_desc->terrain_entity = x_handle_null();
   out_desc->density_mask = ldk_asset_image_null();
+  out_desc->terrain_vegetation_layer_id = 0u;
 }
 
 LDKGrassPatch ldk_grass_patch_null(void)
@@ -3483,8 +3284,9 @@ bool ldk_grass_patch_is_valid(LDKGrassPatch patch)
   return s_patch_get(patch) != NULL;
 }
 
-LDKGrassPatch ldk_grass_add(
-    LDKGrassTypeId type_id, const LDKGrassPatchDesc *desc)
+/* All patches receive a complete description: no registry or type lookup. */
+LDKGrassPatch ldk_grass_add(const LDKGrassTypeDesc *type,
+    const LDKGrassPatchDesc *desc)
 {
   LDKGrassResolvedDesc resolved;
   LDKGrassPatchEntry *entry;
@@ -3496,7 +3298,7 @@ LDKGrassPatch ldk_grass_add(
   Vec3 bounds_max;
 
   if (!s_grass.initialized || !s_grass.owner ||
-      !s_resolved_desc_build(s_grass.owner, type_id, desc, &resolved) ||
+      !s_resolved_desc_build(s_grass.owner, type, desc, &resolved) ||
       !s_patch_instances_generate(&resolved, &instances, &instance_count))
   {
     return ldk_grass_patch_null();
@@ -3535,7 +3337,7 @@ LDKGrassPatch ldk_grass_add(
     entry->version = 1u;
   }
   entry->desc = *desc;
-  entry->type_id = type_id;
+  entry->type = *type;
   entry->instances = instances;
   entry->instance_count = instance_count;
   entry->instance_offset = 0u;
@@ -3549,7 +3351,7 @@ LDKGrassPatch ldk_grass_add(
 }
 
 bool ldk_grass_update(LDKGrassPatch patch,
-    LDKGrassTypeId type_id, const LDKGrassPatchDesc *desc)
+    const LDKGrassTypeDesc *type, const LDKGrassPatchDesc *desc)
 {
   LDKGrassPatchEntry *entry = s_patch_get(patch);
   LDKGrassResolvedDesc resolved;
@@ -3561,7 +3363,7 @@ bool ldk_grass_update(LDKGrassPatch patch,
   Vec3 bounds_max;
 
   if (!entry || !s_grass.owner ||
-      !s_resolved_desc_build(s_grass.owner, type_id, desc, &resolved) ||
+      !s_resolved_desc_build(s_grass.owner, type, desc, &resolved) ||
       !s_patch_instances_generate(&resolved, &instances, &instance_count))
   {
     return false;
@@ -3579,7 +3381,7 @@ bool ldk_grass_update(LDKGrassPatch patch,
   old_batch_index = entry->batch_index;
   free(entry->instances);
   entry->desc = *desc;
-  entry->type_id = type_id;
+  entry->type = *type;
   entry->instances = instances;
   entry->instance_count = instance_count;
   entry->instance_offset = 0u;
@@ -3610,7 +3412,7 @@ bool ldk_grass_remove(LDKGrassPatch patch)
   entry->instance_count = 0u;
   entry->instance_offset = 0u;
   entry->batch_index = LDK_GRASS_INVALID_BATCH;
-  entry->type_id = LDK_GRASS_TYPE_ID_INVALID;
+  memset(&entry->type, 0, sizeof(entry->type));
   entry->terrain_owned = false;
   entry->alive = false;
   entry->version += 1u;
@@ -3641,7 +3443,7 @@ void ldk_grass_clear(void)
     entry->instance_count = 0u;
     entry->instance_offset = 0u;
     entry->batch_index = LDK_GRASS_INVALID_BATCH;
-    entry->type_id = LDK_GRASS_TYPE_ID_INVALID;
+    memset(&entry->type, 0, sizeof(entry->type));
     entry->terrain_owned = false;
     entry->alive = false;
     entry->version += 1u;
@@ -3696,52 +3498,8 @@ static void s_terrain_patches_remove(void)
   s_grass.terrain_quick_hash = 0u;
 }
 
-static bool s_terrain_density_has_coverage(const LDKImageInfo *image)
-{
-  if (!image || !image->pixels)
-  {
-    return false;
-  }
-  for (u32 z = 0u; z < image->height; ++z)
-  {
-    for (u32 x = 0u; x < image->width; ++x)
-    {
-      if (s_terrain_mask_texel(image, x, z) > 0.0f)
-      {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 /* Only create a patch for terrain tiles whose mask may actually contribute
  * blades. The one-pixel halo conservatively includes bilinear neighbors. */
-static bool s_terrain_tile_has_coverage(const LDKImageInfo *mask,
-    const LDKTerrain *terrain, u32 x0, u32 z0, u32 x1, u32 z1)
-{
-  if (!mask || !mask->pixels || !terrain ||
-      !terrain->width || !terrain->height)
-    return false;
-  u32 mx0 = (u32)((u64)x0 * mask->width / terrain->width);
-  u32 mz0 = (u32)((u64)z0 * mask->height / terrain->height);
-  u32 mx1 = (u32)((u64)x1 * mask->width / terrain->width);
-  u32 mz1 = (u32)((u64)z1 * mask->height / terrain->height);
-  if (mx0) --mx0;
-  if (mz0) --mz0;
-  if (mx1 >= mask->width) mx1 = mask->width - 1u;
-  else if (mx1 + 1u < mask->width) ++mx1;
-  if (mz1 >= mask->height) mz1 = mask->height - 1u;
-  else if (mz1 + 1u < mask->height) ++mz1;
-  for (u32 z = mz0; z <= mz1; ++z)
-    for (u32 x = mx0; x <= mx1; ++x)
-      if (s_terrain_mask_texel(mask, x, z) > 0.0f)
-      {
-        return true;
-      }
-  return false;
-}
-
 /* Scene terrain recipes are generated from every enabled TerrainComponent.
  * The hash covers entity identity, transform, component revisions and referenced
  * image revisions. Rebuild only terrain-owned patches when inputs change.
@@ -3750,6 +3508,7 @@ typedef struct LDKGrassTerrainSource
 {
   LDKEntity entity;
   LDKTerrain terrain;
+  const LDKTerrainComponent *component;
   u64 revision;
   Mat4 world;
 } LDKGrassTerrainSource;
@@ -3789,18 +3548,10 @@ static bool s_terrain_source_collect(LDKEntity entity, void *user)
   LDKGrassTerrainSource *source = &list->sources[list->count++];
   source->entity = entity;
   source->terrain = component->terrain;
+  source->component = component;
   source->revision = component->revision;
   source->world = world;
   return true;
-}
-
-static u64 s_terrain_image_revision(LDKAssetManager *assets,
-    LDKAssetImage image)
-{
-  if (!s_asset_handle_assigned(image.h)) return 0u;
-  LDKAssetHandle handle = {image.h};
-  const LDKAssetInfo *info = ldk_asset_get_info_const(assets, handle);
-  return info ? info->source_revision : UINT64_MAX;
 }
 
 static bool s_terrain_patches_sync(const LDKGrassSystem *system)
@@ -3824,20 +3575,11 @@ static bool s_terrain_patches_sync(const LDKGrassSystem *system)
   for (u32 i = 0u; i < list.count; ++i)
   {
     const LDKGrassTerrainSource *source = &list.sources[i];
-    const LDKTerrain *terrain = &source->terrain;
     s_hash_bytes(&hash, &source->entity, sizeof(source->entity));
     s_hash_bytes(&hash, &source->world, sizeof(source->world));
     s_hash_bytes(&hash, &source->revision,
         sizeof(source->revision));
-    for (u32 j = 0u; j < terrain->vegetation_layer_count; ++j)
-    {
-      const LDKTerrainVegetationLayer *layer = &terrain->vegetation_layers[j];
-      if (!layer->density_map_path.length) continue;
-      LDKAssetImage mask = ldk_asset_manager_image_load_shared(
-          assets, layer->density_map_path.buf);
-      u64 revision = s_terrain_image_revision(assets, mask);
-      s_hash_bytes(&hash, &revision, sizeof(revision));
-    }
+
   }
   if (hash == s_grass.terrain_sync_hash)
   {
@@ -3864,32 +3606,15 @@ static bool s_terrain_patches_sync(const LDKGrassSystem *system)
     for (u32 i = 0u; i < terrain->vegetation_layer_count; ++i)
     {
       const LDKTerrainVegetationLayer *layer = &terrain->vegetation_layers[i];
-      if (!layer->density_map_path.length || layer->density_scale <= 0.0f)
-        continue;
-      LDKAssetImage mask = ldk_asset_manager_image_load_shared(
-          assets, layer->density_map_path.buf);
-      const LDKAssetImageData *image =
-          ldk_asset_manager_image_get_const(assets, mask);
-      LDKImageInfo mask_info = {0};
-      if (!image || !image->image || image->is_missing ||
-          !ldk_image_get_info(image->image, &mask_info) ||
-          mask_info.channel_count != 4u || !mask_info.width ||
-          !mask_info.height ||
-          (mask_info.format != LDK_IMAGE_FORMAT_RGBA8_UNORM &&
-           mask_info.format != LDK_IMAGE_FORMAT_RGBA16_UNORM))
-      {
-        s_terrain_patches_remove();
-        free(list.sources);
-        return false;
-      }
-      if (!s_terrain_density_has_coverage(&mask_info)) continue;
-      LDKGrassTypeId type_id = ldk_grass_get_id_by_name(layer->type_name);
-      if (!ldk_grass_type_is_valid(type_id))
-      {
-        ldk_log_warning("Terrain vegetation type '%s' not configured.\n",
-            layer->type_name);
-        continue;
-      }
+      if (layer->density_scale <= 0.0f) continue;
+      const u8 *embedded = ldk_terrain_component_vegetation_density_get(
+          source->component, layer->id);
+      if (!embedded) continue;
+      bool any = false;
+      for (size_t j = 0u; j < (size_t)terrain->width * terrain->height;
+           ++j)
+        if (embedded[j]) {any = true; break;}
+      if (!any) continue;
       for (u32 tz = 0u; tz < tiles_z; ++tz)
       {
         u32 z0 = tz * LDK_GRASS_TERRAIN_PATCH_CELLS;
@@ -3900,8 +3625,18 @@ static bool s_terrain_patches_sync(const LDKGrassSystem *system)
           u32 x0 = tx * LDK_GRASS_TERRAIN_PATCH_CELLS;
           u32 x1 = x0 + LDK_GRASS_TERRAIN_PATCH_CELLS;
           if (x1 < x0 || x1 > terrain->width) x1 = terrain->width;
-          if (!s_terrain_tile_has_coverage(&mask_info, terrain,
-                  x0, z0, x1, z1)) continue;
+          if (embedded)
+          {
+            bool covered = false;
+            for (u32 z = z0; z < z1 && !covered; ++z)
+              for (u32 x = x0; x < x1; ++x)
+                if (embedded[(size_t)z * terrain->width + x])
+                {
+                  covered = true;
+                  break;
+                }
+            if (!covered) continue;
+          }
           if (patch_total >= LDK_GRASS_TERRAIN_PATCH_LIMIT)
           {
             ldk_log_error("Too many terrain vegetation patches.\n");
@@ -3923,8 +3658,8 @@ static bool s_terrain_patches_sync(const LDKGrassSystem *system)
               (u32)layer->id ^ (u32)(layer->id >> 32u) ^
               (tx * 0x9e3779b9u) ^ (tz * 0x85ebca6bu));
           desc.terrain_entity = source->entity;
-          desc.density_mask = mask;
-          LDKGrassPatch patch = ldk_grass_add(type_id, &desc);
+          desc.terrain_vegetation_layer_id = layer->id;
+          LDKGrassPatch patch = ldk_grass_add(&layer->type, &desc);
           if (!ldk_grass_patch_is_valid(patch))
           {
             s_terrain_patches_remove();

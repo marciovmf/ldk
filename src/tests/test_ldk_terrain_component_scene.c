@@ -249,12 +249,167 @@ static int test_component_flat_terrain(void)
   return 0;
 }
 
+/* R8 density is embedded per vegetation layer, independently of the
+ * heightmap. Exercise ownership, stable layer IDs and actual TML parsing. */
+static LDKGrassTypeDesc s_vegetation_type(const char *name)
+{
+  LDKGrassTypeDesc type;
+  ldk_grass_type_desc_defaults(&type);
+  (void)x_smallstr_init(&type.name, name);
+  return type;
+}
+
+static int test_component_vegetation_density_scene_roundtrip(void)
+{
+  LDKTerrainComponent source = ldk_terrain_component_make_default();
+  source.terrain.width = 8u;
+  source.terrain.height = 8u;
+  u64 first_id = 0u, second_id = 0u;
+  LDKGrassTypeDesc grass_type = s_vegetation_type("Grass");
+  LDKGrassTypeDesc thorn_type = s_vegetation_type("Thorns");
+  ASSERT_TRUE(ldk_terrain_component_vegetation_layer_add(
+      &source, &grass_type, 0.8f, 11u, &first_id));
+  ASSERT_TRUE(ldk_terrain_component_vegetation_layer_add(
+      &source, &thorn_type, 1.5f, 22u, &second_id));
+  ASSERT_TRUE(first_id != second_id);
+  /* A terrain owns both the type configuration and its corresponding mask. */
+  for (u32 i = 0u; i < 2u; ++i)
+  {
+    LDKTerrainVegetationLayer *layer = &source.terrain.vegetation_layers[i];
+    LDKGrassTypeDesc *type = &layer->type;
+    type->blade_preset = i == 0u ? LDK_GRASS_BLADE_PRESET_THIN :
+        LDK_GRASS_BLADE_PRESET_THORNY;
+    type->density = i == 0u ? 0.6f : 2.8f;
+    type->min_height = 0.25f;
+    type->max_height = i == 0u ? 0.7f : 1.6f;
+    type->blade_width = 0.1f;
+    type->bottom_color = 0x557755ffu;
+    type->top_color = i == 0u ? 0x99aa99ffu : 0xdd4477ffu;
+  }
+  ASSERT_TRUE(ldk_terrain_validate(&source.terrain));
+  u8 first[64], second[64];
+  for (u32 i = 0u; i < 64u; ++i)
+  {
+    first[i] = (u8)(i * 3u);
+    second[i] = (u8)(255u - i * 4u);
+  }
+  ASSERT_TRUE(ldk_terrain_component_vegetation_density_set(
+      &source, first_id, first));
+  ASSERT_TRUE(ldk_terrain_component_vegetation_density_set(
+      &source, second_id, second));
+  first[0] = second[0] = 0u; /* Confirm the component copied the input. */
+  ASSERT_EQ(source.vegetation_density->samples[0][0], 0u);
+  ASSERT_EQ(source.vegetation_density->samples[1][0], 255u);
+  ASSERT_EQ(source.vegetation_density->samples[0][1], 3u);
+
+  char *text = NULL;
+  ASSERT_TRUE(ldk_terrain_to_tml_with_component_data(
+      &source.terrain, NULL,
+      (const u8 *const *)source.vegetation_density->samples, &text));
+  ASSERT_TRUE(strstr(text, "density_encoding: \"u8-base64\"") != NULL);
+  ASSERT_TRUE(strstr(text, "heightmap_samples") == NULL);
+  TMLParseResult parsed = tml_parse(text);
+  ASSERT_TRUE(parsed.ok);
+  const TMLNode *node = tml_root_node_at(parsed.document, 0u);
+  LDKTerrain terrain;
+  LDKImage *image = NULL;
+  u8 *masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT] = {0};
+  ASSERT_TRUE(ldk_terrain_from_tml_node_with_component_data(
+      &terrain, &image, masks, parsed.document, node));
+  ASSERT_TRUE(image == NULL);
+  ASSERT_EQ(terrain.vegetation_layer_count, 2u);
+  ASSERT_EQ(terrain.vegetation_layers[0].id, first_id);
+  ASSERT_EQ(terrain.vegetation_layers[1].id, second_id);
+  ASSERT_EQ(terrain.vegetation_layers[0].type.blade_preset,
+      LDK_GRASS_BLADE_PRESET_THIN);
+  ASSERT_EQ(terrain.vegetation_layers[1].type.blade_preset,
+      LDK_GRASS_BLADE_PRESET_THORNY);
+  ASSERT_EQ(terrain.vegetation_layers[1].type.top_color,
+      0xdd4477ffu);
+  ASSERT_EQ(memcmp(masks[0], source.vegetation_density->samples[0], 64u), 0);
+  ASSERT_EQ(memcmp(masks[1], source.vegetation_density->samples[1], 64u), 0);
+
+  LDKTerrainComponent copy = ldk_terrain_component_make_default();
+  ASSERT_TRUE(ldk_terrain_component_set(&copy, &terrain, NULL));
+  ASSERT_TRUE(ldk_terrain_component_vegetation_density_set(
+      &copy, first_id, masks[0]));
+  ASSERT_TRUE(ldk_terrain_component_vegetation_density_set(
+      &copy, second_id, masks[1]));
+  ASSERT_TRUE(copy.vegetation_density->samples[0] != masks[0]);
+  ASSERT_TRUE(ldk_terrain_component_vegetation_layer_remove(
+      &copy, first_id));
+  ASSERT_EQ(copy.terrain.vegetation_layer_count, 1u);
+  ASSERT_EQ(copy.terrain.vegetation_layers[0].id, second_id);
+  ASSERT_EQ(memcmp(copy.vegetation_density->samples[0], masks[1], 64u), 0);
+  ASSERT_TRUE(ldk_terrain_component_vegetation_density_get(
+      &copy, first_id) == NULL);
+  LDKTerrain resized = copy.terrain;
+  resized.width = 4u;
+  resized.height = 4u;
+  ASSERT_TRUE(ldk_terrain_component_set(&copy, &resized, NULL));
+  ASSERT_TRUE(copy.vegetation_density->samples[0] == NULL);
+  ASSERT_TRUE(ldk_terrain_component_vegetation_density_get(
+      &source, first_id) != NULL);
+  for (u32 i = 0u; i < LDK_TERRAIN_VEGETATION_LAYER_COUNT; ++i)
+  {
+    free(masks[i]);
+    free(source.vegetation_density->samples[i]);
+    free(copy.vegetation_density->samples[i]);
+  }
+  free(source.vegetation_density);
+  free(copy.vegetation_density);
+  tml_document_free(parsed.document);
+  free(text);
+  return 0;
+}
+
+static int test_component_vegetation_invalid_base64(void)
+{
+  LDKTerrainComponent component = ldk_terrain_component_make_default();
+  component.terrain.width = component.terrain.height = 2u;
+  u64 layer_id = 0u;
+  const u8 painted[] = {0u, 255u, 128u, 32u};
+  LDKGrassTypeDesc type = s_vegetation_type("Grass");
+  ASSERT_TRUE(ldk_terrain_component_vegetation_layer_add(
+      &component, &type, 1.0f, 1u, &layer_id));
+  ASSERT_TRUE(ldk_terrain_component_vegetation_density_set(
+      &component, layer_id, painted));
+  char *text = NULL;
+  ASSERT_TRUE(ldk_terrain_to_tml_with_component_data(
+      &component.terrain, NULL,
+      (const u8 *const *)component.vegetation_density->samples, &text));
+  char *sample = strstr(text, "density_samples: \"");
+  ASSERT_TRUE(sample != NULL);
+  sample += strlen("density_samples: \"");
+  *sample = '!';
+  TMLParseResult parsed = tml_parse(text);
+  ASSERT_TRUE(parsed.ok);
+  LDKTerrain output;
+  LDKImage *heightmap = NULL;
+  u8 *masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT] = {0};
+  ASSERT_FALSE(ldk_terrain_from_tml_node_with_component_data(
+      &output, &heightmap, masks, parsed.document,
+      tml_root_node_at(parsed.document, 0u)));
+  ASSERT_TRUE(heightmap == NULL);
+  for (u32 i = 0u; i < LDK_TERRAIN_VEGETATION_LAYER_COUNT; ++i)
+  {
+    ASSERT_TRUE(masks[i] == NULL);
+    free(component.vegetation_density->samples[i]);
+  }
+  free(component.vegetation_density);
+  tml_document_free(parsed.document);
+  free(text);
+  return 0;
+}
+
 int main(void)
 {
   STDXTestCase tests[] = {
       X_TEST(test_component_embedded_scene_roundtrip),
       X_TEST(test_component_legacy_scene_nesting),
       X_TEST(test_component_flat_terrain),
+      X_TEST(test_component_vegetation_density_scene_roundtrip),
+      X_TEST(test_component_vegetation_invalid_base64),
   };
   return x_tests_run(tests, sizeof(tests) / sizeof(tests[0]), NULL);
 }

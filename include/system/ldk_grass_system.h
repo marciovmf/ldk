@@ -4,22 +4,17 @@
  * Procedural, instanced grass patches with per-type appearance, distribution,
  * wind, interaction, visual distance LOD and optional color/height noise.
  *
- * ## Grass types and patches
+ * ## Vegetation descriptions and patches
  *
- * A GrassSystem has up to `LDK_GRASS_TYPE_COUNT` (16) named grass types. Each
- * type selects an LDKGrassBladePreset and controls density, blade dimensions,
- * colors and animation. Types can be configured in the GrassSystem inspector
- * or added at runtime with `ldk_grass_type_register()` while the system is
- * active.
- * `ldk_grass_add()` populates a rectangular plane using one configured type;
- * patches can later be changed with `ldk_grass_update()` or removed with
- * `ldk_grass_remove()`. The engine owns the individual blade instances.
+ * Vegetation types are stored directly in each TerrainComponent vegetation
+ * layer. The GrassSystem only generates and renders patches. Programmatic
+ * patches supply the same LDKGrassTypeDesc directly to ldk_grass_add() or
+ * ldk_grass_update(); no registration or string lookup is required.
  *
  * ## Terrain-linked vegetation
  *
- * Terrain-authored vegetation is discovered from LDKTerrainComponent entities
- * in the scene. Each terrain component owns density layers. This
- * does not affect programmatic patches created with ldk_grass_add().
+ * Terrain components own independent vegetation layers, each with one
+ * description, one R8 density mask, and independent placement settings.
  *
  * ## Distance LOD
  *
@@ -118,28 +113,21 @@
  * }
  * ```
  *
- * Register the callback before creating grass that uses `CUSTOM_0`. Then
- * select `CUSTOM_0` in an existing GrassSystem type or register a type at
- * runtime. This example runs after the GrassSystem has initialized:
+ * Register the callback before creating grass that uses CUSTOM_0.
+ * A programmatic patch supplies its descriptor directly:
  *
  * ```
  * ldk_grass_blade_generator_register(
  *     LDK_GRASS_BLADE_PRESET_CUSTOM_0, game_grass_ribbon);
- *
  * LDKGrassTypeDesc type;
  * ldk_grass_type_desc_defaults(&type);
- * x_smallstr_init(&type.name, "Reeds");
  * type.blade_preset = LDK_GRASS_BLADE_PRESET_CUSTOM_0;
  * type.blade_width = 0.2f;
- * LDKGrassTypeId type_id = ldk_grass_type_register(&type);
- * if (type_id != LDK_GRASS_TYPE_ID_INVALID)
- * {
- *   LDKGrassPatchDesc patch;
- *   ldk_grass_patch_desc_defaults(&patch);
- *   patch.plane.axis_u = vec3_make(5.0f, 0.0f, 0.0f);
- *   patch.plane.axis_v = vec3_make(0.0f, 0.0f, -5.0f);
- *   ldk_grass_add(type_id, &patch);
- * }
+ * LDKGrassPatchDesc patch;
+ * ldk_grass_patch_desc_defaults(&patch);
+ * patch.plane.axis_u = vec3_make(5.0f, 0.0f, 0.0f);
+ * patch.plane.axis_v = vec3_make(0.0f, 0.0f, -5.0f);
+ * ldk_grass_add(&type, &patch);
  * ```
  *
  * A missing generator makes the corresponding custom batch fail rather than
@@ -184,14 +172,10 @@ extern "C" {
 /** @group ldk.system.grass_system */
 #define LDK_GRASS_MAX_SIDE_COUNT 8u
 /** @group ldk.system.grass_system */
-#define LDK_GRASS_TYPE_COUNT 16u
 /** @group ldk.system.grass_system */
 #define LDK_GRASS_CUSTOM_BLADE_PRESET_COUNT 8u
 /** @group ldk.system.grass_system */
-#define LDK_GRASS_TYPE_ID_INVALID UINT32_MAX
 
-/** @group ldk.system.grass_system */
-typedef u32 LDKGrassTypeId;
 
 /** @group ldk.system.grass_system */
 typedef enum LDKGrassBladeTopology
@@ -289,7 +273,7 @@ typedef struct LDKGrassPlane
   Vec3 axis_v;
 } LDKGrassPlane;
 
-/** Runtime description used when registering an additional grass type.
+/** Appearance and placement parameters owned by a terrain vegetation layer.
  * @group ldk.system.grass_system
  */
 typedef struct LDKGrassTypeDesc
@@ -337,10 +321,9 @@ typedef struct LDKGrassTypeDesc
   u32 noise_color_stop_3_color;
 } LDKGrassTypeDesc;
 
-X_ARRAY_TYPE(LDKGrassTypeDesc)
 
-
-/** Per-region state. Visual configuration comes from LDKGrassSystem.
+/** Per-region state. Both programmatic and terrain patches supply a type
+ * description directly.
  * @group ldk.system.grass_system
  */
 typedef struct LDKGrassPatchDesc
@@ -356,6 +339,9 @@ typedef struct LDKGrassPatchDesc
    * Null means full density. Only used with terrain_entity.
    */
   LDKAssetImage density_mask;
+  /** Optional scene-owned R8 mask on the terrain, identified by stable layer
+   * ID. If nonzero, it takes precedence over density_mask. */
+  u64 terrain_vegetation_layer_id;
 } LDKGrassPatchDesc;
 
 /** Opaque identity of one patch. Individual blades are intentionally hidden.
@@ -478,11 +464,6 @@ typedef struct LDKGrassSystem
   float lod_min_density;
   //@end_group
 
-  //@begin_group "Grass Types"
-  /* Array indices are persistent GrassTypeIds; existing slots must not move. */
-  //@inspect element_type=LDKGrassTypeDesc initializer=ldk_grass_type_desc_initialize max_count=16 stable
-  XArray_LDKGrassTypeDesc *types;
-  //@end_group
 
 } LDKGrassSystem;
 
@@ -491,43 +472,6 @@ typedef struct LDKGrassSystem
  * @group ldk.system.grass_system
  */
 LDK_API void ldk_grass_type_desc_defaults(LDKGrassTypeDesc *out_desc);
-
-/** Default initializer for Comet-created grass array elements. */
-LDK_API void ldk_grass_type_desc_initialize(void *element);
-
-/** Return the active configuration index for name, or INVALID when absent.
- * @param name Name identifying the object or setting.
- * @return The requested value.
- * @group ldk.system.grass_system
- */
-LDK_API LDKGrassTypeId ldk_grass_get_id_by_name(const char *name);
-
-/** True when type_id names a configured slot in the active GrassSystem.
- * @param type_id Identifier of the type.
- * @return True when the queried condition holds; false otherwise.
- * @group ldk.system.grass_system
- */
-LDK_API bool ldk_grass_type_is_valid(LDKGrassTypeId type_id);
-
-/** Copy one configured type from the active GrassSystem.
- * @param type_id Identifier of the type.
- * @param out_desc Receives the descriptor.
- * @return True if the operation succeeds; false otherwise.
- * @group ldk.system.grass_system
- */
-LDK_API bool ldk_grass_type_get(
-    LDKGrassTypeId type_id, LDKGrassTypeDesc *out_desc);
-
-/**
- * Register an additional type in the first free runtime slot. Names must be
- * unique. Returns INVALID when the system is inactive, the description is
- * invalid, the name already exists, or all 16 slots are occupied.
- * @param desc Description or configuration for this operation.
- * @return The requested value.
- * @group ldk.system.grass_system
- */
-LDK_API LDKGrassTypeId ldk_grass_type_register(
-    const LDKGrassTypeDesc *desc);
 
 /** Initialize an empty one-square-unit patch with density scale 1.
  * @param out_desc Receives the descriptor.
@@ -549,23 +493,23 @@ LDK_API LDKGrassPatch ldk_grass_patch_null(void);
 LDK_API bool ldk_grass_patch_is_valid(LDKGrassPatch patch);
 
 /** Generate and retain one patch using a configured grass type.
- * @param type_id Identifier of the type.
+ * @param type Description of the vegetation to draw.
  * @param desc Description or configuration for this operation.
  * @return The requested value.
  * @group ldk.system.grass_system
  */
 LDK_API LDKGrassPatch ldk_grass_add(
-    LDKGrassTypeId type_id, const LDKGrassPatchDesc *desc);
+    const LDKGrassTypeDesc *type, const LDKGrassPatchDesc *desc);
 
 /** Replace a patch recipe and regenerate its persistent blade transforms.
  * @param patch Patch used by this operation.
- * @param type_id Identifier of the type.
+ * @param type Description of the vegetation to draw.
  * @param desc Description or configuration for this operation.
  * @return True if the operation succeeds; false otherwise.
  * @group ldk.system.grass_system
  */
 LDK_API bool ldk_grass_update(LDKGrassPatch patch,
-    LDKGrassTypeId type_id, const LDKGrassPatchDesc *desc);
+    const LDKGrassTypeDesc *type, const LDKGrassPatchDesc *desc);
 
 /** Remove a patch and every opaque blade belonging to it.
  * @param patch Patch used by this operation.
