@@ -28,6 +28,8 @@
 #define TERRAIN_UNDO_TAG UINT32_C(0x5452524e)
 #define TERRAIN_BRUSH_SEGMENTS 48u
 #define TERRAIN_PI 3.14159265358979323846f
+#define TERRAIN_BRUSH_MAX_RADIUS 128.0f
+#define TERRAIN_BRUSH_MAX_STRENGTH 100.0f
 
 typedef struct LDKEditorTerrainUndoRegion
 {
@@ -200,6 +202,84 @@ static bool s_terrain_vegetation_select(LDKEditorContext *editor,
   state->vegetation_pixels = pixels;
   state->vegetation_layer_id = layer_id;
   return true;
+}
+
+/* Sculpt uses height pixels; the other three modes paint an R8 mask of
+ * the corresponding terrain distribution layer. There is no separate mask
+ * format or painter for Decorations and Trees. */
+static bool s_terrain_distribution_mode(LDKEditorTerrainEditMode mode)
+{
+  return mode != LDK_EDITOR_TERRAIN_EDIT_SCULPT;
+}
+
+static LDKGrassLayerKind s_terrain_edit_mode_kind(
+    LDKEditorTerrainEditMode mode)
+{
+  if (mode == LDK_EDITOR_TERRAIN_EDIT_DECORATION)
+    return LDK_GRASS_LAYER_DECORATION;
+  if (mode == LDK_EDITOR_TERRAIN_EDIT_TREES)
+    return LDK_GRASS_LAYER_TREE;
+  return LDK_GRASS_LAYER_VEGETATION;
+}
+
+/* Do not paint the last selected layer when switching categories. A missing
+ * category is intentionally left unselected until the user creates a layer. */
+static void s_terrain_brush_layer_sync(LDKEditorContext *editor)
+{
+  LDKEditorTerrainState *state = &editor->terrain_editor;
+  if (!state->loaded || !s_terrain_distribution_mode(state->edit_mode))
+    return;
+  const LDKGrassLayerKind kind = s_terrain_edit_mode_kind(state->edit_mode);
+  u64 candidate = 0u;
+  for (u32 i = 0u; i < state->data.vegetation_layer_count; ++i)
+  {
+    const LDKTerrainVegetationLayer *layer =
+        &state->data.vegetation_layers[i];
+    if (layer->type.kind != kind) continue;
+    if (layer->id == state->vegetation_layer_id) return;
+    if (!candidate) candidate = layer->id;
+  }
+  if (candidate)
+  {
+    (void)s_terrain_vegetation_select(editor, candidate);
+  }
+  else
+  {
+    free(state->vegetation_pixels);
+    state->vegetation_pixels = NULL;
+    state->vegetation_layer_id = 0u;
+  }
+}
+
+static void s_terrain_edit_mode_toggle(LDKEditorContext *editor,
+    LDKEditorTerrainEditMode mode)
+{
+  LDKEditorTerrainState *state = &editor->terrain_editor;
+  if (state->stroke_active) s_terrain_stroke_finish(editor);
+  if (state->enabled && state->edit_mode == mode)
+  {
+    state->enabled = false;
+    state->hovered = false;
+    return;
+  }
+  state->enabled = true;
+  state->edit_mode = mode;
+  s_terrain_brush_layer_sync(editor);
+}
+
+/* The visible controls are normalized, while stroke code continues working
+ * in scene units (radius) and per-second intensity (strength). Powers make
+ * the small values precise without shrinking the former upper limits. */
+static float s_terrain_brush_radius_normalized(float radius)
+{
+  return sqrtf(fminf(1.0f, fmaxf(0.0f,
+      radius / TERRAIN_BRUSH_MAX_RADIUS)));
+}
+
+static float s_terrain_brush_strength_normalized(float strength)
+{
+  return cbrtf(fminf(1.0f, fmaxf(0.0f,
+      strength / TERRAIN_BRUSH_MAX_STRENGTH)));
 }
 
 /* Most strokes touch only a handful of texels. Keep the authored image
@@ -796,8 +876,8 @@ static bool s_terrain_stroke_begin(LDKEditorContext *editor)
     editor->undo_widget_id = 0;
     editor->undo_end_requested = false;
   }
-  const bool vegetation = state->edit_mode ==
-      LDK_EDITOR_TERRAIN_EDIT_VEGETATION;
+  const bool vegetation = s_terrain_distribution_mode(state->edit_mode);
+  if (vegetation) s_terrain_brush_layer_sync(editor);
   const size_t bytes = vegetation
       ? (size_t)state->data.width * state->data.height
       : state->pixel_bytes;
@@ -884,6 +964,8 @@ static bool s_terrain_brush_level_apply(LDKEditorTerrainState *state,
   }
 
   const float radius = state->radius;
+  /* Falloff is the fraction of the radius used for the soft outer band.
+   * Example: 0.65 means 35% solid influence, followed by 65% fade. */
   const float inner = radius * (1.0f - state->falloff);
   const float target = s_terrain_clamp01((state->flatten_height -
       terrain->height_offset) / terrain->height_scale);
@@ -999,6 +1081,7 @@ static bool s_terrain_vegetation_brush_apply(
   if (x1 >= (int)terrain->width) x1 = (int)terrain->width - 1;
   if (z1 >= (int)terrain->height) z1 = (int)terrain->height - 1;
   if (x1 < x0 || z1 < z0) return false;
+  /* Same proportional falloff as the sculpt brush. */
   const float inner = state->radius * (1.0f - state->falloff);
   const float dt = fmaxf(0.001f, fminf(0.05f, editor->ui.delta_time));
   const float target = state->vegetation_erase ? 0.0f : 255.0f;
@@ -1338,7 +1421,7 @@ void ldki_editor_terrain_view_update(
       ldk_os_mouse_button_is_pressed((LDKMouseState *)ui->mouse,
           LDK_MOUSE_BUTTON_LEFT))
   {
-    if (state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_VEGETATION)
+    if (s_terrain_distribution_mode(state->edit_mode))
       (void)s_terrain_vegetation_brush_apply(editor, local_hit);
     else
       (void)s_terrain_brush_apply(editor, local_hit);
@@ -2572,40 +2655,31 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
   ldk_ui_label(ui, "Editing mode");
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_begin_horizontal(ui);
-  bool sculpt_active = state->enabled &&
+  const bool sculpt_active = state->enabled &&
       state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_SCULPT;
   if (ldk_ui_toggle_icon_button(ui,
           s_terrain_ui_icon(editor, LDK_EDITOR_ICON_TERRAIN_EDITOR),
           "Sculpt", sculpt_active) != sculpt_active)
-  {
-    if (state->stroke_active) s_terrain_stroke_finish(editor);
-    if (sculpt_active)
-      state->enabled = false;
-    else
-    {
-      state->enabled = true;
-      state->edit_mode = LDK_EDITOR_TERRAIN_EDIT_SCULPT;
-    }
-  }
-  ldk_ui_set_next_disabled(ui, true); /* Surface paint: separate stage. */
-  (void)ldk_ui_button(ui, "Surface Paint");
-  if (ldk_ui_button(ui,
-          state->enabled && state->edit_mode ==
-              LDK_EDITOR_TERRAIN_EDIT_VEGETATION
-              ? "Exit Vegetation" : "Vegetation"))
-  {
-    if (state->stroke_active) s_terrain_stroke_finish(editor);
-    if (state->enabled && state->edit_mode ==
-        LDK_EDITOR_TERRAIN_EDIT_VEGETATION)
-      state->enabled = false;
-    else
-    {
-      state->enabled = true;
-      state->edit_mode = LDK_EDITOR_TERRAIN_EDIT_VEGETATION;
-    }
-  }
+    s_terrain_edit_mode_toggle(editor, LDK_EDITOR_TERRAIN_EDIT_SCULPT);
+  const bool decoration_active = state->enabled &&
+      state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_DECORATION;
+  if (ldk_ui_toggle_icon_button(ui, (LDKUIIcon){0},
+          "Decoration", decoration_active) != decoration_active)
+    s_terrain_edit_mode_toggle(editor, LDK_EDITOR_TERRAIN_EDIT_DECORATION);
+  const bool trees_active = state->enabled &&
+      state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_TREES;
+  if (ldk_ui_toggle_icon_button(ui, (LDKUIIcon){0},
+          "Trees", trees_active) != trees_active)
+    s_terrain_edit_mode_toggle(editor, LDK_EDITOR_TERRAIN_EDIT_TREES);
+  const bool vegetation_active = state->enabled &&
+      state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_VEGETATION;
+  if (ldk_ui_toggle_icon_button(ui, (LDKUIIcon){0},
+          "Vegetation", vegetation_active) != vegetation_active)
+    s_terrain_edit_mode_toggle(editor, LDK_EDITOR_TERRAIN_EDIT_VEGETATION);
   ldk_ui_end_horizontal(ui);
-  if (state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_SCULPT)
+  if (state->enabled)
+  {
+    if (state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_SCULPT)
   {
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_label(ui, "Sculpt");
@@ -2638,8 +2712,12 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
   }
   else
   {
+    const LDKGrassLayerKind kind = s_terrain_edit_mode_kind(state->edit_mode);
+    const char *brush_title = kind == LDK_GRASS_LAYER_DECORATION
+        ? "Decoration Brush" : (kind == LDK_GRASS_LAYER_TREE
+            ? "Tree Brush" : "Vegetation Brush");
     ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-    ldk_ui_label(ui, "Vegetation Brush");
+    ldk_ui_label(ui, brush_title);
     ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
     ldk_ui_begin_horizontal(ui);
     if (ldk_ui_button(ui, state->vegetation_erase ? "Paint" : "[Paint]"))
@@ -2653,29 +2731,55 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
       state->vegetation_erase = true;
     }
     ldk_ui_end_horizontal(ui);
-    const char *active_name = NULL;
+    s_terrain_brush_layer_sync(editor);
+    const char *names[LDK_TERRAIN_VEGETATION_LAYER_COUNT] = {0};
+    u64 layer_ids[LDK_TERRAIN_VEGETATION_LAYER_COUNT] = {0};
+    u32 layer_count = 0u;
+    u32 layer_selected = 0u;
     for (u32 i = 0u; i < state->data.vegetation_layer_count; ++i)
     {
       const LDKTerrainVegetationLayer *layer =
           &state->data.vegetation_layers[i];
+      if (layer->type.kind != kind) continue;
       if (layer->id == state->vegetation_layer_id)
+        layer_selected = layer_count;
+      names[layer_count] = x_smallstr_cstr(&layer->type.name);
+      layer_ids[layer_count++] = layer->id;
+    }
+    if (layer_count)
+    {
+      const u32 selected = ldk_editor_ui_row_enum(editor, "Brush Layer",
+          0u, names, layer_count, layer_selected, false, NULL);
+      if (selected < layer_count && selected != layer_selected)
       {
-        active_name = x_smallstr_cstr(&layer->type.name);
-        break;
+        if (state->stroke_active) s_terrain_stroke_finish(editor);
+        (void)s_terrain_vegetation_select(editor, layer_ids[selected]);
       }
     }
-    ldk_editor_ui_row_label(editor, "Brush Layer", 0u,
-        active_name ? active_name : "Select a vegetation layer below.");
+    else
+      ldk_editor_ui_row_label(editor, "Brush Layer", 0u,
+          "Add a layer in the corresponding collection.");
   }
-  state->radius = ldk_editor_ui_row_slider_float(editor,
-      "Brush Radius", 0u, state->radius, 0.5f, 128.0f, false, NULL);
+  const float radius_previous =
+      s_terrain_brush_radius_normalized(state->radius);
+  const float radius_normalized = ldk_editor_ui_row_slider_float(editor,
+      "Brush Radius", 0u, radius_previous, 0.0f, 1.0f, false, NULL);
+  if (radius_normalized != radius_previous)
+    state->radius = TERRAIN_BRUSH_MAX_RADIUS *
+        radius_normalized * radius_normalized;
   ldk_ui_end_horizontal(ui);
-  state->strength = ldk_editor_ui_row_slider_float(editor,
-      "Brush Strength", 0u, state->strength, 0.1f, 100.0f, false, NULL);
+  const float strength_previous =
+      s_terrain_brush_strength_normalized(state->strength);
+  const float strength_normalized = ldk_editor_ui_row_slider_float(editor,
+      "Brush Strength", 0u, strength_previous, 0.0f, 1.0f, false, NULL);
+  if (strength_normalized != strength_previous)
+    state->strength = TERRAIN_BRUSH_MAX_STRENGTH *
+        strength_normalized * strength_normalized * strength_normalized;
   ldk_ui_end_horizontal(ui);
   state->falloff = ldk_editor_ui_row_slider_float(editor,
       "Falloff", 0u, state->falloff, 0.0f, 1.0f, false, NULL);
   ldk_ui_end_horizontal(ui);
+  }
   ldk_ui_horizontal_line(ui);
   s_terrain_surface_folds_draw(editor, entity);
   s_terrain_vegetation_folds_sync(entity, state);
@@ -2741,6 +2845,16 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
         else if ((result & LDK_UI_TREE_NODE_RESULT_CLICKED) && !selected)
         {
           if (state->stroke_active) s_terrain_stroke_finish(editor);
+          if (state->enabled &&
+              s_terrain_distribution_mode(state->edit_mode))
+          {
+            if (layer->type.kind == LDK_GRASS_LAYER_DECORATION)
+              state->edit_mode = LDK_EDITOR_TERRAIN_EDIT_DECORATION;
+            else if (layer->type.kind == LDK_GRASS_LAYER_TREE)
+              state->edit_mode = LDK_EDITOR_TERRAIN_EDIT_TREES;
+            else
+              state->edit_mode = LDK_EDITOR_TERRAIN_EDIT_VEGETATION;
+          }
           (void)s_terrain_vegetation_select(editor, layer_id);
         }
 

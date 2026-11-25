@@ -319,7 +319,9 @@ typedef struct LDKEditorTerrainHeightSnapshot
 typedef enum LDKEditorTerrainEditMode
 {
   LDK_EDITOR_TERRAIN_EDIT_SCULPT = 0,
-  LDK_EDITOR_TERRAIN_EDIT_VEGETATION
+  LDK_EDITOR_TERRAIN_EDIT_VEGETATION,
+  LDK_EDITOR_TERRAIN_EDIT_DECORATION,
+  LDK_EDITOR_TERRAIN_EDIT_TREES
 } LDKEditorTerrainEditMode;
 
 typedef struct LDKEditorTerrainState
