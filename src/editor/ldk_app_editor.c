@@ -134,6 +134,64 @@ static void s_editor_camera_settings_apply(
   camera->fov_y = deg_to_rad(editor->editor_camera_fov);
   camera->near_plane = editor->editor_camera_near_clip;
   camera->far_plane = editor->editor_camera_far_clip;
+
+  LDKCameraBackgroundMode background_mode = LDK_CAMERA_BACKGROUND_COLOR;
+  u32 background_color = 0xABABABFFu;
+  LDKAssetSkybox skybox_asset = ldk_asset_skybox_null();
+  LDKComponentRegistry *registry = ldk_ecs_component_registry_get();
+
+  if (registry != NULL)
+  {
+    XArray *cameras = ldk_component_store_get(
+        registry, LDK_COMPONENT_TYPE_CAMERA);
+    XArray *owners = ldk_component_owners_get(
+        registry, LDK_COMPONENT_TYPE_CAMERA);
+
+    if (cameras != NULL && owners != NULL)
+    {
+      for (u32 i = 0; i < x_array_count(cameras); ++i)
+      {
+        const LDKCamera *source = x_array_get(cameras, i);
+        const LDKEntity *owner = x_array_get(owners, i);
+
+        if (source == NULL || owner == NULL ||
+            source->role != LDK_CAMERA_ROLE_MAIN || !source->enabled ||
+            !ldk_ecs_component_is_enabled(*owner, LDK_COMPONENT_TYPE_CAMERA))
+        {
+          continue;
+        }
+
+        if (source->background_mode == LDK_CAMERA_BACKGROUND_SKYBOX)
+        {
+          background_mode = LDK_CAMERA_BACKGROUND_SKYBOX;
+          background_color = source->background_color;
+          skybox_asset = source->skybox_asset;
+        }
+        else if (source->background_mode == LDK_CAMERA_BACKGROUND_COLOR)
+        {
+          background_color = source->background_color;
+        }
+
+        break;
+      }
+    }
+  }
+
+  if (camera->skybox_asset.h.index != skybox_asset.h.index ||
+      camera->skybox_asset.h.version != skybox_asset.h.version)
+  {
+    if (camera->renderer != NULL)
+    {
+      ldk_renderer_skybox_destroy(camera->renderer, camera->renderer_skybox);
+    }
+
+    camera->renderer_skybox = LDK_RESOURCE_SKYBOX_INVALID;
+    camera->skybox_revision = 0;
+  }
+
+  camera->background_mode = background_mode;
+  camera->background_color = background_color;
+  camera->skybox_asset = skybox_asset;
 }
 
 static bool s_editor_camera_ensure(LDKEditorContext *editor)
