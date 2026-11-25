@@ -113,10 +113,12 @@
   "}\n" \
   "vec3 ldk_vegetation_position(mat4 world, vec3 local_position,\n" \
   "    vec2 uv, vec4 tangent, vec4 vegetation, vec4 interaction,\n" \
-  "    float time, out vec3 bend, out float height)\n" \
+  "    vec4 decoration, float time, out vec3 bend, out float height)\n" \
   "{\n" \
   "  vec4 world_position = world * vec4(local_position, 1.0);\n" \
-  "  height = clamp(uv.y, 0.0, 1.0);\n" \
+  "  height = decoration.x > 0.5 ?\n" \
+  "      clamp((local_position.y - decoration.y) * decoration.z, 0.0, 1.0) :\n" \
+  "      clamp(uv.y, 0.0, 1.0);\n" \
   "  bend = vec3(0.0);\n" \
   "  if (height > 0.0)\n" \
   "  {\n" \
@@ -143,9 +145,12 @@
   "      vec3 direction = horizontal / strength;\n" \
   "      float angle = min(strength * 2.0, 2.4);\n" \
   "      float arc_angle = angle * height;\n" \
-  "      float radius = length(basis[1]) / angle;\n" \
+  "      float local_height = decoration.x > 0.5 ?\n" \
+  "          1.0 / max(decoration.z, 1e-6) : 1.0;\n" \
+  "      float full_height = length(basis[1]) * local_height;\n" \
+  "      float radius = full_height / angle;\n" \
   "      world_position.xyz += direction * (radius * (1.0 - cos(arc_angle))) +\n" \
-  "          up * (radius * sin(arc_angle) - length(basis[1]) * height);\n" \
+  "          up * (radius * sin(arc_angle) - full_height * height);\n" \
   "      bend = direction * angle;\n" \
   "    }\n" \
   "  }\n" \
@@ -183,8 +188,46 @@
   "  return mix(lower, upper, step(vec3(0.04045), color));\n"               \
   "}\n"
 
+#define LDK_GL33_TREE_WIND_GLSL \
+  "/* Height-weighted Simple Wind shared by Tree color and shadow passes. */\n" \
+  "vec3 ldk_tree_wind_position(mat4 world, vec3 local,\n" \
+  "    vec4 wind, vec4 tree, float time, out vec3 axis, out float normal_angle)\n" \
+  "{\n" \
+  "  vec3 base = (world * vec4(local, 1.0)).xyz;\n" \
+  "  axis = vec3(0.0);\n" \
+  "  normal_angle = 0.0;\n" \
+  "  if (tree.w < 1.5 || wind.y <= 0.0 || tree.z <= 0.0) return base;\n" \
+  "  float height = clamp((local.y - tree.y) * tree.z, 0.0, 1.0);\n" \
+  "  if (height <= 0.0) return base;\n" \
+  "  vec2 direction = vec2(cos(wind.w), sin(wind.w));\n" \
+  "  float phase = time * wind.z * 6.28318530718 +\n" \
+  "      dot(world[3].xz, direction) * 0.75;\n" \
+  "  float sway = 0.65 * sin(phase) +\n" \
+  "      0.35 * sin(phase * 1.73 + 1.2);\n" \
+  "  vec3 up = normalize(world[1].xyz);\n" \
+  "  vec3 horizontal = vec3(direction.x, 0.0, direction.y);\n" \
+  "  horizontal -= up * dot(horizontal, up);\n" \
+  "  float magnitude = length(horizontal);\n" \
+  "  float angle = min(abs(wind.y * sway) * magnitude * 2.0, 2.4);\n" \
+  "  if (angle <= 1e-5) return base;\n" \
+  "  vec3 bend = horizontal / magnitude * sign(sway);\n" \
+  "  axis = normalize(cross(up, bend));\n" \
+  "  normal_angle = angle * height;\n" \
+  "  float full_height = length(world[1].xyz) / max(tree.z, 1e-6);\n" \
+  "  float radius = full_height / angle;\n" \
+  "  float arc = normal_angle;\n" \
+  "  return base + bend * (radius * (1.0 - cos(arc))) +\n" \
+  "      up * (radius * sin(arc) - full_height * height);\n" \
+  "}\n" \
+  "vec3 ldk_tree_wind_normal(vec3 n, vec3 axis, float angle)\n" \
+  "{\n" \
+  "  if (angle <= 1e-5) return n;\n" \
+  "  return n * cos(angle) + cross(axis, n) * sin(angle) +\n" \
+  "      axis * dot(axis, n) * (1.0 - cos(angle));\n" \
+  "}\n"
+
 #define LDK_RHI_GL33_MESH_PASS_VERTEX_SHADER \
-  "#version 330 core\n" LDK_GL33_COLOR_GLSL \
+  "#version 330 core\n" LDK_GL33_COLOR_GLSL LDK_GL33_TREE_WIND_GLSL \
   "layout(location = 0) in vec3 a_position;\n" \
   "layout(location = 1) in vec3 a_normal;\n" \
   "layout(location = 2) in vec2 a_uv;\n" \
@@ -204,6 +247,8 @@
   "  vec4 u_surface;\n" \
   "  vec4 u_vegetation;\n" \
   "  vec4 u_uv_transform[8];\n" \
+  "  vec4 u_vegetation_interaction;\n" \
+  "  vec4 u_terrain_info;\n" \
   "};\n" \
   "layout(std140) uniform LDK_UBO_0\n" \
   "{\n" \
@@ -248,17 +293,23 @@
   "    world = mat4(vec4(axis_x, 0.0), vec4(axis_y, 0.0),\n" \
   "        vec4(camera_back * z_scale, 0.0), world[3]);\n" \
   "  }\n" \
-  "  vec4 world_position = world * vec4(a_position, 1.0);\n" \
+  "  vec3 tree_axis;\n" \
+  "  float tree_angle;\n" \
+  "  vec4 world_position = vec4(ldk_tree_wind_position(world, a_position,\n" \
+  "      u_vegetation, u_terrain_info, u_camera_position.w,\n" \
+  "      tree_axis, tree_angle), 1.0);\n" \
   "  mat3 basis = mat3(world);\n" \
   "  float basis_determinant = determinant(basis);\n" \
   "  mat3 normal_basis = abs(basis_determinant) > 1e-8\n" \
   "      ? transpose(inverse(basis)) : basis;\n" \
-  "  v_normal = normal_basis * a_normal;\n" \
+  "  v_normal = ldk_tree_wind_normal(\n" \
+  "      normal_basis * a_normal, tree_axis, tree_angle);\n" \
   "  v_tangent = vec4(0.0);\n" \
   "  if (abs(a_tangent.w) > 0.5)\n" \
   "  {\n" \
   "    vec3 n = v_normal / max(length(v_normal), 1e-6);\n" \
-  "    vec3 tangent = basis * a_tangent.xyz;\n" \
+  "    vec3 tangent = ldk_tree_wind_normal(\n" \
+  "        basis * a_tangent.xyz, tree_axis, tree_angle);\n" \
   "    tangent -= n * dot(n, tangent);\n" \
   "    float tangent_length = length(tangent);\n" \
   "    if (tangent_length > 1e-6)\n" \
@@ -405,6 +456,7 @@
   "  vec4 u_vegetation;\n" \
   "  vec4 u_uv_transform[8];\n" \
   "  vec4 u_vegetation_interaction;\n" \
+  "  vec4 u_terrain_info;\n" \
   "};\n" \
   "layout(std140) uniform LDK_UBO_0\n" \
   "{\n" \
@@ -419,6 +471,7 @@
   "  vec4 u_instance_color;\n" \
   "};\n" \
   "#endif\n" \
+  "out vec2 v_uv;\n" \
   "out vec3 v_normal;\n" \
   "out vec3 v_world_position;\n" \
   "out vec4 v_color;\n" \
@@ -434,7 +487,8 @@
   "  float vegetation_height;\n" \
   "  vec3 position = ldk_vegetation_position(world, a_position, a_uv,\n" \
   "      a_tangent, u_vegetation, u_vegetation_interaction,\n" \
-  "      u_camera_position.w, vegetation_bend, vegetation_height);\n" \
+  "      u_terrain_info, u_camera_position.w, vegetation_bend, vegetation_height);\n" \
+  "  v_uv = a_uv;\n" \
   "  v_normal = ldk_vegetation_normal(world, a_normal, vegetation_bend,\n" \
   "      vegetation_height, abs(a_tangent.w));\n" \
   "  v_world_position = position;\n" \
@@ -448,7 +502,7 @@
   "}\n"
 
 #define LDK_RHI_GL33_SHADOW_PASS_VERTEX_SHADER \
-  "#version 330 core\n" \
+  "#version 330 core\n" LDK_GL33_TREE_WIND_GLSL \
   "layout(location = 0) in vec3 a_position;\n" \
   "layout(location = 2) in vec2 a_uv;\n" \
   "layout(location = 8) in vec4 a_tangent;\n" \
@@ -471,6 +525,8 @@
   "  vec4 u_cutout;\n" \
   "  vec4 u_vegetation;\n" \
   "  vec4 u_uv_transform;\n" \
+  "  vec4 u_vegetation_interaction;\n" \
+  "  vec4 u_decoration;\n" \
   "};\n" \
   "void main()\n" \
   "{\n" \
@@ -479,7 +535,10 @@
   "#else\n" \
   "  mat4 world = u_world;\n" \
   "#endif\n" \
-  "  vec3 position = (world * vec4(a_position, 1.0)).xyz;\n" \
+  "  vec3 tree_axis;\n" \
+  "  float tree_angle;\n" \
+  "  vec3 position = ldk_tree_wind_position(world, a_position,\n" \
+  "      u_vegetation, u_decoration, u_animation.x, tree_axis, tree_angle);\n" \
   "  gl_Position = u_light_view_projection * vec4(position, 1.0);\n" \
   "}\n"
 
@@ -510,6 +569,7 @@
   "  vec4 u_vegetation;\n" \
   "  vec4 u_uv_transform;\n" \
   "  vec4 u_vegetation_interaction;\n" \
+  "  vec4 u_decoration;\n" \
   "};\n" \
   "void main()\n" \
   "{\n" \
@@ -522,7 +582,7 @@
   "  float vegetation_height;\n" \
   "  vec3 position = ldk_vegetation_position(world, a_position, a_uv,\n" \
   "      a_tangent, u_vegetation, u_vegetation_interaction,\n" \
-  "      u_animation.x, vegetation_bend, vegetation_height);\n" \
+  "      u_decoration, u_animation.x, vegetation_bend, vegetation_height);\n" \
   "  gl_Position = u_light_view_projection * vec4(position, 1.0);\n" \
   "}\n"
 
@@ -531,7 +591,7 @@
   "void main() {}\n"
 
 #define LDK_RHI_GL33_SHADOW_PASS_CUTOUT_VERTEX_SHADER \
-  "#version 330 core\n" \
+  "#version 330 core\n" LDK_GL33_TREE_WIND_GLSL \
   "layout(location = 0) in vec3 a_position;\n" \
   "layout(location = 2) in vec2 a_uv;\n" \
   "layout(location = 8) in vec4 a_tangent;\n" \
@@ -555,6 +615,8 @@
   "  vec4 u_cutout;\n" \
   "  vec4 u_vegetation;\n" \
   "  vec4 u_uv_transform;\n" \
+  "  vec4 u_vegetation_interaction;\n" \
+  "  vec4 u_decoration;\n" \
   "};\n" \
   "out vec2 v_uv;\n" \
   "void main()\n" \
@@ -570,7 +632,10 @@
   "#else\n" \
   "  v_uv = mix(u_uv_rect.xy, u_uv_rect.zw, frame_uv);\n" \
   "#endif\n" \
-  "  vec3 position = (world * vec4(a_position, 1.0)).xyz;\n" \
+  "  vec3 tree_axis;\n" \
+  "  float tree_angle;\n" \
+  "  vec3 position = ldk_tree_wind_position(world, a_position,\n" \
+  "      u_vegetation, u_decoration, u_animation.x, tree_axis, tree_angle);\n" \
   "  gl_Position = u_light_view_projection * vec4(position, 1.0);\n" \
   "}\n"
 
@@ -582,6 +647,8 @@
   "  vec4 u_cutout;\n" \
   "  vec4 u_vegetation;\n" \
   "  vec4 u_uv_transform;\n" \
+  "  vec4 u_vegetation_interaction;\n" \
+  "  vec4 u_decoration;\n" \
   "};\n" \
   "uniform sampler2D LDK_TEXTURE_3;\n" \
   "void main()\n" \
@@ -779,6 +846,8 @@
   "  vec4 u_surface;\n" \
   "  vec4 u_vegetation;\n" \
   "  vec4 u_uv_transform[8];\n" \
+  "  vec4 u_vegetation_interaction;\n" \
+  "  vec4 u_terrain_info;\n" \
   "};\n" \
   "out vec4 out_color;\n" \
   "void main()\n" \
@@ -888,6 +957,7 @@
 #define LDK_RHI_GL33_VEGETATION_PASS_FRAGMENT_SHADER \
   "#version 330 core\n" LDK_GL33_LIGHTING_GLSL \
   "in vec3 v_normal;\n" \
+  "in vec2 v_uv;\n" \
   "in vec4 v_color;\n" \
   "in vec4 v_instance_color;\n" \
   "layout(std140) uniform LDK_UBO_2\n" \
@@ -897,7 +967,9 @@
   "  vec4 u_vegetation;\n" \
   "  vec4 u_uv_transform[8];\n" \
   "  vec4 u_vegetation_interaction;\n" \
+  "  vec4 u_terrain_info;\n" \
   "};\n" \
+  "uniform sampler2D LDK_TEXTURE_3;\n" \
   "out vec4 out_color;\n" \
   "void main()\n" \
   "{\n" \
@@ -908,6 +980,11 @@
   "  vec3 specular;\n" \
   "  ldk_lighting(normal, u_surface.x, u_surface.y, diffuse, specular);\n" \
   "  vec4 color = v_color * u_material_color * v_instance_color;\n" \
+  "  if (u_terrain_info.w > 0.5)\n" \
+  "  {\n" \
+  "    color *= texture(LDK_TEXTURE_3, v_uv);\n" \
+  "    if (color.a < u_surface.w) discard;\n" \
+  "  }\n" \
   "  vec3 emission = color.rgb * u_surface.z;\n" \
   "  out_color = vec4(ldk_apply_fog(color.rgb * diffuse + specular +\n" \
   "      emission), color.a);\n" \
@@ -915,6 +992,7 @@
 
 #define LDK_RHI_GL33_VEGETATION_PASS_UNLIT_FRAGMENT_SHADER \
   "#version 330 core\n" LDK_GL33_LIGHTING_GLSL \
+  "in vec2 v_uv;\n" \
   "in vec4 v_color;\n" \
   "in vec4 v_instance_color;\n" \
   "layout(std140) uniform LDK_UBO_2\n" \
@@ -924,11 +1002,18 @@
   "  vec4 u_vegetation;\n" \
   "  vec4 u_uv_transform[8];\n" \
   "  vec4 u_vegetation_interaction;\n" \
+  "  vec4 u_terrain_info;\n" \
   "};\n" \
+  "uniform sampler2D LDK_TEXTURE_3;\n" \
   "out vec4 out_color;\n" \
   "void main()\n" \
   "{\n" \
   "  vec4 color = v_color * u_material_color * v_instance_color;\n" \
+  "  if (u_terrain_info.w > 0.5)\n" \
+  "  {\n" \
+  "    color *= texture(LDK_TEXTURE_3, v_uv);\n" \
+  "    if (color.a < u_surface.w) discard;\n" \
+  "  }\n" \
   "  float shadow = 1.0;\n" \
   "  int shadow_index = u_light_count.y;\n" \
   "  if (shadow_index >= 0 && shadow_index < min(u_light_count.x, 16))\n" \
@@ -954,6 +1039,8 @@
   "  vec4 u_surface;\n" \
   "  vec4 u_vegetation;\n" \
   "  vec4 u_uv_transform[8];\n" \
+  "  vec4 u_vegetation_interaction;\n" \
+  "  vec4 u_terrain_info;\n" \
   "};\n" \
   "out vec4 out_color;\n" \
   "void main()\n" \
@@ -970,6 +1057,8 @@
   "  vec4 u_surface;\n" \
   "  vec4 u_vegetation;\n" \
   "  vec4 u_uv_transform[8];\n" \
+  "  vec4 u_vegetation_interaction;\n" \
+  "  vec4 u_terrain_info;\n" \
   "};\n" \
   "out vec4 out_color;\n" \
   "void main()\n" \
@@ -988,6 +1077,8 @@
   "  vec4 u_surface;\n" \
   "  vec4 u_vegetation;\n" \
   "  vec4 u_uv_transform[8];\n" \
+  "  vec4 u_vegetation_interaction;\n" \
+  "  vec4 u_terrain_info;\n" \
   "};\n" \
   "uniform sampler2D LDK_TEXTURE_3;\n" \
   "out vec4 out_color;\n" \
@@ -1017,6 +1108,8 @@
   "  vec4 u_surface;\n" \
   "  vec4 u_vegetation;\n" \
   "  vec4 u_uv_transform[8];\n" \
+  "  vec4 u_vegetation_interaction;\n" \
+  "  vec4 u_terrain_info;\n" \
   "};\n" \
   "uniform sampler2D LDK_TEXTURE_3;\n" \
   "out vec4 out_color;\n" \
@@ -1037,6 +1130,8 @@
   "  vec4 u_surface;\n" \
   "  vec4 u_vegetation;\n" \
   "  vec4 u_uv_transform[8];\n" \
+  "  vec4 u_vegetation_interaction;\n" \
+  "  vec4 u_terrain_info;\n" \
   "};\n" \
   "uniform sampler2D LDK_TEXTURE_3;\n" \
   "out vec4 out_color;\n" \
@@ -1068,6 +1163,8 @@
   "  vec4 u_surface;\n" \
   "  vec4 u_vegetation;\n" \
   "  vec4 u_uv_transform[8];\n" \
+  "  vec4 u_vegetation_interaction;\n" \
+  "  vec4 u_terrain_info;\n" \
   "};\n" \
   "uniform sampler2D LDK_TEXTURE_3;\n" \
   "out vec4 out_color;\n" \

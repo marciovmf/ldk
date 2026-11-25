@@ -1878,9 +1878,10 @@ typedef struct LDKRendererShadowMaterialParams
   float vegetation[4];
   float uv_transform[4];
   float vegetation_interaction[4];
+  float decoration[4];
 } LDKRendererShadowMaterialParams;
 
-LDK_STATIC_ASSERT(sizeof(LDKRendererShadowMaterialParams) == 64,
+LDK_STATIC_ASSERT(sizeof(LDKRendererShadowMaterialParams) == 80,
     shadow_material_std140_size);
 LDK_STATIC_ASSERT(
     offsetof(LDKRendererShadowMaterialParams, alpha_cutoff) == 4,
@@ -3432,6 +3433,36 @@ bool ldk_renderer_material_resolve(LDKRenderer *renderer,
       renderer_specular_map, true);
 }
 
+bool ldk_renderer_tree_material_resolve(LDKRenderer *renderer,
+    LDKAssetManager *assets, const LDKMaterialDesc *material_desc,
+    float wind_strength, float wind_speed, float wind_direction,
+    float mesh_min_y, float mesh_inv_height,
+    LDKResourceMaterial *renderer_material,
+    LDKResourceTexture *renderer_texture,
+    LDKResourceTexture *renderer_normal_map,
+    LDKResourceTexture *renderer_specular_map)
+{
+  if (!isfinite(wind_strength) || wind_strength < 0.0f ||
+      !isfinite(wind_speed) || !isfinite(wind_direction) ||
+      !isfinite(mesh_min_y) || !isfinite(mesh_inv_height) ||
+      mesh_inv_height < 0.0f)
+    return false;
+  if (!s_renderer_material_resolve_internal(renderer, assets, material_desc,
+          renderer_material, renderer_texture, renderer_normal_map,
+          renderer_specular_map, false)) return false;
+  LDKRendererMaterialResource *resource =
+      s_renderer_material_get_resource(renderer, *renderer_material);
+  if (!resource) return false;
+  resource->desc.tree_wind = wind_strength > 0.0f;
+  resource->desc.vegetation_wind_strength = wind_strength;
+  resource->desc.vegetation_wind_speed = wind_speed;
+  resource->desc.vegetation_wind_direction = wind_direction;
+  resource->desc.vegetation_mesh_height = true;
+  resource->desc.vegetation_mesh_min_y = mesh_min_y;
+  resource->desc.vegetation_mesh_inv_height = mesh_inv_height;
+  return true;
+}
+
 bool ldk_renderer_terrain_material_resolve(LDKRenderer *renderer,
     LDKAssetManager *assets, LDKMaterialDesc const *material_desc,
     const LDKRendererTerrainSurfaceDesc *surfaces, u32 surface_count,
@@ -3766,7 +3797,8 @@ static bool s_renderer_material_desc_is_valid(
     return false;
   }
 
-  if (textured && !ldk_renderer_texture_is_valid(renderer, desc->texture))
+  if ((textured || desc->vegetation_textured) &&
+      !ldk_renderer_texture_is_valid(renderer, desc->texture))
   {
     return false;
   }
@@ -3841,7 +3873,9 @@ LDKResourceMaterial ldk_renderer_material_create(
   memset(resource, 0, sizeof(*resource));
   resource->desc.type = desc->type;
   resource->desc.color = desc->color;
-  resource->desc.texture = s_renderer_material_type_is_textured(desc->type)
+  resource->desc.texture =
+      (s_renderer_material_type_is_textured(desc->type) ||
+          desc->vegetation_textured)
       ? desc->texture
       : ldk_renderer_texture_null();
   resource->desc.alpha_mode = desc->alpha_mode;
@@ -3871,6 +3905,12 @@ LDKResourceMaterial ldk_renderer_material_create(
   resource->desc.vegetation_interaction_recovery_time =
       desc->vegetation_interaction_recovery_time;
   resource->desc.vegetation = desc->vegetation;
+  resource->desc.vegetation_textured = desc->vegetation_textured;
+  resource->desc.vegetation_mesh_height = desc->vegetation_mesh_height;
+  resource->desc.tree_wind = desc->tree_wind;
+  resource->desc.vegetation_mesh_min_y = desc->vegetation_mesh_min_y;
+  resource->desc.vegetation_mesh_inv_height =
+      desc->vegetation_mesh_inv_height;
   resource->desc.terrain = desc->terrain;
   resource->desc.terrain_surface_count = desc->terrain_surface_count;
   if (desc->terrain_surface_count <= LDK_RENDERER_TERRAIN_SURFACE_COUNT)

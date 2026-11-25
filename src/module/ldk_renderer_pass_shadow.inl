@@ -736,6 +736,13 @@ static void s_renderer_shadow_pass_draw_run(LDKRenderer *renderer,
   material_params.vegetation[1] = material->desc.vegetation_wind_strength;
   material_params.vegetation[2] = material->desc.vegetation_wind_speed;
   material_params.vegetation[3] = material->desc.vegetation_wind_direction;
+  material_params.decoration[0] =
+      material->desc.vegetation_mesh_height ? 1.0f : 0.0f;
+  material_params.decoration[1] =
+      material->desc.vegetation_mesh_min_y;
+  material_params.decoration[2] =
+      material->desc.vegetation_mesh_inv_height;
+  material_params.decoration[3] = material->desc.tree_wind ? 2.0f : 0.0f;
   material_params.uv_transform[0] = material->uv_scale.x;
   material_params.uv_transform[1] = material->uv_scale.y;
   material_params.uv_transform[2] = material->uv_offset.x;

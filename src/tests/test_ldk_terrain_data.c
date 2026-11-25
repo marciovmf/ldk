@@ -345,6 +345,108 @@ static int test_terrain_vegetation_type_roundtrip(void)
   return 0;
 }
 
+/* Decorations use the same terrain layers and masks, but reference meshes
+ * instead of procedurally generated blades. These values must survive scene
+ * serialization without changing existing grass-only layer defaults. */
+static int test_terrain_decoration_roundtrip(void)
+{
+  LDKTerrain terrain, restored;
+  ldk_terrain_init(&terrain);
+  LDKGrassTypeDesc grass = s_vegetation_type("Tall Grass");
+  LDKGrassTypeDesc rock = s_vegetation_type("Rocks");
+  rock.kind = LDK_GRASS_LAYER_DECORATION;
+  rock.density = 0.35f;
+  rock.clumping = 0.6f;
+  rock.clump_radius = 2.0f;
+  rock.wind_strength = 0.0f;
+  rock.mesh_index = 2u;
+  rock.scale_min = (Vec3){0.5f, 0.8f, 0.4f};
+  rock.scale_max = (Vec3){1.4f, 1.6f, 1.8f};
+  rock.rotation_min = (Vec3){-10.0f, 0.0f, 0.0f};
+  rock.rotation_max = (Vec3){10.0f, 360.0f, 15.0f};
+  rock.align_to_normal = true;
+  rock.follow_terrain = false;
+  ASSERT_TRUE(ldk_asset_path_set(&rock.mesh_path, "props/rock.mesh"));
+  ASSERT_TRUE(ldk_asset_path_set(&rock.material_paths[0], "props/rock.material"));
+  u64 grass_id = 0u, rock_id = 0u;
+  ASSERT_TRUE(ldk_terrain_vegetation_layer_add(&terrain,
+      &grass, 1.0f, 0u, &grass_id));
+  ASSERT_TRUE(ldk_terrain_vegetation_layer_add(&terrain,
+      &rock, 0.8f, 0u, &rock_id));
+  ASSERT_TRUE(ldk_terrain_validate(&terrain));
+  char *serialized = NULL;
+  ASSERT_TRUE(ldk_terrain_to_tml(&terrain, &serialized));
+  ASSERT_TRUE(serialized != NULL);
+  ASSERT_TRUE(ldk_terrain_from_tml(&restored, serialized));
+  ASSERT_EQ(restored.vegetation_layer_count, 2u);
+  ASSERT_EQ(restored.vegetation_layers[0].id, grass_id);
+  ASSERT_EQ(restored.vegetation_layers[1].id, rock_id);
+  ASSERT_EQ(restored.vegetation_layers[0].type.kind,
+      LDK_GRASS_LAYER_VEGETATION);
+  const LDKGrassTypeDesc *result = &restored.vegetation_layers[1].type;
+  ASSERT_EQ(result->kind, LDK_GRASS_LAYER_DECORATION);
+  ASSERT_TRUE(strcmp(result->mesh_path.buf, "props/rock.mesh") == 0);
+  ASSERT_TRUE(strcmp(result->material_paths[0].buf, "props/rock.material") == 0);
+  ASSERT_EQ(result->mesh_index, 2u);
+  ASSERT_TRUE(result->scale_min.x == 0.5f && result->scale_max.z == 1.8f);
+  ASSERT_TRUE(result->rotation_min.x == -10.0f &&
+      result->rotation_max.y == 360.0f);
+  ASSERT_TRUE(result->align_to_normal);
+  ASSERT_FALSE(result->follow_terrain);
+  ASSERT_TRUE(result->clumping > 0.59f && result->clump_radius == 2.0f);
+  ASSERT_TRUE(result->wind_strength == 0.0f);
+  /* Invalid scale ranges cannot enter an authored terrain. */
+  restored.vegetation_layers[1].type.scale_min.x = 2.0f;
+  ASSERT_FALSE(ldk_terrain_validate(&restored));
+  free(serialized);
+  return 0;
+}
+
+/* Trees share mesh/material slots with Decorations while retaining the
+ * terrain-layer Simple Wind parameters, independently of material slots. */
+static int test_terrain_tree_roundtrip(void)
+{
+  LDKTerrain terrain, restored;
+  ldk_terrain_init(&terrain);
+  LDKGrassTypeDesc tree = s_vegetation_type("Tree");
+  tree.kind = LDK_GRASS_LAYER_TREE;
+  tree.mesh_index = 3u;
+  tree.wind_strength = 0.23f;
+  tree.scale_min = (Vec3){0.8f, 0.9f, 0.8f};
+  tree.scale_max = (Vec3){1.3f, 1.5f, 1.3f};
+  ASSERT_TRUE(ldk_asset_path_set(&tree.mesh_path, "props/trees.mesh"));
+  ASSERT_TRUE(ldk_asset_path_set(&tree.material_paths[0],
+      "props/bark.material"));
+  ASSERT_TRUE(ldk_asset_path_set(&tree.material_paths[1],
+      "props/leaves.material"));
+  u64 id = 0u;
+  ASSERT_TRUE(ldk_terrain_vegetation_layer_add(&terrain,
+      &tree, 1.0f, 0u, &id));
+  ASSERT_TRUE(ldk_terrain_validate(&terrain));
+  char *serialized = NULL;
+  ASSERT_TRUE(ldk_terrain_to_tml(&terrain, &serialized));
+  ASSERT_TRUE(serialized != NULL);
+  ASSERT_TRUE(strstr(serialized, "kind: 2") != NULL);
+  ASSERT_TRUE(ldk_terrain_from_tml(&restored, serialized));
+  ASSERT_EQ(restored.vegetation_layer_count, 1u);
+  ASSERT_EQ(restored.vegetation_layers[0].id, id);
+  const LDKGrassTypeDesc *actual = &restored.vegetation_layers[0].type;
+  ASSERT_EQ(actual->kind, LDK_GRASS_LAYER_TREE);
+  ASSERT_EQ(actual->mesh_index, 3u);
+  ASSERT_TRUE(fabsf(actual->wind_strength - 0.23f) < 0.00001f);
+  ASSERT_TRUE(strcmp(actual->mesh_path.buf, "props/trees.mesh") == 0);
+  ASSERT_TRUE(strcmp(actual->material_paths[0].buf,
+      "props/bark.material") == 0);
+  ASSERT_TRUE(strcmp(actual->material_paths[1].buf,
+      "props/leaves.material") == 0);
+  ASSERT_TRUE(actual->scale_min.x == 0.8f &&
+      actual->scale_max.y == 1.5f);
+  restored.vegetation_layers[0].type.kind = (LDKGrassLayerKind)3;
+  ASSERT_FALSE(ldk_terrain_validate(&restored));
+  free(serialized);
+  return 0;
+}
+
 /* Older terrain components that already contain a full local descriptor
  * remain readable. The duplicate sibling name is consumed once, never saved. */
 static int test_terrain_previous_type_settings_migrate(void)
@@ -398,6 +500,8 @@ int main(void)
       X_TEST(test_terrain_invalid_parse_preserves_original),
       X_TEST(test_terrain_heightmap_embedded_roundtrip),
       X_TEST(test_terrain_vegetation_type_roundtrip),
+      X_TEST(test_terrain_decoration_roundtrip),
+      X_TEST(test_terrain_tree_roundtrip),
       X_TEST(test_terrain_previous_type_settings_migrate),
   };
   return x_tests_run(tests, sizeof(tests) / sizeof(tests[0]), NULL);

@@ -276,6 +276,16 @@ typedef struct LDKGrassPlane
 /** Appearance and placement parameters owned by a terrain vegetation layer.
  * @group ldk.system.grass_system
  */
+/* One distribution system, three mesh/rendering categories. */
+#define LDK_GRASS_MESH_MATERIAL_SLOT_COUNT 8u
+
+typedef enum LDKGrassLayerKind
+{
+  LDK_GRASS_LAYER_VEGETATION = 0,
+  LDK_GRASS_LAYER_DECORATION = 1,
+  LDK_GRASS_LAYER_TREE = 2
+} LDKGrassLayerKind;
+
 typedef struct LDKGrassTypeDesc
 {
   //@inspect headline
@@ -319,6 +329,22 @@ typedef struct LDKGrassTypeDesc
   u32 noise_color_stop_2_color;
   //@inspect widget=COLOR
   u32 noise_color_stop_3_color;
+
+  /* Decoration/Tree use imported meshes and conventional material slots.
+   * Vegetation uses the existing procedural pass. Empty paths mean defaults.
+   * A Tree uses Simple Wind over height, irrespective of material slots. */
+  LDKGrassLayerKind kind;
+  LDKAssetPath mesh_path;
+  u32 mesh_index;
+  LDKAssetPath material_paths[LDK_GRASS_MESH_MATERIAL_SLOT_COUNT];
+  Vec3 scale_min;
+  Vec3 scale_max;
+  /* Angles in degrees, independently randomized about X/Y/Z. */
+  Vec3 rotation_min;
+  Vec3 rotation_max;
+  bool align_to_normal;
+  /* Follow sculpted height; when false, stay on the terrain-local base plane. */
+  bool follow_terrain;
 } LDKGrassTypeDesc;
 
 
@@ -397,6 +423,9 @@ LDK_API bool ldk_grass_blade_generator_register(
 //@system name=GrassSystem initialize=ldk_grass_system_initialize update=ldk_grass_system_update terminate=ldk_grass_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_ENGINE_NATIVE|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED bucket=LDK_SYSTEM_BUCKET_RENDER
 typedef struct LDKGrassSystem
 {
+  /** One seed for all terrain vegetation and decoration layers. Stable layer
+   * IDs and patch coordinates split it into independent random streams. */
+  u32 seed;
   //@begin_group "Blade"
   //@inspect slider min=0 max=89
   float min_tilt_degrees;
@@ -536,6 +565,38 @@ LDK_API void ldk_grass_clear(void);
  */
 LDK_API bool ldk_grass_interact(
     Vec3 from, Vec3 to, float radius, float strength);
+
+/** One imported-mesh decoration/tree instance. Result is a value, never a pointer
+ * into a render batch. The candidate index is deterministic for the current
+ * terrain recipe and is independent of frustum visibility. */
+typedef struct LDKDecorationHit
+{
+  LDKEntity terrain_entity;
+  u64 layer_id;
+  u32 candidate_index;
+  Vec3 position;
+  Mat4 world;
+} LDKDecorationHit;
+
+typedef bool (*LDKDecorationQueryFn)(const LDKDecorationHit *hit, void *user);
+
+/** Special layer selector for all mesh-backed layers. */
+#define LDK_DECORATION_ALL UINT64_MAX
+
+/** Visit imported-mesh decorations whose origin lies within the X/Z circle.
+ * The callback may return false to end enumeration early. Returns the number
+ * of results visited. This queries retained terrain patches, whether or not
+ * they are currently visible; it requires an initialized GrassSystem.
+ * All variadic layer IDs must be u64, including LDK_DECORATION_ALL.
+ */
+LDK_API u32 ldk_decoration_query_internal(LDKEntity terrain_entity,
+    float x, float z, float radius, LDKDecorationQueryFn fn,
+    void *user, ...);
+
+/* Match STDX's variadic convention: the public macro appends the u64 zero. */
+#define ldk_decoration_query(terrain_entity, x, z, radius, fn, user, ...) \
+  ldk_decoration_query_internal(terrain_entity, x, z, radius, fn, user, \
+      __VA_ARGS__, UINT64_C(0))
 
 #ifdef __cplusplus
 }

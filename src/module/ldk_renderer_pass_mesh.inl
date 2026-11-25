@@ -1130,7 +1130,8 @@ static bool s_renderer_mesh_pass_material_is_textured(
     const LDKRendererMaterialResource* material)
 {
   return material != NULL &&
-         (material->selection == LDK_RENDERER_MATERIAL_SELECTION_TEXTURED ||
+         (material->desc.vegetation_textured ||
+             material->selection == LDK_RENDERER_MATERIAL_SELECTION_TEXTURED ||
              material->selection ==
                  LDK_RENDERER_MATERIAL_SELECTION_TEXTURED_UNLIT ||
              material->selection ==
@@ -1386,7 +1387,8 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
       material->selection == LDK_RENDERER_MATERIAL_SELECTION_VEGETATION_UNLIT;
 
   LDKRHIBindings bindings = pass->bindings;
-  if (vegetation && renderer->vegetation_interaction_enabled &&
+  if (vegetation && !material->desc.vegetation_textured &&
+      renderer->vegetation_interaction_enabled &&
       pass->vegetation_bindings != LDK_RHI_INVALID_RESOURCE)
   {
     bindings = pass->vegetation_bindings;
@@ -1494,6 +1496,14 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
   material_params.vegetation[1] = material->desc.vegetation_wind_strength;
   material_params.vegetation[2] = material->desc.vegetation_wind_speed;
   material_params.vegetation[3] = material->desc.vegetation_wind_direction;
+  material_params.terrain_info[0] =
+      material->desc.vegetation_mesh_height ? 1.0f : 0.0f;
+  material_params.terrain_info[1] =
+      material->desc.vegetation_mesh_min_y;
+  material_params.terrain_info[2] =
+      material->desc.vegetation_mesh_inv_height;
+  material_params.terrain_info[3] = material->desc.tree_wind
+      ? 2.0f : (material->desc.vegetation_textured ? 1.0f : 0.0f);
   for (u32 slot = 0; slot < LDK_MATERIAL_TEXTURE_SLOT_COUNT; ++slot)
   {
     material_params.uv_transform[slot][0] = material->texture_uv_scales[slot].x;
@@ -1528,7 +1538,8 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
       material_params.terrain_uv_scale[i][3] = surface->slope_blend_degrees;
     }
   }
-  if (vegetation && renderer->vegetation_interaction_enabled)
+  if (vegetation && !material->desc.vegetation_textured &&
+      renderer->vegetation_interaction_enabled)
   {
     material_params.vegetation_interaction[0] =
         renderer->vegetation_interaction_origin.x;

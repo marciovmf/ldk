@@ -905,6 +905,12 @@ extern "C" {
     float vegetation_wind_direction;
     float vegetation_interaction_recovery_time;
     bool vegetation;
+    /* Mesh-backed vegetation keeps texture UVs independent from wind weight. */
+    bool vegetation_textured;
+    bool vegetation_mesh_height;
+    bool tree_wind;
+    float vegetation_mesh_min_y;
+    float vegetation_mesh_inv_height;
     /* Optional height-driven terrain appearance. Heights are world-space. */
     bool terrain;
     u32 terrain_surface_count;
@@ -1763,6 +1769,18 @@ extern "C" {
    * @return true when the material was resolved successfully.
    * @group ldk.module.renderer
    */
+  /** Resolve an ordinary authored material for instanced Trees with Simple
+   * Wind. Unlike regular MeshSource materials, this material is never interned:
+   * different tree layers may use the same .material with different wind. */
+  LDK_API bool ldk_renderer_tree_material_resolve(LDKRenderer *renderer,
+      LDKAssetManager *assets, const LDKMaterialDesc *material_desc,
+      float wind_strength, float wind_speed, float wind_direction,
+      float mesh_min_y, float mesh_inv_height,
+      LDKResourceMaterial *renderer_material,
+      LDKResourceTexture *renderer_texture,
+      LDKResourceTexture *renderer_normal_map,
+      LDKResourceTexture *renderer_specular_map);
+
   LDK_API bool ldk_renderer_material_resolve(LDKRenderer *renderer,
       struct LDKAssetManager *assets, LDKMaterialDesc const *material_desc,
       LDKResourceMaterial *renderer_material,

@@ -72,6 +72,8 @@ typedef struct LDKTerrainVegetationLayer
   u64 id;
   LDKGrassTypeDesc type;
   float density_scale;
+  /* Legacy scene field, retained for backward compatibility. Terrain-owned
+   * distribution uses GrassSystem.seed, stable layer IDs and patch coordinates. */
   u32 seed;
 } LDKTerrainVegetationLayer;
 

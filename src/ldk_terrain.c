@@ -12,9 +12,41 @@
 #include <stdlib.h>
 #include <string.h>
 
+static bool s_path_valid(const LDKAssetPath *path);
+
 static bool s_terrain_grass_type_valid(const LDKTerrainVegetationLayer *layer)
 {
   const LDKGrassTypeDesc *type = &layer->type;
+  if (type->kind != LDK_GRASS_LAYER_VEGETATION)
+  {
+    if (!s_path_valid(&type->mesh_path) ||
+        (type->kind > LDK_GRASS_LAYER_TREE) ||
+        !s_path_valid(&type->material_paths[0]) ||
+        !isfinite(type->scale_min.x) ||
+        !isfinite(type->scale_min.y) ||
+        !isfinite(type->scale_min.z) ||
+        !isfinite(type->scale_max.x) ||
+        !isfinite(type->scale_max.y) ||
+        !isfinite(type->scale_max.z) ||
+        !isfinite(type->rotation_min.x) ||
+        !isfinite(type->rotation_min.y) ||
+        !isfinite(type->rotation_min.z) ||
+        !isfinite(type->rotation_max.x) ||
+        !isfinite(type->rotation_max.y) ||
+        !isfinite(type->rotation_max.z) ||
+        type->scale_min.x <= 0.0f ||
+        type->scale_min.y <= 0.0f ||
+        type->scale_min.z <= 0.0f ||
+        type->scale_max.x < type->scale_min.x ||
+        type->scale_max.y < type->scale_min.y ||
+        type->scale_max.z < type->scale_min.z ||
+        type->rotation_max.x < type->rotation_min.x ||
+        type->rotation_max.y < type->rotation_min.y ||
+        type->rotation_max.z < type->rotation_min.z)
+      return false;
+  }
+  for (u32 slot = 0u; slot < LDK_GRASS_MESH_MATERIAL_SLOT_COUNT; ++slot)
+    if (!s_path_valid(&type->material_paths[slot])) return false;
   return x_smallstr_length(&type->name) > 0u &&
       type->blade_preset >= LDK_GRASS_BLADE_PRESET_THIN &&
       type->blade_preset <= LDK_GRASS_BLADE_PRESET_CUSTOM_7 &&
@@ -579,6 +611,18 @@ static void s_write_float_entry(
   x_strbuilder_append_char(out, '\n');
 }
 
+static void s_write_vec3_entry(
+    XStrBuilder *out, const char *key, Vec3 value)
+{
+  x_strbuilder_append(out, key);
+  s_write_float(out, value.x);
+  x_strbuilder_append(out, ", ");
+  s_write_float(out, value.y);
+  x_strbuilder_append(out, ", ");
+  s_write_float(out, value.z);
+  x_strbuilder_append_char(out, '\n');
+}
+
 static void s_write_string_entry(
     XStrBuilder *out, const char *key, const char *value)
 {
@@ -893,6 +937,25 @@ static bool s_terrain_to_tml_internal(const LDKTerrain *terrain,
     x_strbuilder_append_format(out, "      seed: %u\n", layer->seed);
     const LDKGrassTypeDesc *type = &layer->type;
     x_strbuilder_append(out, "      type_settings:\n");
+    x_strbuilder_append_format(out, "        kind: %u\n",
+        (u32)type->kind);
+    s_write_string_entry(out, "        mesh: ", type->mesh_path.buf);
+    for (u32 slot = 0u; slot < LDK_GRASS_MESH_MATERIAL_SLOT_COUNT; ++slot)
+    {
+      char key[32];
+      snprintf(key, sizeof(key), "        material_%u: ", slot);
+      s_write_string_entry(out, key, type->material_paths[slot].buf);
+    }
+    x_strbuilder_append_format(out, "        mesh_index: %u\n",
+        type->mesh_index);
+    s_write_vec3_entry(out, "        scale_min: ", type->scale_min);
+    s_write_vec3_entry(out, "        scale_max: ", type->scale_max);
+    s_write_vec3_entry(out, "        rotation_min: ", type->rotation_min);
+    s_write_vec3_entry(out, "        rotation_max: ", type->rotation_max);
+    x_strbuilder_append_format(out, "        align_to_normal: %s\n",
+        type->align_to_normal ? "true" : "false");
+    x_strbuilder_append_format(out, "        follow_terrain: %s\n",
+        type->follow_terrain ? "true" : "false");
     s_write_string_entry(out, "        name: ", x_smallstr_cstr(&type->name));
     x_strbuilder_append_format(out, "        blade_preset: %u\n",
         (u32)type->blade_preset);
@@ -1054,6 +1117,20 @@ static bool s_read_vec2(const TMLDocument *doc, const TMLNode *node,
   return true;
 }
 
+static bool s_read_vec3(const TMLDocument *doc, const TMLNode *node,
+    const char *key, Vec3 *out_value)
+{
+  TMLF64Slice values;
+  if (!tml_node_get_f64_array(doc, node, key, &values) ||
+      values.count != 3u) return false;
+  for (u32 i = 0u; i < 3u; ++i)
+    if (!isfinite(values.data[i]) || fabs(values.data[i]) > FLT_MAX)
+      return false;
+  *out_value = vec3_make((float)values.data[0],
+      (float)values.data[1], (float)values.data[2]);
+  return true;
+}
+
 static bool s_terrain_from_tml_node_internal(LDKTerrain *terrain,
     LDKImage **out_image,
     u8 *masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT],
@@ -1177,6 +1254,7 @@ static bool s_terrain_from_tml_node_internal(LDKTerrain *terrain,
      * that complete representation on load but write one description only. */
     if (!settings) { valid = false; break; }
     LDKGrassTypeDesc *type = &layer->type;
+    ldk_grass_type_desc_defaults(type);
     char name[X_SMALLSTR_MAX_LENGTH + 1u] = {0};
     u32 preset = 0u;
     valid = (s_read_string(doc, settings, "name", name, sizeof(name)) ||
@@ -1212,6 +1290,47 @@ static bool s_terrain_from_tml_node_internal(LDKTerrain *terrain,
         s_read_u32(doc, settings, "noise_color_stop_3_color",
             &type->noise_color_stop_3_color);
     type->blade_preset = (LDKGrassBladePreset)preset;
+    /* Old files used decoration: true; the old single cutout texture is
+     * intentionally not a material and has no meaning for arbitrary meshes. */
+    if (valid && tml_node_find_entry(doc, settings, "kind"))
+    {
+      u32 kind = 0u;
+      valid = s_read_u32(doc, settings, "kind", &kind) &&
+          kind <= LDK_GRASS_LAYER_TREE;
+      if (valid) type->kind = (LDKGrassLayerKind)kind;
+    }
+    else if (valid && tml_node_find_entry(doc, settings, "decoration"))
+    {
+      bool old_decoration = false;
+      valid = s_read_bool(doc, settings, "decoration", &old_decoration);
+      if (valid && old_decoration) type->kind = LDK_GRASS_LAYER_DECORATION;
+    }
+    if (valid && tml_node_find_entry(doc, settings, "mesh"))
+      valid = s_read_path(doc, settings, "mesh", &type->mesh_path);
+    for (u32 slot = 0u; valid &&
+        slot < LDK_GRASS_MESH_MATERIAL_SLOT_COUNT; ++slot)
+    {
+      char key[32];
+      snprintf(key, sizeof(key), "material_%u", slot);
+      if (tml_node_find_entry(doc, settings, key))
+        valid = s_read_path(doc, settings, key, &type->material_paths[slot]);
+    }
+    if (valid && tml_node_find_entry(doc, settings, "mesh_index"))
+      valid = s_read_u32(doc, settings, "mesh_index", &type->mesh_index);
+    if (valid && tml_node_find_entry(doc, settings, "scale_min"))
+      valid = s_read_vec3(doc, settings, "scale_min", &type->scale_min);
+    if (valid && tml_node_find_entry(doc, settings, "scale_max"))
+      valid = s_read_vec3(doc, settings, "scale_max", &type->scale_max);
+    if (valid && tml_node_find_entry(doc, settings, "rotation_min"))
+      valid = s_read_vec3(doc, settings, "rotation_min", &type->rotation_min);
+    if (valid && tml_node_find_entry(doc, settings, "rotation_max"))
+      valid = s_read_vec3(doc, settings, "rotation_max", &type->rotation_max);
+    if (valid && tml_node_find_entry(doc, settings, "align_to_normal"))
+      valid = s_read_bool(doc, settings, "align_to_normal",
+          &type->align_to_normal);
+    if (valid && tml_node_find_entry(doc, settings, "follow_terrain"))
+      valid = s_read_bool(doc, settings, "follow_terrain",
+          &type->follow_terrain);
   }
   valid = valid && ldk_terrain_validate(&candidate);
   LDKImage *embedded = NULL;

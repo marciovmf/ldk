@@ -4,6 +4,8 @@
 #include <ldk_image.h>
 #include <ldk_terrain.h>
 #include <ldk_mesh.h>
+#include <ldk_mesh_asset.h>
+#include <ldk_material_asset.h>
 #include <component/ldk_grass_interact.h>
 #include <component/ldk_terrain_component.h>
 #include <component/ldk_transform.h>
@@ -13,6 +15,7 @@
 #include <module/ldk_scenegraph.h>
 
 #include <float.h>
+#include <stdarg.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -88,6 +91,16 @@ typedef struct LDKGrassResolvedDesc
   float wind_direction;
   float interaction_recovery_time;
   u32 seed;
+  LDKGrassLayerKind kind;
+  LDKAssetPath mesh_path;
+  u32 mesh_index;
+  LDKAssetPath material_paths[LDK_GRASS_MESH_MATERIAL_SLOT_COUNT];
+  Vec3 scale_min;
+  Vec3 scale_max;
+  Vec3 rotation_min;
+  Vec3 rotation_max;
+  bool align_to_normal;
+  bool follow_terrain;
   LDKEntity terrain_entity;
   LDKAssetImage density_mask;
   u64 terrain_vegetation_layer_id;
@@ -114,6 +127,10 @@ typedef struct LDKGrassPatchEntry
 typedef struct LDKGrassBatch
 {
   LDKGrassBladeShape shape;
+  LDKGrassLayerKind kind;
+  LDKAssetPath mesh_path;
+  u32 mesh_index;
+  LDKAssetPath material_paths[LDK_GRASS_MESH_MATERIAL_SLOT_COUNT];
   rgba32 bottom_color;
   rgba32 top_color;
   bool use_noise_color;
@@ -142,6 +159,17 @@ typedef struct LDKGrassBatch
   LDKResourceMesh lod_mesh;
   u32 lod_index_count;
   LDKResourceMaterial material;
+  /* Mesh-backed layers: one renderer material per authored material slot.
+   * The imported mesh is shared by all submesh submissions. */
+  LDKResourceMaterial slot_materials[LDK_GRASS_MESH_MATERIAL_SLOT_COUNT];
+  LDKResourceTexture slot_textures[LDK_GRASS_MESH_MATERIAL_SLOT_COUNT];
+  LDKResourceTexture slot_normal_maps[LDK_GRASS_MESH_MATERIAL_SLOT_COUNT];
+  LDKResourceTexture slot_specular_maps[LDK_GRASS_MESH_MATERIAL_SLOT_COUNT];
+  LDKMeshSubmesh *submeshes;
+  u32 submesh_count;
+  u32 material_slot_count;
+  float mesh_min_y;
+  float mesh_inv_height;
   LDKResourceInstanceSet instance_set;
   LDKResourceInstanceSet lod_instance_set;
   Mat4 *lod_instances;
@@ -983,8 +1011,29 @@ static bool s_blade_preset_is_valid(LDKGrassBladePreset preset)
 
 static bool s_type_desc_is_valid(const LDKGrassTypeDesc *desc)
 {
-  return desc && x_smallstr_length(&desc->name) > 0u &&
-         s_blade_preset_is_valid(desc->blade_preset) &&
+  if (!desc || x_smallstr_length(&desc->name) == 0u ||
+      !s_blade_preset_is_valid(desc->blade_preset)) return false;
+  if (desc->kind > LDK_GRASS_LAYER_TREE) return false;
+  if (desc->kind != LDK_GRASS_LAYER_VEGETATION)
+  {
+    if (desc->mesh_path.length > LDK_ASSET_PATH_MAX_LENGTH ||
+        desc->mesh_path.buf[desc->mesh_path.length] != '\0' ||
+        !s_vec3_is_finite(desc->scale_min) ||
+        !s_vec3_is_finite(desc->scale_max) ||
+        !s_vec3_is_finite(desc->rotation_min) ||
+        !s_vec3_is_finite(desc->rotation_max)) return false;
+    for (u32 slot = 0u; slot < LDK_GRASS_MESH_MATERIAL_SLOT_COUNT;
+        ++slot)
+      if (desc->material_paths[slot].length > LDK_ASSET_PATH_MAX_LENGTH ||
+          desc->material_paths[slot].buf[
+              desc->material_paths[slot].length] != '\0') return false;
+    const float *lo = &desc->scale_min.x, *hi = &desc->scale_max.x;
+    const float *rlo = &desc->rotation_min.x, *rhi = &desc->rotation_max.x;
+    for (u32 axis = 0u; axis < 3u; ++axis)
+      if (lo[axis] <= 0.0f || hi[axis] < lo[axis] ||
+          rhi[axis] < rlo[axis]) return false;
+  }
+  return
          isfinite(desc->density) && desc->density >= 0.0f &&
          isfinite(desc->clumping) && desc->clumping >= 0.0f &&
          desc->clumping <= 1.0f &&
@@ -1127,6 +1176,17 @@ static bool s_resolved_desc_build(const LDKGrassSystem *system,
   {
     return false;
   }
+  out_desc->kind = type->kind;
+  out_desc->mesh_path = type->mesh_path;
+  out_desc->mesh_index = type->mesh_index;
+  memcpy(out_desc->material_paths, type->material_paths,
+      sizeof(out_desc->material_paths));
+  out_desc->scale_min = type->scale_min;
+  out_desc->scale_max = type->scale_max;
+  out_desc->rotation_min = type->rotation_min;
+  out_desc->rotation_max = type->rotation_max;
+  out_desc->align_to_normal = type->align_to_normal;
+  out_desc->follow_terrain = type->follow_terrain;
   out_desc->density = type->density * patch->density_scale;
   out_desc->clumping = type->clumping;
   out_desc->clump_radius = type->clump_radius;
@@ -1134,8 +1194,10 @@ static bool s_resolved_desc_build(const LDKGrassSystem *system,
   out_desc->max_height = type->max_height;
   out_desc->use_noise_height =
       type->use_noise_height && s_grass.color_noise_image != NULL;
-  out_desc->min_tilt = deg_to_rad(system->min_tilt_degrees);
-  out_desc->max_tilt = deg_to_rad(system->max_tilt_degrees);
+  out_desc->min_tilt = type->kind != LDK_GRASS_LAYER_VEGETATION ? 0.0f :
+      deg_to_rad(system->min_tilt_degrees);
+  out_desc->max_tilt = type->kind != LDK_GRASS_LAYER_VEGETATION ? 0.0f :
+      deg_to_rad(system->max_tilt_degrees);
   out_desc->tilt_direction = deg_to_rad(system->tilt_direction_degrees);
   out_desc->use_noise_color =
       type->use_noise_color && s_grass.color_noise_image != NULL;
@@ -1156,8 +1218,9 @@ static bool s_resolved_desc_build(const LDKGrassSystem *system,
   out_desc->specular = system->specular;
   out_desc->shininess = system->shininess;
   out_desc->emission = system->emission;
-  out_desc->curvature = type->curvature;
-  out_desc->wind_strength = type->wind_strength * system->wind_force;
+  out_desc->curvature = type->kind != LDK_GRASS_LAYER_VEGETATION ? 0.0f : type->curvature;
+  out_desc->wind_strength = type->kind == LDK_GRASS_LAYER_DECORATION
+      ? 0.0f : type->wind_strength * system->wind_force;
   out_desc->wind_speed = system->wind_speed;
   out_desc->wind_direction = deg_to_rad(system->wind_direction_degrees);
   out_desc->interaction_recovery_time = type->interaction_recovery_time > 0.0f
@@ -1405,10 +1468,69 @@ static void s_bounds_add_point(Vec3 *bounds_min, Vec3 *bounds_max, Vec3 point)
   bounds_max->z = float_max(bounds_max->z, point.z);
 }
 
+/* Renderer and gameplay use the same authored-mesh source for decorations.
+ * Missing meshes keep their patches but are not submitted for drawing. */
+static const LDKMeshData *s_decoration_mesh_get(
+    const LDKAssetPath *path, u32 mesh_index)
+{
+  if (!path || !path->length) return NULL;
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  if (!assets) return NULL;
+  LDKAssetMesh mesh = ldk_asset_manager_mesh_load_shared(
+      assets, path->buf, NULL);
+  return ldk_asset_manager_mesh_data_at(assets, mesh, mesh_index);
+}
+
 static void s_patch_bounds_calculate(const LDKGrassResolvedDesc *desc,
     const Mat4 *instances, u32 instance_count,
     Vec3 *out_bounds_min, Vec3 *out_bounds_max)
 {
+  if (desc->kind != LDK_GRASS_LAYER_VEGETATION)
+  {
+    const LDKMeshData *mesh = s_decoration_mesh_get(
+        &desc->mesh_path, desc->mesh_index);
+    Vec3 low = vec3_make(FLT_MAX, FLT_MAX, FLT_MAX);
+    Vec3 high = vec3_make(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+    if (mesh && mesh->vertices && mesh->vertex_count && instance_count)
+    {
+      /* Build local bounds once. Transforming their eight corners gives a
+       * conservative world AABB even for randomly rotated meshes, without
+       * scanning every vertex separately for every instance. */
+      Vec3 mesh_min = vec3_make(FLT_MAX, FLT_MAX, FLT_MAX);
+      Vec3 mesh_max = vec3_make(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+      for (u32 j = 0u; j < mesh->vertex_count; ++j)
+        s_bounds_add_point(&mesh_min, &mesh_max,
+            mesh->vertices[j].position);
+      for (u32 i = 0u; i < instance_count; ++i)
+        for (u32 corner = 0u; corner < 8u; ++corner)
+        {
+          Vec3 local = vec3_make(
+              corner & 1u ? mesh_max.x : mesh_min.x,
+              corner & 2u ? mesh_max.y : mesh_min.y,
+              corner & 4u ? mesh_max.z : mesh_min.z);
+          s_bounds_add_point(&low, &high,
+              mat4_mul_point(instances[i], local));
+        }
+    }
+    if (low.x == FLT_MAX)
+    {
+      Vec3 corners[4];
+      corners[0] = desc->plane.origin;
+      corners[1] = vec3_add(corners[0], desc->plane.axis_u);
+      corners[2] = vec3_add(corners[0], desc->plane.axis_v);
+      corners[3] = vec3_add(corners[1], desc->plane.axis_v);
+      for (u32 i = 0u; i < 4u; ++i)
+        s_bounds_add_point(&low, &high, corners[i]);
+    }
+    /* Tree arc bending can move tips beyond the rigid mesh AABB. */
+    float wind_extent = desc->kind == LDK_GRASS_LAYER_TREE
+        ? desc->wind_strength * (high.y - low.y) * 2.0f : 0.0f;
+    Vec3 padding = vec3_make(wind_extent, wind_extent, wind_extent);
+    *out_bounds_min = vec3_sub(low, padding);
+    *out_bounds_max = vec3_add(high, padding);
+    return;
+  }
+
   Vec3 bounds_min = vec3_make(FLT_MAX, FLT_MAX, FLT_MAX);
   Vec3 bounds_max = vec3_make(-FLT_MAX, -FLT_MAX, -FLT_MAX);
   float half_width = 0.0f;
@@ -1494,6 +1616,12 @@ static bool s_batch_compatible(
     const LDKGrassBatch *batch, const LDKGrassResolvedDesc *desc)
 {
   return batch && desc &&
+         batch->kind == desc->kind &&
+         (desc->kind == LDK_GRASS_LAYER_VEGETATION ||
+             (batch->mesh_index == desc->mesh_index &&
+                 strcmp(batch->mesh_path.buf, desc->mesh_path.buf) == 0 &&
+                 memcmp(batch->material_paths, desc->material_paths,
+                     sizeof(batch->material_paths)) == 0)) &&
          s_shape_equal(&batch->shape, &desc->shape) &&
          batch->bottom_color == desc->bottom_color &&
          batch->top_color == desc->top_color &&
@@ -1616,6 +1744,11 @@ static u32 s_batch_find_or_add(const LDKGrassResolvedDesc *desc)
   batch = &s_grass.batches[s_grass.batch_count];
   memset(batch, 0, sizeof(*batch));
   batch->shape = desc->shape;
+  batch->kind = desc->kind;
+  batch->mesh_path = desc->mesh_path;
+  batch->mesh_index = desc->mesh_index;
+  memcpy(batch->material_paths, desc->material_paths,
+      sizeof(batch->material_paths));
   batch->bottom_color = desc->bottom_color;
   batch->top_color = desc->top_color;
   batch->use_noise_color = desc->use_noise_color;
@@ -1901,7 +2034,8 @@ static bool s_patch_instances_generate(const LDKGrassResolvedDesc *desc,
       {
         continue;
       }
-      position.y = ground_y;
+      position.y = desc->kind != LDK_GRASS_LAYER_VEGETATION && !desc->follow_terrain
+          ? 0.0f : ground_y;
       if (placement.has_entity_transform)
       {
         Vec3 world_normal = vec3_make(
@@ -1937,8 +2071,37 @@ static bool s_patch_instances_generate(const LDKGrassResolvedDesc *desc,
         tilt_angle);
     Quat rotation = quat_mul(align, quat_mul(tilt, yaw));
 
-    instances[accepted++] = mat4_compose(
-        position, rotation, vec3_make(1.0f, height, 1.0f));
+    if (desc->kind != LDK_GRASS_LAYER_VEGETATION)
+    {
+      float rx = deg_to_rad(desc->rotation_min.x +
+          (desc->rotation_max.x - desc->rotation_min.x) *
+          s_random_unit(rng));
+      float ry = deg_to_rad(desc->rotation_min.y +
+          (desc->rotation_max.y - desc->rotation_min.y) *
+          s_random_unit(rng));
+      float rz = deg_to_rad(desc->rotation_min.z +
+          (desc->rotation_max.z - desc->rotation_min.z) *
+          s_random_unit(rng));
+      Quat pitch = quat_axis_angle(vec3_make(1.0f, 0.0f, 0.0f), rx);
+      Quat local_yaw = quat_axis_angle(vec3_make(0.0f, 1.0f, 0.0f), ry);
+      Quat roll = quat_axis_angle(vec3_make(0.0f, 0.0f, 1.0f), rz);
+      Quat random_rotation = quat_mul(local_yaw, quat_mul(pitch, roll));
+      rotation = desc->align_to_normal
+          ? quat_mul(align, random_rotation) : random_rotation;
+      Vec3 scale = vec3_make(
+          desc->scale_min.x + (desc->scale_max.x - desc->scale_min.x) *
+              s_random_unit(rng),
+          desc->scale_min.y + (desc->scale_max.y - desc->scale_min.y) *
+              s_random_unit(rng),
+          desc->scale_min.z + (desc->scale_max.z - desc->scale_min.z) *
+              s_random_unit(rng));
+      instances[accepted++] = mat4_compose(position, rotation, scale);
+    }
+    else
+    {
+      instances[accepted++] = mat4_compose(
+          position, rotation, vec3_make(1.0f, height, 1.0f));
+    }
   }
 
   *out_instances = instances;
@@ -2750,6 +2913,99 @@ static bool s_batch_mesh_create(LDKGrassBatch *batch, LDKGrassBladeLOD lod)
     return false;
   }
 
+  if (batch->kind != LDK_GRASS_LAYER_VEGETATION)
+  {
+    if (lod == LDK_GRASS_BLADE_LOD_SIMPLIFIED)
+    {
+      /* Use the same imported mesh for LOD 1. The existing GrassSystem
+       * instance thinning still applies; no procedural geometry is built. */
+      if (!ldk_renderer_mesh_is_valid(s_grass.renderer, batch->mesh))
+        return false;
+      batch->lod_mesh = batch->mesh;
+      batch->lod_index_count = batch->index_count;
+      return true;
+    }
+    const LDKMeshData *data = s_decoration_mesh_get(
+        &batch->mesh_path, batch->mesh_index);
+    if (!data || !data->vertices || !data->indices ||
+        data->vertex_count == 0u || data->index_count == 0u)
+      return false;
+    desc.vertices = data->vertices;
+    desc.vertex_count = data->vertex_count;
+    desc.indices = data->indices;
+    desc.index_count = data->index_count;
+    desc.has_tangents = data->has_tangents;
+    /* Validate the authored submesh/material layout before creating GPU
+     * resources. A malformed or unsupported mesh must not leave a half-built
+     * batch that would be retried unsuccessfully on every frame. */
+    LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    if (!assets) return false;
+    LDKAssetMesh asset = ldk_asset_manager_mesh_load_shared(
+        assets, batch->mesh_path.buf, NULL);
+    if (x_handle_is_null(asset.h)) return false;
+    u32 slots = ldk_asset_manager_mesh_material_slot_count(
+        assets, asset, batch->mesh_index);
+    if (slots > LDK_GRASS_MESH_MATERIAL_SLOT_COUNT)
+    {
+      ldk_log_error("Grass mesh %s has %u material slots (maximum %u).\n",
+          batch->mesh_path.buf, slots,
+          LDK_GRASS_MESH_MATERIAL_SLOT_COUNT);
+      return false;
+    }
+    if (!slots) slots = 1u;
+    u32 count = ldk_asset_manager_mesh_submesh_count(
+        assets, asset, batch->mesh_index);
+    u32 submesh_count = count ? count : 1u;
+    LDKMeshSubmesh *submeshes = calloc(submesh_count, sizeof(*submeshes));
+    if (!submeshes) return false;
+    for (u32 i = 0u; i < submesh_count; ++i)
+    {
+      LDKMeshSubmesh submesh = {0u, desc.index_count, 0u};
+      if (count)
+      {
+        const LDKMeshSubmesh *source =
+            ldk_asset_manager_mesh_submesh_at(
+                assets, asset, batch->mesh_index, i);
+        if (!source)
+        {
+          free(submeshes);
+          return false;
+        }
+        submesh = *source;
+      }
+      if (submesh.material_slot >= slots ||
+          submesh.first_index > desc.index_count ||
+          submesh.index_count > desc.index_count - submesh.first_index)
+      {
+        free(submeshes);
+        return false;
+      }
+      submeshes[i] = submesh;
+    }
+    LDKResourceMesh mesh = ldk_renderer_mesh_create(s_grass.renderer, &desc);
+    if (!ldk_renderer_mesh_is_valid(s_grass.renderer, mesh))
+    {
+      free(submeshes);
+      return false;
+    }
+    batch->mesh = mesh;
+    batch->index_count = desc.index_count;
+    batch->material_slot_count = slots;
+    batch->submesh_count = submesh_count;
+    batch->submeshes = submeshes;
+    float minimum = FLT_MAX, maximum = -FLT_MAX;
+    for (u32 i = 0u; i < data->vertex_count; ++i)
+    {
+      const float y = data->vertices[i].position.y;
+      if (y < minimum) minimum = y;
+      if (y > maximum) maximum = y;
+    }
+    batch->mesh_min_y = minimum;
+    batch->mesh_inv_height = maximum > minimum ?
+        1.0f / (maximum - minimum) : 0.0f;
+    return true;
+  }
+
   if (batch->shape.topology == LDK_GRASS_BLADE_TOPOLOGY_CUSTOM)
   {
     const u32 slot = batch->shape.custom_slot;
@@ -2915,13 +3171,51 @@ static bool s_batch_mesh_create(LDKGrassBatch *batch, LDKGrassBladeLOD lod)
 
 static bool s_batch_material_create(LDKGrassBatch *batch)
 {
-  LDKRendererMaterialDesc desc = {0};
-
-  if (!batch || !s_grass.renderer)
+  if (!batch || !s_grass.renderer) return false;
+  if (batch->kind != LDK_GRASS_LAYER_VEGETATION)
   {
-    return false;
+    LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+    if (!assets || !batch->material_slot_count) return false;
+    LDKMaterialIOContext context = {0};
+    context.assets = assets;
+    for (u32 slot = 0u; slot < batch->material_slot_count; ++slot)
+    {
+      LDKMaterialDesc desc;
+      if (!ldk_material_desc_defaults(LDK_MATERIAL_TYPE_VERTEX_COLOR,
+              &desc)) return false;
+      if (batch->material_paths[slot].length)
+      {
+        LDKMaterialIOResult result = {0};
+        LDKAssetMaterial asset = ldk_asset_manager_material_load_shared(
+            &context, batch->material_paths[slot].buf, &result);
+        const LDKAssetMaterialData *data = !x_handle_is_null(asset.h)
+            ? ldk_asset_manager_material_get_const(assets, asset) : NULL;
+        if (!data)
+        {
+          ldk_log_error("Grass material unavailable: %s\n",
+              batch->material_paths[slot].buf);
+          return false;
+        }
+        desc = data->descriptor;
+      }
+      bool ok = batch->kind == LDK_GRASS_LAYER_TREE
+          ? ldk_renderer_tree_material_resolve(s_grass.renderer, assets, &desc,
+              batch->wind_strength, batch->wind_speed, batch->wind_direction,
+              batch->mesh_min_y, batch->mesh_inv_height,
+              &batch->slot_materials[slot], &batch->slot_textures[slot],
+              &batch->slot_normal_maps[slot],
+              &batch->slot_specular_maps[slot])
+          : ldk_renderer_material_resolve(s_grass.renderer, assets, &desc,
+              &batch->slot_materials[slot], &batch->slot_textures[slot],
+              &batch->slot_normal_maps[slot],
+              &batch->slot_specular_maps[slot]);
+      if (!ok) return false;
+    }
+    batch->material = batch->slot_materials[0];
+    return true;
   }
 
+  LDKRendererMaterialDesc desc = {0};
   desc.type = batch->unlit ? LDK_MATERIAL_TYPE_VERTEX_COLOR_UNLIT
                            : LDK_MATERIAL_TYPE_VERTEX_COLOR;
   desc.texture = ldk_renderer_texture_null();
@@ -2941,10 +3235,8 @@ static bool s_batch_material_create(LDKGrassBatch *batch)
       batch->interaction_recovery_time;
   desc.vegetation = true;
   batch->material = ldk_renderer_material_create(s_grass.renderer, &desc);
-  return ldk_renderer_material_is_valid(
-      s_grass.renderer, batch->material);
+  return ldk_renderer_material_is_valid(s_grass.renderer, batch->material);
 }
-
 
 static void s_hash_bytes(u64 *hash, const void *data, size_t size)
 {
@@ -2964,6 +3256,7 @@ static u64 s_system_config_hash(const LDKGrassSystem *system)
 #define LDK_GRASS_HASH_FIELD(field)                                           \
   s_hash_bytes(&hash, &system->field, sizeof(system->field))
 
+  LDK_GRASS_HASH_FIELD(seed);
   LDK_GRASS_HASH_FIELD(min_tilt_degrees);
   LDK_GRASS_HASH_FIELD(max_tilt_degrees);
   LDK_GRASS_HASH_FIELD(tilt_direction_degrees);
@@ -3013,13 +3306,26 @@ static void s_batch_release(LDKGrassBatch *batch)
   {
     ldk_renderer_mesh_destroy(s_grass.renderer, batch->mesh);
   }
-  if (s_grass.renderer &&
+  if (s_grass.renderer && batch->lod_mesh.id != batch->mesh.id &&
       ldk_renderer_mesh_is_valid(s_grass.renderer, batch->lod_mesh))
   {
     ldk_renderer_mesh_destroy(s_grass.renderer, batch->lod_mesh);
   }
-  if (s_grass.renderer &&
-      ldk_renderer_material_is_valid(s_grass.renderer, batch->material))
+  if (s_grass.renderer && batch->kind != LDK_GRASS_LAYER_VEGETATION)
+  {
+    for (u32 i = 0u; i < LDK_GRASS_MESH_MATERIAL_SLOT_COUNT; ++i)
+    {
+      ldk_renderer_material_destroy(s_grass.renderer,
+          batch->slot_materials[i]);
+      ldk_renderer_image_release(s_grass.renderer,
+          batch->slot_textures[i]);
+      ldk_renderer_image_release(s_grass.renderer,
+          batch->slot_normal_maps[i]);
+      ldk_renderer_image_release(s_grass.renderer,
+          batch->slot_specular_maps[i]);
+    }
+  }
+  else if (s_grass.renderer)
   {
     ldk_renderer_material_destroy(s_grass.renderer, batch->material);
   }
@@ -3036,6 +3342,7 @@ static void s_batch_release(LDKGrassBatch *batch)
         batch->lod_instance_set);
   }
 
+  free(batch->submeshes);
   free(batch->instances);
   free(batch->instance_colors);
   free(batch->lod_instances);
@@ -3233,6 +3540,9 @@ void ldk_grass_type_desc_defaults(LDKGrassTypeDesc *out_desc)
 
   memset(out_desc, 0, sizeof(*out_desc));
   out_desc->blade_preset = LDK_GRASS_BLADE_PRESET_THIN;
+  out_desc->scale_min = vec3_make(1.0f, 1.0f, 1.0f);
+  out_desc->scale_max = vec3_make(1.0f, 1.0f, 1.0f);
+  out_desc->follow_terrain = true;
   out_desc->density = 1.0f;
   out_desc->clumping = 0.0f;
   out_desc->clump_radius = 0.5f;
@@ -3654,7 +3964,7 @@ static bool s_terrain_patches_sync(const LDKGrassSystem *system)
           desc.plane.axis_v = vec3_make(
               0.0f, 0.0f, -(float)(z1 - z0) * terrain->cell_size);
           desc.density_scale = layer->density_scale;
-          desc.seed = s_random_state(layer->seed ^
+          desc.seed = s_random_state(system->seed ^
               (u32)layer->id ^ (u32)(layer->id >> 32u) ^
               (tx * 0x9e3779b9u) ^ (tz * 0x85ebca6bu));
           desc.terrain_entity = source->entity;
@@ -3881,6 +4191,29 @@ static bool s_batch_lod_instances_sync(
   return true;
 }
 
+static void s_batch_submit_range(LDKGrassBatch *batch,
+    LDKResourceMesh mesh, LDKResourceInstanceSet instances,
+    u32 offset, u32 count, u32 flags)
+{
+  if (batch->kind == LDK_GRASS_LAYER_VEGETATION)
+  {
+    (void)ldk_renderer_submit_mesh_instance_set_range(s_grass.renderer,
+        LDK_RENDERER_VIEW_ALL, mesh, batch->material, 0u,
+        (mesh.id == batch->lod_mesh.id && mesh.id != batch->mesh.id)
+            ? batch->lod_index_count : batch->index_count,
+        instances, offset, count, flags);
+    return;
+  }
+  for (u32 i = 0u; i < batch->submesh_count; ++i)
+  {
+    const LDKMeshSubmesh *sub = &batch->submeshes[i];
+    (void)ldk_renderer_submit_mesh_instance_set_range(s_grass.renderer,
+        LDK_RENDERER_VIEW_ALL, mesh,
+        batch->slot_materials[sub->material_slot], sub->first_index,
+        sub->index_count, instances, offset, count, flags);
+  }
+}
+
 static void s_batch_submit_pending(LDKGrassBatch *batch)
 {
   u32 flags;
@@ -3893,10 +4226,8 @@ static void s_batch_submit_pending(LDKGrassBatch *batch)
   flags = batch->casts_shadows
       ? LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS
       : LDK_RENDERER_MESH_SUBMIT_FLAG_NONE;
-  (void)ldk_renderer_submit_mesh_instance_set_range(s_grass.renderer,
-      LDK_RENDERER_VIEW_ALL, batch->mesh, batch->material, 0u,
-      batch->index_count, batch->instance_set, batch->submit_offset,
-      batch->submit_count, flags);
+  s_batch_submit_range(batch, batch->mesh, batch->instance_set,
+      batch->submit_offset, batch->submit_count, flags);
   batch->submit_count = 0u;
 }
 
@@ -4051,11 +4382,8 @@ static void s_grass_submit(void)
         if (entry->alive && entry->batch_index == i &&
             entry->lod_selected_count != 0u)
         {
-          (void)ldk_renderer_submit_mesh_instance_set_range(
-              s_grass.renderer, LDK_RENDERER_VIEW_ALL, batch->mesh,
-              batch->material, 0u, batch->index_count,
-              batch->instance_set, entry->instance_offset,
-              entry->instance_count,
+          s_batch_submit_range(batch, batch->mesh, batch->instance_set,
+              entry->instance_offset, entry->instance_count,
               batch->casts_shadows
                   ? LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS
                   : LDK_RENDERER_MESH_SUBMIT_FLAG_NONE);
@@ -4067,10 +4395,8 @@ static void s_grass_submit(void)
     flags = batch->casts_shadows
         ? LDK_RENDERER_MESH_SUBMIT_FLAG_CAST_SHADOWS
         : LDK_RENDERER_MESH_SUBMIT_FLAG_NONE;
-    (void)ldk_renderer_submit_mesh_instance_set_range(s_grass.renderer,
-        LDK_RENDERER_VIEW_ALL, batch->lod_mesh, batch->material, 0u,
-        batch->lod_index_count, batch->lod_instance_set, 0u,
-        batch->lod_required_count, flags);
+    s_batch_submit_range(batch, batch->lod_mesh, batch->lod_instance_set,
+        0u, batch->lod_required_count, flags);
   }
 }
 
@@ -4182,6 +4508,73 @@ LDK_API void ldk_grass_system_editor_clear(void)
   if (s_grass_editor_preview_active && s_grass.initialized)
     ldk_grass_system_terminate(s_grass.owner);
   s_grass_editor_preview_active = false;
+}
+
+/* A decoration query reads the retained terrain patches, not the submitted
+ * instance set. Hence frustum culling cannot remove gameplay results. */
+u32 ldk_decoration_query_internal(LDKEntity terrain_entity,
+    float x, float z, float radius, LDKDecorationQueryFn fn,
+    void *user, ...)
+{
+  if (!s_grass.initialized || !fn || !isfinite(x) || !isfinite(z) ||
+      !isfinite(radius) || radius < 0.0f) return 0u;
+  u64 selected[LDK_TERRAIN_VEGETATION_LAYER_COUNT] = {0};
+  u32 selected_count = 0u;
+  bool all = false;
+  va_list args;
+  va_start(args, user);
+  for (;;)
+  {
+    const u64 id = va_arg(args, u64);
+    if (id == 0u) break;
+    if (id == LDK_DECORATION_ALL) { all = true; break; }
+    if (selected_count < LDK_TERRAIN_VEGETATION_LAYER_COUNT)
+      selected[selected_count++] = id;
+  }
+  va_end(args);
+  if (!all && !selected_count) return 0u;
+  const float radius_sq = radius * radius;
+  u32 visited = 0u;
+  for (u32 i = 0u; i < s_grass.patch_count; ++i)
+  {
+    const LDKGrassPatchEntry *patch = &s_grass.patches[i];
+    if (!patch->alive || !patch->terrain_owned ||
+        patch->type.kind == LDK_GRASS_LAYER_VEGETATION || !patch->type.mesh_path.length ||
+        !s_entity_equal(patch->desc.terrain_entity, terrain_entity))
+      continue;
+    if (!all)
+    {
+      bool matches = false;
+      for (u32 j = 0u; j < selected_count; ++j)
+        if (selected[j] == patch->desc.terrain_vegetation_layer_id)
+        { matches = true; break; }
+      if (!matches) continue;
+    }
+    /* Conservative XZ patch AABB test. Extents include clumped blades. */
+    float closest_x = fmaxf(patch->bounds_min.x,
+        fminf(x, patch->bounds_max.x));
+    float closest_z = fmaxf(patch->bounds_min.z,
+        fminf(z, patch->bounds_max.z));
+    if ((closest_x-x)*(closest_x-x)+(closest_z-z)*(closest_z-z) >
+        radius_sq) continue;
+    for (u32 n = 0u; n < patch->instance_count; ++n)
+    {
+      Mat4 transform = patch->instances[n];
+      Vec3 position = vec3_make(transform.m[12], transform.m[13],
+          transform.m[14]);
+      float dx = position.x - x, dz = position.z - z;
+      if (dx*dx + dz*dz > radius_sq) continue;
+      LDKDecorationHit hit = {0};
+      hit.terrain_entity = terrain_entity;
+      hit.layer_id = patch->desc.terrain_vegetation_layer_id;
+      hit.candidate_index = n; /* Patch-local ordinal, not a persistent ID. */
+      hit.world = transform;
+      hit.position = position;
+      ++visited;
+      if (!fn(&hit, user)) return visited;
+    }
+  }
+  return visited;
 }
 
 void ldk_grass_system_terminate(void *data)

@@ -11,6 +11,8 @@
 #include <module/ldk_scenegraph.h>
 #include <ldk_debug_draw.h>
 #include <ldk_image.h>
+#include <ldk_mesh_asset.h>
+#include <ldk_material_asset.h>
 #include <ldk_os.h>
 #include <module/ldk_asset_source.h>
 #include <module/ldk_asset_manager.h>
@@ -49,6 +51,10 @@ typedef struct LDKEditorTerrainVegetationFold
   bool expanded;
   bool editing_name;
   char name_text[X_SMALLSTR_MAX_LENGTH + 1u];
+  /* Shared mesh asset is cached for the model dropdown only. The terrain
+   * keeps the persistent logical LDKAssetPath and mesh index. */
+  LDKAssetPath cached_mesh_path;
+  LDKAssetMesh cached_mesh;
 } LDKEditorTerrainVegetationFold;
 
 typedef struct LDKEditorTerrainVegetationFolds
@@ -56,6 +62,8 @@ typedef struct LDKEditorTerrainVegetationFolds
   LDKEntity owner;
   bool initialized;
   bool expanded;
+  bool decorations_expanded;
+  bool trees_expanded;
   u32 count;
   LDKEditorTerrainVegetationFold
       layers[LDK_TERRAIN_VEGETATION_LAYER_COUNT];
@@ -1812,6 +1820,8 @@ static void s_terrain_vegetation_folds_sync(LDKEntity entity,
     folds->owner = entity;
     folds->initialized = true;
     folds->expanded = true;
+    folds->decorations_expanded = true;
+    folds->trees_expanded = true;
   }
 
   /* Removing and adding layers must not exhaust the fixed-size fold cache. */
@@ -1937,6 +1947,55 @@ static LDKGrassTypeDesc s_terrain_vegetation_type_make(const char *name)
   return desc;
 }
 
+/* Use the same collection-header add action as Terrain Surfaces. A new
+ * layer receives a default name and can be renamed in its own fold. */
+static bool s_terrain_distribution_layer_add(LDKEditorContext *editor,
+    u32 category)
+{
+  LDKEditorTerrainState *state = &editor->terrain_editor;
+  if (category > (u32)LDK_GRASS_LAYER_TREE || state->stroke_active ||
+      state->data.vegetation_layer_count >=
+          LDK_TERRAIN_VEGETATION_LAYER_COUNT)
+    return false;
+
+  LDKTerrain candidate = state->data;
+  u64 layer_id = 0u;
+  char default_name[LDK_TERRAIN_LAYER_NAME_CAPACITY];
+  const char *prefix = category == (u32)LDK_GRASS_LAYER_VEGETATION
+      ? "Vegetation" : (category == (u32)LDK_GRASS_LAYER_DECORATION
+          ? "Decoration" : "Tree");
+  snprintf(default_name, sizeof(default_name), "%s %llu", prefix,
+      (unsigned long long)candidate.next_vegetation_layer_id);
+  LDKGrassTypeDesc type = s_terrain_vegetation_type_make(default_name);
+  type.kind = (LDKGrassLayerKind)category;
+  if (category != (u32)LDK_GRASS_LAYER_VEGETATION)
+  {
+    type.wind_strength = category == (u32)LDK_GRASS_LAYER_DECORATION
+        ? 0.0f : 0.08f;
+    type.bottom_color = type.top_color = 0xffffffffu;
+  }
+  if (!ldk_terrain_vegetation_layer_add(&candidate, &type, 1.0f,
+          0u, &layer_id))
+    return false;
+
+  LDKTerrain previous = state->data;
+  state->data = candidate;
+  if (!s_terrain_publish(editor))
+  {
+    state->data = previous;
+    return false;
+  }
+
+  s_terrain_undo_discard(editor);
+  (void)s_terrain_vegetation_select(editor, layer_id);
+  LDKEditorTerrainVegetationFold *created =
+      s_terrain_vegetation_fold_get(
+          &state->data.vegetation_layers[
+              state->data.vegetation_layer_count - 1u], true);
+  if (created) created->expanded = true;
+  return true;
+}
+
 static bool s_terrain_vegetation_float_row(LDKEditorContext *editor,
     const char *label, float *value, float minimum, float maximum)
 {
@@ -1959,13 +2018,233 @@ static bool s_terrain_vegetation_bool_row(LDKEditorContext *editor,
   return true;
 }
 
-/* Built-in type inspector, using the same rows as other component properties.
- * The per-layer descriptor belongs to TerrainComponent; GrassSystem keeps
- * wind/LOD/material settings and the runtime patch implementation. */
-static void s_terrain_vegetation_type_inspector(LDKEditorContext *editor,
-    LDKTerrainVegetationLayer *layer)
+/* The regular asset-slot widgets return either a runtree-relative path or an
+ * absolute path from the file dialog. Store only the logical LDKAssetPath,
+ * following the same validation used by the MeshSource Inspector. */
+static bool s_terrain_decoration_asset_path_resolve(
+    LDKEditorContext *editor, const XFSPath *selected,
+    const char *title, LDKAssetPath *out_path)
 {
-  if (!editor || !layer) return;
+  if (!editor || !selected || !out_path) return false;
+  XFSPath path = *selected;
+  if (!x_fs_path_is_absolute(&path))
+  {
+    for (size_t i = 0u; path.buf[i]; ++i)
+      if (path.buf[i] == '\\') path.buf[i] = '/';
+    return ldk_asset_path_set(out_path, path.buf);
+  }
+
+  XFSPath root = editor->project.run_root_path;
+  XFSPath relative = {0};
+  x_fs_path_normalize(&path);
+  x_fs_path_normalize(&root);
+  if (!editor->project.loaded || !root.length ||
+      !x_fs_path_common_prefix(root.buf, path.buf, &relative) ||
+      !relative.length || strcmp(relative.buf, ".") == 0)
+  {
+    ldk_os_dialog_show_error(editor->window, title,
+        "Choose an asset inside the project's runtree folder.");
+    return false;
+  }
+  for (size_t i = 0u; relative.buf[i]; ++i)
+    if (relative.buf[i] == '\\') relative.buf[i] = '/';
+  if (!ldk_asset_path_set(out_path, relative.buf))
+  {
+    ldk_os_dialog_show_error(editor->window, title,
+        "The selected asset path is invalid.");
+    return false;
+  }
+  return true;
+}
+
+/* Source Asset uses the exact slot widget used by MeshSource. Persist the
+ * selected logical path and reset the model selection when the asset changes. */
+static bool s_terrain_decoration_mesh_asset_row(
+    LDKEditorContext *editor, LDKEditorTerrainVegetationFold *fold,
+    LDKGrassTypeDesc *type)
+{
+  LDKAssetInfo info = {0};
+  info.type = LDK_ASSET_TYPE_MESH;
+  info.asset_path = type->mesh_path;
+  XFSPath selected = {0};
+  if (ldk_editor_ui_row_slot_mesh(editor, "Source Asset", 1u,
+          type->mesh_path.length ? &info : NULL, false,
+          &selected, NULL) != LDK_EDITOR_UI_ROW_SLOT_ASSIGN)
+    return false;
+
+  LDKAssetPath path = {0};
+  if (!s_terrain_decoration_asset_path_resolve(
+          editor, &selected, "Mesh", &path)) return false;
+  if (strcmp(type->mesh_path.buf, path.buf) == 0) return false;
+
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  if (!assets)
+  {
+    ldki_editor_log_error(editor, "Asset manager is unavailable.");
+    return false;
+  }
+  LDKMeshAssetResult result = {0};
+  LDKAssetMesh asset = ldk_asset_manager_mesh_load_shared(
+      assets, path.buf, &result);
+  if (x_handle_is_null(asset.h) ||
+      !ldk_asset_manager_mesh_count(assets, asset))
+  {
+    ldki_editor_log_error(editor, result.error[0]
+        ? result.error : "Failed to load decoration mesh asset.");
+    return false;
+  }
+  type->mesh_path = path;
+  type->mesh_index = 0u;
+  memset(type->material_paths, 0, sizeof(type->material_paths));
+  fold->cached_mesh_path = path;
+  fold->cached_mesh = asset;
+  return true;
+}
+
+/* Shared assets are manager-owned; never unload them from a terrain fold.
+ * Cache the handle to avoid scanning the entire asset manager every frame. */
+static LDKAssetMesh s_terrain_decoration_mesh_asset_get(
+    LDKEditorTerrainVegetationFold *fold, const LDKAssetPath *path)
+{
+  LDKAssetMesh empty = {x_handle_null()};
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  if (!assets || !path || !path->length) return empty;
+  LDKAssetHandle handle = {fold->cached_mesh.h};
+  const LDKAssetInfo *info = !x_handle_is_null(handle.h) &&
+      ldk_asset_manager_mesh_is_alive(assets, fold->cached_mesh)
+      ? ldk_asset_get_info_const(assets, handle) : NULL;
+  if (strcmp(fold->cached_mesh_path.buf, path->buf) != 0 ||
+      (!x_handle_is_null(fold->cached_mesh.h) &&
+          (!info || strcmp(info->asset_path.buf, path->buf) != 0 ||
+              !assets->source ||
+              info->source_revision != assets->source->revision)))
+  {
+    fold->cached_mesh_path = *path;
+    LDKMeshAssetResult result = {0};
+    fold->cached_mesh = ldk_asset_manager_mesh_load_shared(
+        assets, path->buf, &result);
+  }
+  return fold->cached_mesh;
+}
+
+/* Same named-model dropdown as MeshSource. The selected index is relative
+ * to the selected .mesh asset, not the global scene or any decoration layer. */
+static bool s_terrain_decoration_mesh_selector(
+    LDKEditorContext *editor, LDKAssetMesh asset, u32 *mesh_index)
+{
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  if (!assets || x_handle_is_null(asset.h) ||
+      !ldk_asset_manager_mesh_is_alive(assets, asset))
+  {
+    ldk_editor_ui_row_label(editor, "Mesh", 1u, "<no mesh>");
+    return false;
+  }
+  const u32 count = ldk_asset_manager_mesh_count(assets, asset);
+  if (!count)
+  {
+    ldk_editor_ui_row_label(editor, "Mesh", 1u, "<empty asset>");
+    return false;
+  }
+  const bool index_invalid = *mesh_index >= count;
+  if (index_invalid) *mesh_index = 0u;
+  if (count == 1u)
+  {
+    const char *name = ldk_asset_manager_mesh_name(assets, asset, 0u);
+    char display[LDK_MESH_NAME_CAPACITY];
+    snprintf(display, sizeof(display), "%s",
+        name && name[0] ? name : "<unnamed>");
+    ldk_editor_ui_row_begin(editor, "Mesh", 1u);
+    ldk_ui_begin_disabled(&editor->ui, true);
+    ldk_ui_input_box(&editor->ui, display, (u32)sizeof(display));
+    ldk_ui_end_disabled(&editor->ui);
+    ldk_ui_end_horizontal(&editor->ui);
+    return index_invalid;
+  }
+  const char **names = x_arena_alloc(editor->ui.frame_arena,
+      (size_t)count * sizeof(*names));
+  if (!names) return false;
+  for (u32 i = 0u; i < count; ++i)
+  {
+    const char *name = ldk_asset_manager_mesh_name(assets, asset, i);
+    names[i] = name && name[0] ? name : "<unnamed>";
+  }
+  const u32 next = ldk_editor_ui_row_enum(editor, "Mesh", 1u,
+      names, count, *mesh_index, false, NULL);
+  if (next >= count || next == *mesh_index) return index_invalid;
+  *mesh_index = next;
+  return true;
+}
+
+/* MeshSource-style per-slot .material assets. A blank slot uses the
+ * conventional vertex-color material rather than the vegetation pass. */
+static bool s_terrain_mesh_materials_draw(LDKEditorContext *editor,
+    LDKAssetMesh mesh, LDKGrassTypeDesc *type)
+{
+  LDKAssetManager *assets = ldk_module_get(LDK_MODULE_ASSET_MANAGER);
+  if (!assets || x_handle_is_null(mesh.h) ||
+      !ldk_asset_manager_mesh_is_alive(assets, mesh)) return false;
+  u32 count = ldk_asset_manager_mesh_material_slot_count(
+      assets, mesh, type->mesh_index);
+  if (!count) count = 1u;
+  if (count > LDK_GRASS_MESH_MATERIAL_SLOT_COUNT)
+  {
+    ldk_editor_ui_row_label(editor, "Materials", 1u,
+        "Mesh exceeds the supported material-slot limit.");
+    return false;
+  }
+  bool changed = false;
+  for (u32 slot = 0u; slot < count; ++slot)
+  {
+    const char *name = ldk_asset_manager_mesh_material_slot_name(
+        assets, mesh, type->mesh_index, slot);
+    char label[LDK_MESH_MATERIAL_SLOT_NAME_CAPACITY + 24u];
+    snprintf(label, sizeof(label), "Material %u: %s", slot,
+        name && name[0] ? name : "Default");
+    LDKAssetPath *path = &type->material_paths[slot];
+    LDKAssetInfo info = {0};
+    info.type = LDK_ASSET_TYPE_MATERIAL;
+    info.asset_path = *path;
+    XFSPath selected = {0};
+    LDKEditorUIRowSlotAction action = ldk_editor_ui_row_slot_material(editor,
+        label, 1u, path->length ? &info : NULL, false, true,
+        path->length > 0u, &selected, NULL);
+    if (action == LDK_EDITOR_UI_ROW_SLOT_CLEAR)
+    {
+      if (path->length)
+      {
+        *path = (LDKAssetPath){0};
+        changed = true;
+      }
+    }
+    else if (action == LDK_EDITOR_UI_ROW_SLOT_ASSIGN)
+    {
+      LDKAssetPath next = {0};
+      if (!s_terrain_decoration_asset_path_resolve(
+              editor, &selected, "Material", &next) ||
+          strcmp(path->buf, next.buf) == 0) continue;
+      LDKMaterialIOContext context = {0};
+      LDKMaterialIOResult result = {0};
+      context.assets = assets;
+      LDKAssetMaterial material = ldk_asset_manager_material_load_shared(
+          &context, next.buf, &result);
+      if (x_handle_is_null(material.h))
+      {
+        ldki_editor_log_error(editor, result.error[0]
+            ? result.error : "Failed to load material asset.");
+        continue;
+      }
+      *path = next;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+static void s_terrain_vegetation_type_inspector(LDKEditorContext *editor,
+    LDKTerrainVegetationLayer *layer,
+    LDKEditorTerrainVegetationFold *fold)
+{
+  if (!editor || !layer || !fold) return;
   LDKUIContext *ui = &editor->ui;
   LDKGrassTypeDesc type = layer->type;
   bool changed = false;
@@ -1975,53 +2254,115 @@ static void s_terrain_vegetation_type_inspector(LDKEditorContext *editor,
       "Custom 4", "Custom 5", "Custom 6", "Custom 7"};
   ldk_ui_push_id_cstr(ui, "terrain-vegetation-type");
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  ldk_ui_label(ui, "Vegetation Type");
-  u32 preset = ldk_editor_ui_row_enum(editor, "Blade Preset", 1u,
-      presets, (u32)(sizeof(presets) / sizeof(presets[0])),
-      (u32)type.blade_preset, false, NULL);
-  if (preset != (u32)type.blade_preset)
+  ldk_ui_label(ui, type.kind == LDK_GRASS_LAYER_VEGETATION
+      ? "Vegetation Type" : (type.kind == LDK_GRASS_LAYER_TREE
+          ? "Tree Mesh" : "Decoration Mesh"));
+  if (type.kind == LDK_GRASS_LAYER_VEGETATION)
   {
-    type.blade_preset = (LDKGrassBladePreset)preset;
-    changed = true;
+    u32 preset = ldk_editor_ui_row_enum(editor, "Blade Preset", 1u,
+        presets, (u32)(sizeof(presets) / sizeof(presets[0])),
+        (u32)type.blade_preset, false, NULL);
+    if (preset != (u32)type.blade_preset)
+    {
+      type.blade_preset = (LDKGrassBladePreset)preset;
+      changed = true;
+    }
   }
-  changed |= s_terrain_vegetation_float_row(editor, "Blade Density",
+  else
+  {
+    changed |= s_terrain_decoration_mesh_asset_row(editor, fold, &type);
+    LDKAssetMesh asset = s_terrain_decoration_mesh_asset_get(
+        fold, &type.mesh_path);
+    if (s_terrain_decoration_mesh_selector(
+            editor, asset, &type.mesh_index))
+    {
+      memset(type.material_paths, 0, sizeof(type.material_paths));
+      changed = true;
+    }
+    changed |= s_terrain_mesh_materials_draw(editor, asset, &type);
+  }
+  changed |= s_terrain_vegetation_float_row(editor,
+      type.kind == LDK_GRASS_LAYER_VEGETATION ? "Blade Density" :
+          (type.kind == LDK_GRASS_LAYER_TREE ? "Tree Density" :
+              "Decoration Density"),
       &type.density, 0.0f, fmaxf(10.0f, type.density));
   changed |= s_terrain_vegetation_float_row(editor, "Clumping",
       &type.clumping, 0.0f, 1.0f);
   changed |= s_terrain_vegetation_float_row(editor, "Clump Radius",
       &type.clump_radius, 0.0f, fmaxf(10.0f, type.clump_radius));
-  changed |= s_terrain_vegetation_float_row(editor, "Min Blade Height",
-      &type.min_height, 0.01f, fmaxf(20.0f, type.min_height));
-  changed |= s_terrain_vegetation_float_row(editor, "Max Blade Height",
-      &type.max_height, type.min_height, fmaxf(20.0f, type.max_height));
-  changed |= s_terrain_vegetation_float_row(editor, "Blade Width",
-      &type.blade_width, 0.01f, fmaxf(5.0f, type.blade_width));
-  changed |= s_terrain_vegetation_float_row(editor, "Curvature",
-      &type.curvature, 0.0f, fmaxf(1.0f, type.curvature));
-  changed |= s_terrain_vegetation_float_row(editor, "Wind Strength",
-      &type.wind_strength, 0.0f, fmaxf(1.0f, type.wind_strength));
-  changed |= s_terrain_vegetation_float_row(editor, "Recovery Time",
-      &type.interaction_recovery_time, 0.0f, 16.0f);
-  changed |= s_terrain_vegetation_bool_row(editor, "Noise Height",
-      &type.use_noise_height);
-  changed |= ldk_editor_ui_row_color(editor, "Bottom Color", 1u,
-      &type.bottom_color, false, NULL);
-  changed |= ldk_editor_ui_row_color(editor, "Top Color", 1u,
-      &type.top_color, false, NULL);
-  changed |= s_terrain_vegetation_bool_row(editor, "Noise Color",
-      &type.use_noise_color);
-  changed |= s_terrain_vegetation_bool_row(editor, "Custom Noise Palette",
-      &type.use_custom_noise_palette);
-  if (type.use_custom_noise_palette)
+  if (type.kind != LDK_GRASS_LAYER_VEGETATION)
   {
-    changed |= ldk_editor_ui_row_color(editor, "Noise Color 0", 1u,
-        &type.noise_color_stop_0_color, false, NULL);
-    changed |= ldk_editor_ui_row_color(editor, "Noise Color 1", 1u,
-        &type.noise_color_stop_1_color, false, NULL);
-    changed |= ldk_editor_ui_row_color(editor, "Noise Color 2", 1u,
-        &type.noise_color_stop_2_color, false, NULL);
-    changed |= ldk_editor_ui_row_color(editor, "Noise Color 3", 1u,
-        &type.noise_color_stop_3_color, false, NULL);
+    changed |= s_terrain_vegetation_bool_row(editor, "Follow Terrain",
+        &type.follow_terrain);
+    changed |= s_terrain_vegetation_bool_row(editor, "Align to Normal",
+        &type.align_to_normal);
+    changed |= s_terrain_vegetation_float_row(editor, "Min Scale X",
+        &type.scale_min.x, 0.01f, type.scale_max.x);
+    changed |= s_terrain_vegetation_float_row(editor, "Min Scale Y",
+        &type.scale_min.y, 0.01f, type.scale_max.y);
+    changed |= s_terrain_vegetation_float_row(editor, "Min Scale Z",
+        &type.scale_min.z, 0.01f, type.scale_max.z);
+    changed |= s_terrain_vegetation_float_row(editor, "Max Scale X",
+        &type.scale_max.x, type.scale_min.x,
+        fmaxf(20.0f, type.scale_max.x));
+    changed |= s_terrain_vegetation_float_row(editor, "Max Scale Y",
+        &type.scale_max.y, type.scale_min.y,
+        fmaxf(20.0f, type.scale_max.y));
+    changed |= s_terrain_vegetation_float_row(editor, "Max Scale Z",
+        &type.scale_max.z, type.scale_min.z,
+        fmaxf(20.0f, type.scale_max.z));
+    changed |= s_terrain_vegetation_float_row(editor, "Min Rotation X",
+        &type.rotation_min.x, -360.0f, type.rotation_max.x);
+    changed |= s_terrain_vegetation_float_row(editor, "Min Rotation Y",
+        &type.rotation_min.y, -360.0f, type.rotation_max.y);
+    changed |= s_terrain_vegetation_float_row(editor, "Min Rotation Z",
+        &type.rotation_min.z, -360.0f, type.rotation_max.z);
+    changed |= s_terrain_vegetation_float_row(editor, "Max Rotation X",
+        &type.rotation_max.x, type.rotation_min.x, 360.0f);
+    changed |= s_terrain_vegetation_float_row(editor, "Max Rotation Y",
+        &type.rotation_max.y, type.rotation_min.y, 360.0f);
+    changed |= s_terrain_vegetation_float_row(editor, "Max Rotation Z",
+        &type.rotation_max.z, type.rotation_min.z, 360.0f);
+  }
+  else
+  {
+    changed |= s_terrain_vegetation_float_row(editor, "Min Blade Height",
+        &type.min_height, 0.01f, fmaxf(20.0f, type.min_height));
+    changed |= s_terrain_vegetation_float_row(editor, "Max Blade Height",
+        &type.max_height, type.min_height, fmaxf(20.0f, type.max_height));
+    changed |= s_terrain_vegetation_float_row(editor, "Blade Width",
+        &type.blade_width, 0.01f, fmaxf(5.0f, type.blade_width));
+    changed |= s_terrain_vegetation_float_row(editor, "Curvature",
+        &type.curvature, 0.0f, fmaxf(1.0f, type.curvature));
+    changed |= s_terrain_vegetation_float_row(editor, "Recovery Time",
+        &type.interaction_recovery_time, 0.0f, 16.0f);
+    changed |= s_terrain_vegetation_bool_row(editor, "Noise Height",
+        &type.use_noise_height);
+  }
+  if (type.kind != LDK_GRASS_LAYER_DECORATION)
+    changed |= s_terrain_vegetation_float_row(editor, "Wind Strength",
+        &type.wind_strength, 0.0f, fmaxf(1.0f, type.wind_strength));
+  if (type.kind == LDK_GRASS_LAYER_VEGETATION)
+  {
+    changed |= ldk_editor_ui_row_color(editor, "Bottom Color", 1u,
+        &type.bottom_color, false, NULL);
+    changed |= ldk_editor_ui_row_color(editor, "Top Color", 1u,
+        &type.top_color, false, NULL);
+    changed |= s_terrain_vegetation_bool_row(editor, "Noise Color",
+        &type.use_noise_color);
+    changed |= s_terrain_vegetation_bool_row(editor, "Custom Noise Palette",
+        &type.use_custom_noise_palette);
+    if (type.use_custom_noise_palette)
+    {
+      changed |= ldk_editor_ui_row_color(editor, "Noise Color 0", 1u,
+          &type.noise_color_stop_0_color, false, NULL);
+      changed |= ldk_editor_ui_row_color(editor, "Noise Color 1", 1u,
+          &type.noise_color_stop_1_color, false, NULL);
+      changed |= ldk_editor_ui_row_color(editor, "Noise Color 2", 1u,
+          &type.noise_color_stop_2_color, false, NULL);
+      changed |= ldk_editor_ui_row_color(editor, "Noise Color 3", 1u,
+          &type.noise_color_stop_3_color, false, NULL);
+    }
   }
   if (changed)
   {
@@ -2234,121 +2575,100 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
   s_terrain_surface_folds_draw(editor, entity);
   s_terrain_vegetation_folds_sync(entity, state);
   LDKEditorTerrainVegetationFolds *folds = &s_terrain_vegetation_folds;
-  ldk_ui_push_id_cstr(ui, "vegetation-fold");
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  u32 vegetation_header = ldk_ui_tree_node_ex(ui, "Vegetation",
-      (LDKUIIcon){0}, folds->expanded, 0u, LDK_UI_TREE_NODE_NONE);
-  if (vegetation_header & LDK_UI_TREE_NODE_RESULT_TOGGLED)
-    folds->expanded = !folds->expanded;
-  if (folds->expanded)
+  static const char *const category_names[] = {
+      "Vegetation", "Decorations", "Trees"};
+  static const char *const category_ids[] = {
+      "vegetation-fold", "decoration-fold", "tree-fold"};
+  for (u32 category = 0u; category < 3u; ++category)
   {
-    for (u32 i = 0u; i < state->data.vegetation_layer_count; ++i)
-    {
-      LDKTerrainVegetationLayer *layer = &state->data.vegetation_layers[i];
-      const u64 layer_id = layer->id;
-      const bool selected = layer_id == state->vegetation_layer_id;
-      LDKEditorTerrainVegetationFold *fold =
-          s_terrain_vegetation_fold_get(layer, selected);
-      if (!fold) continue;
-
-      /* IDs belong to the data, not the display name or array position. */
-      ldk_ui_push_id_u32(ui, (u32)layer_id);
-      ldk_ui_push_id_u32(ui, (u32)(layer_id >> 32u));
-      ldk_ui_begin_horizontal(ui);
-      ldk_ui_set_next_weight(ui, 1.0f);
-      const u32 result = ldk_ui_tree_node_ex(ui,
-          x_smallstr_cstr(&layer->type.name), (LDKUIIcon){0},
-          fold->expanded, 1u,
-          selected ? LDK_UI_TREE_NODE_SELECTED : LDK_UI_TREE_NODE_NONE);
-      if (result & LDK_UI_TREE_NODE_RESULT_TOGGLED)
-        fold->expanded = !fold->expanded;
-      else if ((result & LDK_UI_TREE_NODE_RESULT_CLICKED) && !selected)
-      {
-        if (state->stroke_active) s_terrain_stroke_finish(editor);
-        (void)s_terrain_vegetation_select(editor, layer_id);
-      }
-
-      LDKUIIcon delete_icon = s_terrain_ui_icon(editor,
-          LDK_EDITOR_ICON_DELETE);
-      ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
-      bool remove = ldk_ui_icon_button(ui, delete_icon, "");
-      ldk_ui_end_horizontal(ui);
-      if (remove)
-      {
-        (void)s_terrain_vegetation_layer_delete(editor, layer_id, i);
-        ldk_ui_pop_id(ui);
-        ldk_ui_pop_id(ui);
-        break;
-      }
-
-      if (fold->expanded)
-      {
-        s_terrain_vegetation_name_draw(editor, layer, fold);
-        float density = ldk_editor_ui_row_slider_float(editor,
-            "Density Scale", 1u, layer->density_scale, 0.0f, 5.0f,
-            false, NULL);
-        ldk_ui_end_horizontal(ui);
-        if (density != layer->density_scale && !state->stroke_active)
-        {
-          LDKTerrain candidate = state->data;
-          candidate.vegetation_layers[i].density_scale = density;
-          if (ldk_terrain_validate(&candidate))
-          {
-            LDKTerrain previous = state->data;
-            state->data = candidate;
-            if (!s_terrain_publish(editor)) state->data = previous;
-          }
-        }
-        s_terrain_vegetation_type_inspector(editor, layer);
-      }
-      ldk_ui_pop_id(ui);
-      ldk_ui_pop_id(ui);
-    }
-  }
-  if (folds->expanded)
-  {
-    (void)ldk_editor_ui_row_text(editor, "Layer Name (optional)",
-        0u, state->vegetation_type_text,
-        sizeof(state->vegetation_type_text), false, NULL);
+    bool *expanded = category == 0u ? &folds->expanded :
+        (category == 1u ? &folds->decorations_expanded :
+            &folds->trees_expanded);
+    ldk_ui_push_id_cstr(ui, category_ids[category]);
+    ldk_ui_begin_horizontal(ui);
+    ldk_ui_set_next_weight(ui, 1.0f);
+    const u32 heading = ldk_ui_tree_node_ex(ui,
+        category_names[category], (LDKUIIcon){0},
+        *expanded, 0u, LDK_UI_TREE_NODE_NONE);
+    if (heading & LDK_UI_TREE_NODE_RESULT_TOGGLED) *expanded = !*expanded;
+    ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+    ldk_ui_set_next_disabled(ui, state->stroke_active ||
+        state->data.vegetation_layer_count >=
+            LDK_TERRAIN_VEGETATION_LAYER_COUNT);
+    const bool add = ldk_ui_icon_button(ui,
+        s_terrain_ui_icon(editor, LDK_EDITOR_ICON_PLUS_BUTTON), "");
     ldk_ui_end_horizontal(ui);
-    ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-    if (ldk_ui_button(ui, "Add Vegetation Layer"))
+    if (add && !s_terrain_distribution_layer_add(editor, category))
+      ldki_editor_log_warning(editor,
+          "Could not add terrain distribution layer: invalid settings or limit.");
+    if (*expanded)
     {
-      LDKTerrain candidate = state->data;
-      u64 layer_id = 0u;
-      char default_name[LDK_TERRAIN_LAYER_NAME_CAPACITY];
-      snprintf(default_name, sizeof(default_name), "Vegetation %llu",
-          (unsigned long long)state->data.next_vegetation_layer_id);
-      const char *name = state->vegetation_type_text[0]
-          ? state->vegetation_type_text : default_name;
-      LDKGrassTypeDesc type = s_terrain_vegetation_type_make(name);
-      bool added = !state->stroke_active &&
-          ldk_terrain_vegetation_layer_add(&candidate, &type, 1.0f,
-              (u32)(candidate.next_vegetation_layer_id * 1664525u +
-                  1013904223u), &layer_id);
-      if (added)
+      for (u32 i = 0u; i < state->data.vegetation_layer_count; ++i)
       {
-        LDKTerrain previous = state->data;
-        state->data = candidate;
-        if (s_terrain_publish(editor))
+        LDKTerrainVegetationLayer *layer = &state->data.vegetation_layers[i];
+        if ((u32)layer->type.kind != category) continue;
+        const u64 layer_id = layer->id;
+        const bool selected = layer_id == state->vegetation_layer_id;
+        LDKEditorTerrainVegetationFold *fold =
+            s_terrain_vegetation_fold_get(layer, selected);
+        if (!fold) continue;
+
+        /* IDs belong to the data, not the display name or array position. */
+        ldk_ui_push_id_u32(ui, (u32)layer_id);
+        ldk_ui_push_id_u32(ui, (u32)(layer_id >> 32u));
+        ldk_ui_begin_horizontal(ui);
+        ldk_ui_set_next_weight(ui, 1.0f);
+        const u32 result = ldk_ui_tree_node_ex(ui,
+            x_smallstr_cstr(&layer->type.name), (LDKUIIcon){0},
+            fold->expanded, 1u,
+            selected ? LDK_UI_TREE_NODE_SELECTED : LDK_UI_TREE_NODE_NONE);
+        if (result & LDK_UI_TREE_NODE_RESULT_TOGGLED)
+          fold->expanded = !fold->expanded;
+        else if ((result & LDK_UI_TREE_NODE_RESULT_CLICKED) && !selected)
         {
-          s_terrain_undo_discard(editor);
+          if (state->stroke_active) s_terrain_stroke_finish(editor);
           (void)s_terrain_vegetation_select(editor, layer_id);
-          LDKEditorTerrainVegetationFold *created =
-              s_terrain_vegetation_fold_get(
-                  &state->data.vegetation_layers[
-                      state->data.vegetation_layer_count - 1u], true);
-          if (created) created->expanded = true;
         }
-        else
-          state->data = previous;
+
+        LDKUIIcon delete_icon = s_terrain_ui_icon(editor,
+            LDK_EDITOR_ICON_DELETE);
+        ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
+        bool remove = ldk_ui_icon_button(ui, delete_icon, "");
+        ldk_ui_end_horizontal(ui);
+        if (remove)
+        {
+          (void)s_terrain_vegetation_layer_delete(editor, layer_id, i);
+          ldk_ui_pop_id(ui);
+          ldk_ui_pop_id(ui);
+          break;
+        }
+
+        if (fold->expanded)
+        {
+          s_terrain_vegetation_name_draw(editor, layer, fold);
+          float density = ldk_editor_ui_row_slider_float(editor,
+              "Density Scale", 1u, layer->density_scale, 0.0f, 5.0f,
+              false, NULL);
+          ldk_ui_end_horizontal(ui);
+          if (density != layer->density_scale && !state->stroke_active)
+          {
+            LDKTerrain candidate = state->data;
+            candidate.vegetation_layers[i].density_scale = density;
+            if (ldk_terrain_validate(&candidate))
+            {
+              LDKTerrain previous = state->data;
+              state->data = candidate;
+              if (!s_terrain_publish(editor)) state->data = previous;
+            }
+          }
+          s_terrain_vegetation_type_inspector(editor, layer, fold);
+        }
+        ldk_ui_pop_id(ui);
+        ldk_ui_pop_id(ui);
       }
-      else
-        ldki_editor_log_warning(editor,
-            "Could not add vegetation layer: invalid settings or layer limit.");
     }
+    ldk_ui_pop_id(ui);
   }
-  ldk_ui_pop_id(ui);
   ldk_ui_horizontal_line(ui);
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   if (ldk_ui_button(ui, "Export Heightmap..."))
