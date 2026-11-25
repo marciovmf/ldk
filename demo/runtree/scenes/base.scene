@@ -4,634 +4,12 @@ scene:
     ambient_sky_color: 3302817791
     ambient_ground_color: 2020368639
     ambient_intensity: 0.200000003
-    fog_enabled: false
-    fog_color: 2965690623
-    fog_density: 0.00999999978
-    fog_start: 10.0000000
+    fog_enabled: true
+    fog_color: 4294967295
+    fog_density: 0.0500000007
+    fog_start: 55.0000000
   entities:
     - entity: 0
-      parent: -1
-      flags: 4
-      name: "Quad"
-      name_hash: "0x45308213b11221ae"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 0.174343109, 32.6456680
-            local_scale: 71.4198761, 71.4198761, 71.4198761
-            local_rotation: -0.707106829, 0.00000000, 0.00000000, 0.707106829
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/quad"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/checkers_orange"
-    - entity: 1
-      parent: -1
-      flags: 0
-      name: "Entity"
-      name_hash: "0x757a4c2248c0b9da"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: -0.0849103928, 4.12941837, 1.39284277
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-        - type: 4294967291 # LDKPointLight
-          fields:
-            color: 4294967295
-            intensity: 2.00000000
-            range: 5.00000000
-            enabled: true
-    - entity: 2
-      parent: -1
-      flags: 0
-      name: "Spot Light"
-      name_hash: "0xac1499d894107b41"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 1.64186549, 4.44243145, 5.95797396
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.122332498, 0.0398861952, 0.00492033875, 0.991675198
-        - type: 4294967290 # LDKSpotLight
-          fields:
-            color: 4294967295
-            intensity: 7.00000000
-            range: 10.0000000
-            inner_angle: 0.349065840
-            outer_angle: 0.523598790
-            enabled: true
-        - type: 4294967280 # LDKKeyFrameAnimationSource
-          fields:
-            current_animation: 0
-            play_on_start: true
-            loop: true
-            speed: 1.00000000
-            animations:
-              - path: "flicker.anim"
-    - entity: 3
-      parent: 12
-      flags: 0
-      name: "Camera"
-      name_hash: "0x54d1b2a64667e32e"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.266472101, 2.13821220, -3.07301950
-            local_scale: 1.00000000, 0.999999881, 0.999999940
-            local_rotation: 0.0432645380, -0.982914627, -0.178732097, 0.00786717609
-        - type: 4294967293 # LDKCamera
-          fields:
-            projection: 0
-            role: 1
-            fov_y: 1.04719758
-            orthographic_height: 10.0000000
-            near_plane: 0.100000001
-            far_plane: 1000.00000
-            enabled: true
-            background_mode: 1
-            background_color: 2880154623
-            skybox_asset: "assets/skybox/sky_01.skybox"
-        - type: 4294967286 # LDKPostProcessing
-          fields:
-            enabled: true
-            tonemapping_enabled: false
-            exposure: -0.950783730
-            bloom_enabled: false
-            bloom_threshold: 1.00000000
-            bloom_intensity: 0.500000000
-            bloom_radius: 0.500000000
-            bloom_soft_knee: 0.500000000
-            blur_enabled: true
-            blur_strength: 0.500000000
-            blur_focus_size: 0.354131520
-            blur_focus_feather: 0.516020238
-            blur_inverted: false
-            blur_order: 0
-            blur_focus_offset_x: 0.00000000
-            blur_focus_offset_y: 0.00000000
-            color_enabled: false
-            brightness: -0.0354131460
-            contrast: 0.998313665
-            saturation: 0.930860043
-            vignette_enabled: false
-            vignette_intensity: 0.500000000
-            vignette_radius: 0.500000000
-            vignette_softness: 0.500000000
-            screen_distortion_enabled: false
-            screen_distortion_strength: 0.250000000
-            chromatic_aberration_enabled: false
-            chromatic_aberration_strength: 0.250000000
-            heat_enabled: false
-            heat_strength: 1.00000000
-            heat_amplitude: 4.00000000
-            heat_scale: 1.00000000
-            heat_speed: 1.00000000
-            inverse_enabled: false
-            black_and_white_enabled: false
-            retro_enabled: false
-            retro_pixel_size: 2.00000000
-            retro_color_levels: 4.00000000
-            retro_dither_strength: 1.00000000
-            retro_dither_contrast: 0.500000000
-            retro_pattern_scale: 1.00000000
-            retro_dither_pattern: 2
-            drunk_enabled: false
-            drunk_strength: 0.750000000
-            drunk_speed: 1.00000000
-            drunk_ghosting: 0.500000000
-            drunk_chromatic_aberration: 0.349999994
-            drunk_movement: 0.500000000
-            retro_dither_radial_enabled: false
-            retro_dither_radius: 0.300000012
-            retro_dither_feather: 0.180000007
-            retro_dither_offset_x: 0.00000000
-            retro_dither_offset_y: 0.00000000
-            retro_dither_horizontal_band_enabled: false
-            retro_dither_band_half_height: 0.200000003
-    - entity: 4
-      parent: -1
-      flags: 0
-      name: "directional_light"
-      name_hash: "0xf8fa3014b7a0263c"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 9.20695019, 13.7444210, 13.8110409
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.287778080, 0.220288619, 0.0682011247, 0.929518878
-        - type: 4294967289 # LDKDirectionalLight
-          fields:
-            color: 4294967295
-            intensity: 1.00000000
-            enabled: true
-            casts_shadows: true
-    - entity: 5
-      parent: -1
-      flags: 0
-      name: "Cube"
-      name_hash: "0x76ed629cae245060"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 0.660789490, -1.57965970
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/cube"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/checkers_orange_small"
-    - entity: 6
-      parent: 7
-      flags: 0
-      name: "Cube"
-      name_hash: "0x76ed629cae245060"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 2.68835616, 0.00000000, 0.00000000
-            local_scale: 0.545454621, 0.545454562, 0.545454621
-            local_rotation: 0.338267356, 0.797652245, 0.341708362, 0.364089906
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/cube"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/checkers_orange_small"
-    - entity: 7
-      parent: -1
-      flags: 0
-      name: "Crate"
-      name_hash: "0xa78dd2004df983c0"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 5.31266451, 2.94322300, 1.76785111
-            local_scale: 0.895996034, 0.895996034, 0.895996034
-            local_rotation: 0.00000000, -0.372884005, 0.00000000, 0.927878022
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/cube"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/materials/castle_checkers.tml"
-        - type: 4294967278 # LDKLineComponent
-          fields:
-            max_segments: 64
-            segments:
-        - type: 4294967277 # LDKTrailComponent
-          fields:
-            enabled: true
-            lifetime: 1.00000000
-            min_distance: 0.100000001
-            local_offset: 0.00000000, 0.00000000, 0.00000000
-            initial_color: 244642047
-            final_color: 4294967040
-            initial_width: 0.00000000
-            final_width: 0.100000001
-            initial_alpha: 0.00000000
-            final_alpha: 1.00000000
-    - entity: 8
-      parent: -1
-      flags: 0
-      name: "Tree"
-      name_hash: "0x85b3b9fb528f2775"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 2.06353545, 0.00000000, 26.3221588
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-        - type: 4294967288 # LDKInstancedMeshSource
-          fields:
-            source_asset: "assets/mesh/tree.mesh"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            materials:
-              - slot: 0
-                material_type: 4
-                material_color: 0xffffffff
-                material_specular: 0
-                material_shininess: 32
-                material_emission: 0
-              - slot: 1
-                material_type: 4
-                material_color: 0xffffffff
-                material_specular: 0
-                material_shininess: 32
-                material_emission: 0
-            instances:
-              - transform: 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000
-              - transform: 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, -1.87894845, 0.00000000, 0.00000000, 1.00000000
-              - transform: 0.802083313, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 0.802083313, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 0.802083313, 0.00000000, 1.79064560, 0.00000000, -0.339265823, 1.00000000
-              - transform: 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000
-              - transform: 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, 0.00000000, 0.00000000, 2.06090546, 1.00000000
-              - transform: 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, 0.00000000, 0.00000000, 0.00000000, 1.00000000, 0.00000000, -1.49128103, 0.00000000, 3.30094528, 1.00000000
-    - entity: 9
-      parent: -1
-      flags: 0
-      name: "Sphere"
-      name_hash: "0x6e9ec2fc72e7f158"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 2.59845114, 7.73522186, 0.900640965
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/sphere"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/checkers_orange_small"
-    - entity: 10
-      parent: -1
-      flags: 0
-      name: "Capsule"
-      name_hash: "0xe61afc6bb8a571cc"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: -3.22925425, 2.86114597, 0.635183811
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.328308105, -0.433601320, -0.173378825, 0.821062386
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/capsule"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_type: 4
-            material_color: 0xffffffff
-            material_specular: 0
-            material_shininess: 32
-            material_emission: 0
-    - entity: 11
-      parent: -1
-      flags: 0
-      name: "Cone"
-      name_hash: "0x3657fc9d1acde46a"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 2.45969868, 5.71114254, 0.00000000
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: -0.159854606, 0.555620313, -0.225594282, 0.784117281
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/cone"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_type: 4
-            material_color: 0xffffffff
-            material_specular: 0
-            material_shininess: 32
-            material_emission: 0
-    - entity: 12
-      parent: -1
-      flags: 0
-      name: "Hero"
-      name_hash: "0x34dbfcd860d2c1d9"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: -2.71801162, 0.849406183, 0.669464111
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.00000000, 0.999064922, 0.00000000, -0.0432350971
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/capsule"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_type: 4
-            material_color: 0xffffffff
-            material_specular: 0
-            material_shininess: 32
-            material_emission: 0
-        - type: 2637462986 # TFTFPlayerCharacterComponent
-          fields:
-            speed: 4.00000000
-            acceleration: 18.0000000
-            inertia: 0.150000006
-            max_slope_degrees: 45.0000000
-            camera_orbit_speed: 120.000000
-            high_grass_height: 0.600000024
-            high_grass_density_min: 90.0000000
-            high_grass_speed_scale: 0.800000012
-            grass_cut_density_scale: 0.750000000
-            thorns_speed_scale: 0.500000000
-            thorns_density_min: 5.00000000
-            thorns_cut_density_scale: 0.750000000
-            cut_distance: 1.00000000
-            deep_water_speed_scale: 1.00000000
-            shallow_water_speed_scale: 1.00000000
-            shore_speed_scale: 1.00000000
-            dry_speed_scale: 1.00000000
-            grass_speed_scale: 1.00000000
-            forest_speed_scale: 1.00000000
-            mountain_speed_scale: 1.00000000
-    - entity: 13
-      parent: -1
-      flags: 0
-      name: "Cube"
-      name_hash: "0x76ed629cae245060"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 4.59683084, 4.19050884, 11.9261780
-            local_scale: 1.51041675, 1.51041675, 1.51041675
-            local_rotation: 0.0661983490, -0.327735305, 0.542680979, 0.770522416
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/cube"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/materials/container.tml"
-    - entity: 14
-      parent: -1
-      flags: 0
-      name: "Rock"
-      name_hash: "0xcaa6172bef74e234"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 0.00000000, 0.00000000
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-        - type: 4294967288 # LDKInstancedMeshSource
-          fields:
-            source_asset: "assets/mesh/tree.mesh"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            materials:
-              - slot: 0
-                material_type: 4
-                material_color: 0xffffffff
-                material_specular: 0
-                material_shininess: 32
-                material_emission: 0
-              - slot: 1
-                material_type: 4
-                material_color: 0xffffffff
-                material_specular: 0
-                material_shininess: 32
-                material_emission: 0
-            instances:
-    - entity: 15
-      parent: -1
-      flags: 0
-      name: "Capsule"
-      name_hash: "0xe61afc6bb8a571cc"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: -8.34259415, 1.47747660, 0.00000000
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/capsule"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_type: 4
-            material_color: 0xffffffff
-            material_specular: 0
-            material_shininess: 32
-            material_emission: 0
-    - entity: 16
-      parent: -1
-      flags: 0
-      name: "Text"
-      name_hash: "0x2492f5fb1b05b45e"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 2.15608525, 3.16419220
-            local_scale: 1.00000000, 1.00000000, 1.00000000
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-        - type: 4294967285 # LDKText3DComponent
-          fields:
-            text: "Hello, Sailor!"
-            font: "assets/InterDisplay-Regular.ttf"
-            pixel_height: 256.000000
-            color: 4294967295
-            billboard: true
-            depth_test: true
-        - type: 4294967284 # LDKAudioSource
-          fields:
-            audio: "audio/ambient-music.mp3"
-            priority: 1
-            range: 10.0000000
-            volume: 0.895678103
-            loop: true
-            play_on_start: true
-    - entity: 17
-      parent: 12
-      flags: 0
-      name: "Smoke"
-      name_hash: "0xe6982bd921a6a106"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 4.76837158e-07, -0.277365446, 0.733977318
-            local_scale: 0.999999881, 0.999999940, 1.00000000
-            local_rotation: 2.46960941e-09, 7.45058149e-09, -1.82052524e-08, 1.00000000
-        - type: 4294967288 # LDKInstancedMeshSource
-          fields:
-            source_asset: -1
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_type: 4
-            material_color: 0xffffffff
-            material_specular: 0
-            material_shininess: 32
-            material_emission: 0
-            instances:
-        - type: 4294967287 # LDKParticleEmitter
-          fields:
-            enabled: true
-            material: "assets/materials/particle_fire.tml"
-            emission_rate: 5.00000000
-            emission_mode: 0
-            play_on_start: true
-            emission_duration: 1.00000000
-            burst_count: 1
-            particles_per_burst: 16
-            burst_interval: 0.100000001
-            max_particles: 256
-            lifetime: 10.0000000
-            initial_velocity: 0.00000000, 0.500000000, 0.00000000
-            velocity_variation: 0.100000001, 0.00000000, 0.00000000
-            acceleration: 0.00000000, 0.100000001, 0.00000000
-            initial_scale: 1.00000000
-            initial_scale_variation: 0.500000000
-            final_scale: 3.00000000
-            final_scale_variation: 0.500000000
-            initial_alpha: 1.00000000
-            initial_alpha_variation: 0.300000012
-            final_alpha: 1.00000000
-            final_alpha_variation: 0.00000000
-            initial_tint: 4294967295
-            initial_tint_variation: 255
-            final_tint: 4294967295
-            final_tint_variation: 255
-            initial_rotation: 0.00000000
-            initial_rotation_variation: 2.00000000
-            final_rotation: 0.00000000
-            final_rotation_variation: 0.00000000
-            interpolation_curve: 0
-            simulation_space: 1
-            sort_mode: 1
-    - entity: 18
-      parent: -1
-      flags: 4
-      name: "Quad"
-      name_hash: "0x45308213b11221ae"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.00000000, 35.7817574, -3.00000000
-            local_scale: 71.4198761, 71.4198761, 71.4198761
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/quad"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_asset: "assets/checkers_orange"
-    - entity: 19
-      parent: -1
-      flags: 0
-      name: "Sprite_character"
-      name_hash: "0x8283df0599e2ca4c"
-      components:
-        - type: 4294967294 # LDKTransform
-          fields:
-            local_position: 0.559224308, 1.35395181, 0.344733596
-            local_scale: 2.28125000, 2.28125000, 2.28125000
-            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
-        - type: 4294967292 # LDKMeshSource
-          fields:
-            source_asset: "builtin:mesh/quad"
-            mesh_index: 0
-            casts_shadows: true
-            billboard: true
-            material_asset: "assets/megaman.material"
-        - type: 4294967279 # LDKMaterialInstance
-          fields:
-            sprite_id: "18"
-        - type: 4294967280 # LDKKeyFrameAnimationSource
-          fields:
-            current_animation: 0
-            play_on_start: true
-            loop: true
-            speed: 1.00000000
-            animations:
-              - path: "assets/megaman.anim"
-        - type: 4294967288 # LDKInstancedMeshSource
-          fields:
-            source_asset: -1
-            mesh_index: 0
-            casts_shadows: true
-            billboard: false
-            material_type: 4
-            material_color: 0xffffffff
-            material_specular: 0
-            material_shininess: 32
-            material_emission: 0
-            instances:
-        - type: 4294967287 # LDKParticleEmitter
-          fields:
-            enabled: true
-            material: -1
-            emission_rate: 10.0000000
-            emission_mode: 2
-            play_on_start: true
-            emission_duration: 1.00000000
-            burst_count: 1
-            particles_per_burst: 5
-            burst_interval: 0.100000001
-            max_particles: 256
-            lifetime: 1.00000000
-            initial_velocity: 0.00000000, 1.00000000, 0.00000000
-            velocity_variation: 0.00000000, 0.00000000, 0.00000000
-            acceleration: 0.00000000, 0.00000000, 0.00000000
-            initial_scale: 1.00000000
-            initial_scale_variation: 0.00000000
-            final_scale: 1.00000000
-            final_scale_variation: 0.00000000
-            initial_alpha: 1.00000000
-            initial_alpha_variation: 0.00000000
-            final_alpha: 1.00000000
-            final_alpha_variation: 0.00000000
-            initial_tint: 4294967295
-            initial_tint_variation: 255
-            final_tint: 4294967295
-            final_tint_variation: 255
-            initial_rotation: 0.00000000
-            initial_rotation_variation: 0.00000000
-            final_rotation: 0.00000000
-            final_rotation_variation: 0.00000000
-            interpolation_curve: 0
-            simulation_space: 0
-            sort_mode: 1
-    - entity: 20
       parent: -1
       flags: 0
       name: "Terrain"
@@ -639,7 +17,7 @@ scene:
       components:
         - type: 4294967294 # LDKTransform
           fields:
-            local_position: 70.2879562, 0.00000000, -25.4319725
+            local_position: 0.00000000, 0.00000000, 0.00000000
             local_scale: 1.00000000, 1.00000000, 1.00000000
             local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
         - type: 4294967276 # LDKTerrainComponent
@@ -781,7 +159,7 @@ scene:
                   seed: 0
                   type_settings:
                     kind: 2
-                    mesh: "assets/mesh/tree.mesh"
+                    mesh: "mesh/tree.mesh"
                     material_0: "material/tree_trunk.material"
                     material_1: "material/tree_leavs.material"
                     material_2: ""
@@ -790,10 +168,10 @@ scene:
                     material_5: ""
                     material_6: ""
                     material_7: ""
-                    mesh_index: 0
+                    mesh_index: 2
                     scale_min: 1.0, 1.0, 1.0
                     scale_max: 1.0, 1.0, 1.0
-                    rotation_min: 0.0, 0.0, 0.0
+                    rotation_min: 0.0, -360.0, 0.0
                     rotation_max: 0.0, 0.0, 0.0
                     align_to_normal: false
                     follow_terrain: true
@@ -807,7 +185,7 @@ scene:
                     use_noise_height: false
                     blade_width: 0.100000001
                     curvature: 0.0799999982
-                    wind_strength: 0.0799999982
+                    wind_strength: 0.0199999996
                     interaction_recovery_time: 2.5
                     bottom_color: 4294967295
                     top_color: 4294967295
@@ -819,6 +197,254 @@ scene:
                     noise_color_stop_3_color: 1115506943
                   density_encoding: "u8-base64"
                   density_samples: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAQEBAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEBAgICAgEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEDBAUFBQQDAgEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEDBQcHCAgHBgQCAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEDBQcJCgoKCQgGBAEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAECBAcJCgoKCgoJCAUCAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAwUICgoKCgoKCgkGAwEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQMGCAoKCgoKCgoJBwQBAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEDBggKCgoKCgoKCQcEAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAgUICgoKCgoKCggGAwEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQIEBwkKCgoKCgkHBQIBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAwUHCAkKCQkHBgMBAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQEDBQYHBwcGBQMCAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABAQIDBAUEBAMBAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAQICAgEBAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+    - entity: 1
+      parent: -1
+      flags: 0
+      name: "Entity"
+      name_hash: "0x757a4c2248c0b9da"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -0.0849103928, 4.12941837, 1.39284277
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967291 # LDKPointLight
+          fields:
+            color: 4294967295
+            intensity: 2.00000000
+            range: 5.00000000
+            enabled: true
+    - entity: 2
+      parent: -1
+      flags: 0
+      name: "Main Camera"
+      name_hash: "0xa448be2894a4b117"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -33.9031334, 20.6781216, 15.4896164
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: -0.197445810, -0.444935262, -0.101252586, 0.867637992
+        - type: 4294967293 # LDKCamera
+          fields:
+            projection: 0
+            role: 1
+            fov_y: 0.800000012
+            orthographic_height: 10.0000000
+            near_plane: 0.100000001
+            far_plane: 1000.00000
+            enabled: true
+            background_mode: 1
+            background_color: 2880154623
+            skybox_asset: "assets/skybox/sky_07.skybox"
+        - type: 4294967286 # LDKPostProcessing
+          fields:
+            enabled: true
+            tonemapping_enabled: true
+            exposure: 0.00000000
+            bloom_enabled: false
+            bloom_threshold: 1.00000000
+            bloom_intensity: 0.500000000
+            bloom_radius: 0.500000000
+            bloom_soft_knee: 0.500000000
+            blur_enabled: true
+            blur_strength: 0.175269231
+            blur_focus_size: 0.250000000
+            blur_focus_feather: 0.150000006
+            blur_inverted: false
+            blur_order: 0
+            blur_focus_offset_x: 0.00000000
+            blur_focus_offset_y: 0.00000000
+            color_enabled: false
+            brightness: 0.00000000
+            contrast: 1.00000000
+            saturation: 1.00000000
+            vignette_enabled: false
+            vignette_intensity: 0.500000000
+            vignette_radius: 0.500000000
+            vignette_softness: 0.500000000
+            screen_distortion_enabled: false
+            screen_distortion_strength: 0.250000000
+            chromatic_aberration_enabled: false
+            chromatic_aberration_strength: 0.250000000
+            heat_enabled: false
+            heat_strength: 1.00000000
+            heat_amplitude: 4.00000000
+            heat_scale: 1.00000000
+            heat_speed: 1.00000000
+            inverse_enabled: false
+            black_and_white_enabled: false
+            retro_enabled: true
+            retro_pixel_size: 1.00000000
+            retro_color_levels: 16.0000000
+            retro_dither_strength: 0.551058292
+            retro_dither_contrast: 0.224285200
+            retro_pattern_scale: 1.00000000
+            retro_dither_pattern: 2
+            drunk_enabled: false
+            drunk_strength: 0.750000000
+            drunk_speed: 1.00000000
+            drunk_ghosting: 0.500000000
+            drunk_chromatic_aberration: 0.349999994
+            drunk_movement: 0.500000000
+            retro_dither_radial_enabled: false
+            retro_dither_radius: 0.300000012
+            retro_dither_feather: 0.180000007
+            retro_dither_offset_x: 0.00000000
+            retro_dither_offset_y: 0.00000000
+            retro_dither_horizontal_band_enabled: true
+            retro_dither_band_half_height: 0.500000000
+    - entity: 3
+      parent: -1
+      flags: 0
+      name: "directional_light"
+      name_hash: "0xf8fa3014b7a0263c"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 9.20695019, 13.7444210, 13.8110409
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: -0.488704830, 0.199410096, 0.115819179, 0.841420889
+        - type: 4294967289 # LDKDirectionalLight
+          fields:
+            color: 4294967295
+            intensity: 1.00000000
+            enabled: true
+            casts_shadows: true
+    - entity: 4
+      parent: -1
+      flags: 0
+      name: "Rock"
+      name_hash: "0xcaa6172bef74e234"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 0.00000000, 0.00000000, 0.00000000
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967288 # LDKInstancedMeshSource
+          fields:
+            source_asset: "assets/mesh/tree.mesh"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            materials:
+              - slot: 0
+                material_type: 4
+                material_color: 0xffffffff
+                material_specular: 0
+                material_shininess: 32
+                material_emission: 0
+              - slot: 1
+                material_type: 4
+                material_color: 0xffffffff
+                material_specular: 0
+                material_shininess: 32
+                material_emission: 0
+            instances:
+    - entity: 5
+      parent: -1
+      flags: 0
+      name: "Text"
+      name_hash: "0x2492f5fb1b05b45e"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: -12.3902779, 5.32132959, 20.2083969
+            local_scale: 1.00000000, 1.00000000, 1.00000000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967285 # LDKText3DComponent
+          fields:
+            text: "Hello, Sailor!"
+            font: "assets/InterDisplay-Regular.ttf"
+            pixel_height: 256.000000
+            color: 4294967295
+            billboard: true
+            depth_test: true
+        - type: 4294967284 # LDKAudioSource
+          fields:
+            audio: "audio/ambient-music.mp3"
+            priority: 1
+            range: 10.0000000
+            volume: 0.895678103
+            loop: true
+            play_on_start: true
+    - entity: 6
+      parent: -1
+      flags: 0
+      name: "Sprite_character"
+      name_hash: "0x8283df0599e2ca4c"
+      components:
+        - type: 4294967294 # LDKTransform
+          fields:
+            local_position: 7.36570406, 8.98694992, 20.7252254
+            local_scale: 2.28125000, 2.28125000, 2.28125000
+            local_rotation: 0.00000000, 0.00000000, 0.00000000, 1.00000000
+        - type: 4294967292 # LDKMeshSource
+          fields:
+            source_asset: "builtin:mesh/quad"
+            mesh_index: 0
+            casts_shadows: true
+            billboard: true
+            material_asset: "assets/megaman.material"
+        - type: 4294967279 # LDKMaterialInstance
+          fields:
+            sprite_id: "18"
+        - type: 4294967280 # LDKKeyFrameAnimationSource
+          fields:
+            current_animation: 0
+            play_on_start: true
+            loop: true
+            speed: 1.00000000
+            animations:
+              - path: "assets/megaman.anim"
+        - type: 4294967288 # LDKInstancedMeshSource
+          fields:
+            source_asset: -1
+            mesh_index: 0
+            casts_shadows: true
+            billboard: false
+            material_type: 4
+            material_color: 0xffffffff
+            material_specular: 0
+            material_shininess: 32
+            material_emission: 0
+            instances:
+        - type: 4294967287 # LDKParticleEmitter
+          fields:
+            enabled: true
+            material: -1
+            emission_rate: 10.0000000
+            emission_mode: 2
+            play_on_start: true
+            emission_duration: 1.00000000
+            burst_count: 1
+            particles_per_burst: 5
+            burst_interval: 0.100000001
+            max_particles: 256
+            lifetime: 1.00000000
+            initial_velocity: 0.00000000, 1.00000000, 0.00000000
+            velocity_variation: 0.00000000, 0.00000000, 0.00000000
+            acceleration: 0.00000000, 0.00000000, 0.00000000
+            initial_scale: 1.00000000
+            initial_scale_variation: 0.00000000
+            final_scale: 1.00000000
+            final_scale_variation: 0.00000000
+            initial_alpha: 1.00000000
+            initial_alpha_variation: 0.00000000
+            final_alpha: 1.00000000
+            final_alpha_variation: 0.00000000
+            initial_tint: 4294967295
+            initial_tint_variation: 255
+            final_tint: 4294967295
+            final_tint_variation: 255
+            initial_rotation: 0.00000000
+            initial_rotation_variation: 0.00000000
+            final_rotation: 0.00000000
+            final_rotation_variation: 0.00000000
+            interpolation_curve: 0
+            simulation_space: 0
+            sort_mode: 1
   systems:
     - id: "0x2b2d1d8cc2f66d1e"
     - id: "0x05047ea6f003fb8f"
@@ -833,12 +459,12 @@ scene:
     - id: "0x0da6bbd10b0612d1"
       data:
         seed: 0
-        min_tilt_degrees: 12.8136158
-        max_tilt_degrees: 17.1841526
-        tilt_direction_degrees: 215.357132
-        wind_direction_degrees: 0.00000000
+        min_tilt_degrees: 12.1017570
+        max_tilt_degrees: 62.3520927
+        tilt_direction_degrees: 298.568207
+        wind_direction_degrees: 63.2147675
         wind_force: 0.772321463
-        wind_speed: 0.412946463
+        wind_speed: 0.224634990
         color_noise_texture: -1
         color_noise_scale: 0.0199999996
         color_stop_1_position: 0.300000012
@@ -847,9 +473,9 @@ scene:
         color_stop_1_color: 2797234943
         color_stop_2_color: 1890277119
         color_stop_3_color: 1115506943
-        specular: 0.00000000
-        shininess: 1.00000000
-        emission: 0.00000000
+        specular: 0.887227416
+        shininess: 220.252335
+        emission: 0.478504688
         casts_shadows: false
         unlit: false
         lod_start_distance: 0.00000000
