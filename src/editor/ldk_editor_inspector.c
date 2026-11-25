@@ -275,6 +275,8 @@ enum
   LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_SYSTEM = 2u,
   LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_ARRAY = 3u,
   LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_SYSTEM_HEADER = 4u,
+  LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_TERRAIN = 5u,
+  LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_TERRAIN_ITEM = 6u,
 };
 
 typedef enum LDKEditorInspectorSelectionKind
@@ -408,7 +410,8 @@ static i32 s_editor_inspector_collapsed_component_index(u32 component_type)
 
 static bool s_editor_inspector_default_for_domain(u32 domain)
 {
-  if (domain == LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_ARRAY)
+  if (domain == LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_ARRAY ||
+      domain == LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_TERRAIN_ITEM)
   {
     return s_editor_inspector_expand_arrays;
   }
@@ -522,6 +525,43 @@ static void s_editor_inspector_group_expanded_set(
   group->owner_id = owner_id;
   group->group_index = group_index;
   group->expanded = expanded;
+}
+
+/* Built-in TerrainComponent collections participate in the same group
+ * expansion store as reflected component groups. The key is stable within
+ * a selection; selection changes clear these overrides automatically. */
+static u32 s_editor_inspector_terrain_fold_domain(u32 fold_group)
+{
+  return fold_group >= LDK_EDITOR_TERRAIN_FOLD_FIRST_ITEM
+      ? LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_TERRAIN_ITEM
+      : LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_TERRAIN;
+}
+
+bool ldki_editor_inspector_terrain_fold_expanded(u32 fold_group, u64 key)
+{
+  return s_editor_inspector_group_expanded(
+      s_editor_inspector_terrain_fold_domain(fold_group), key, fold_group);
+}
+
+void ldki_editor_inspector_terrain_fold_expanded_set(
+    u32 fold_group, u64 key, bool expanded)
+{
+  s_editor_inspector_group_expanded_set(
+      s_editor_inspector_terrain_fold_domain(fold_group), key, fold_group, expanded);
+}
+
+void ldki_editor_inspector_terrain_fold_forget(u32 fold_group, u64 key)
+{
+  i32 index = s_editor_inspector_collapsed_group_index(
+      s_editor_inspector_terrain_fold_domain(fold_group), key, fold_group);
+  if (index < 0) return;
+  const u32 slot = (u32)index;
+  if (slot + 1u < s_editor_inspector_collapsed_group_count)
+    memmove(&s_editor_inspector_collapsed_groups[slot],
+        &s_editor_inspector_collapsed_groups[slot + 1u],
+        (size_t)(s_editor_inspector_collapsed_group_count - slot - 1u) *
+            sizeof(s_editor_inspector_collapsed_groups[0]));
+  --s_editor_inspector_collapsed_group_count;
 }
 
 static void s_editor_inspector_selection_sync(LDKEditorContext *editor)
@@ -3869,6 +3909,18 @@ static void s_editor_inspector_fields_draw(
       s_editor_inspector_row_group_depth = current_count;
       s_editor_inspector_field_or_array_draw(editor, entity, component_type,
           meta, field, component);
+      /* Terrain grid/import controls are edited by the built-in terrain
+       * editor, but visually belong inside the reflected Geometry fold. */
+      if (component_type == LDK_COMPONENT_TYPE_TERRAIN &&
+          group_domain == LDK_EDITOR_INSPECTOR_GROUP_DOMAIN_COMPONENT &&
+          editor->editor_state == LDK_EDITOR_STATE_STOPED &&
+          field->group && field->group->name &&
+          strcmp(field->group->name, "Geometry") == 0 &&
+          (field_i + 1u == meta->field_count ||
+              meta->fields[field_i + 1u].group != field->group))
+      {
+        ldki_editor_terrain_geometry_inspector_draw(editor, entity);
+      }
     }
 
     if (current_count > 0u)
@@ -6532,9 +6584,12 @@ void ldki_editor_inspector_show(LDKEditorContext *editor)
     {
       if (component_type == LDK_COMPONENT_TYPE_TERRAIN && component)
       {
-        /* The terrain editor does not require reflected component fields. */
+        /* Fallback when Comet metadata is unavailable. */
         if (editor->editor_state == LDK_EDITOR_STATE_STOPED)
+        {
+          ldki_editor_terrain_geometry_inspector_draw(editor, entity);
           ldki_editor_terrain_inspector_draw(editor, entity);
+        }
         else
         {
           ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));

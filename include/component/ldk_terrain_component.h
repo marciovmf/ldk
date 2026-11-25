@@ -26,10 +26,34 @@ typedef struct LDKTerrainVegetationDensity
   u8 *samples[LDK_TERRAIN_VEGETATION_LAYER_COUNT];
 } LDKTerrainVegetationDensity;
 
+/** Changed heightmap texels, in image coordinates, inclusive of no padding.
+ * Only valid while heightmap_dirty_valid is true. */
+typedef struct LDKTerrainHeightmapRegion
+{
+  u32 x;
+  u32 y;
+  u32 width;
+  u32 height;
+} LDKTerrainHeightmapRegion;
+
 /** @group ldk.component.terrain */
 //@component
 typedef struct LDKTerrainComponent
 {
+  //@begin_group "Geometry"
+  /** Number of rendered mesh cells per chunk, independent per terrain. */
+  //@inspect min=1 max=256
+  u32 chunk_size;
+  /** Source heightmap cells per mesh vertex (1 = full resolution). */
+  //@inspect min=1 max=256
+  u32 mesh_sample_step;
+  //@end_group
+
+  //@begin_group "Rendering"
+  bool cull;
+  bool casts_shadows;
+  //@end_group
+
   /* Terrain is edited by the built-in Inspector. These opaque fields have
    * custom scene serialization, not reflection-based scalar serialization. */
   //@inspect hidden runtime
@@ -42,6 +66,25 @@ typedef struct LDKTerrainComponent
   LDKTerrainVegetationDensity *vegetation_density;
   //@inspect hidden runtime
   u64 revision;
+  /* Changes only when the owned heightmap or grid actually changes. */
+  //@inspect hidden runtime
+  u64 heightmap_revision;
+  /* Runtime-only accumulated brush region. The renderer may process it
+   * incrementally only when its cached revision matches the base revision. */
+  //@inspect hidden runtime
+  LDKTerrainHeightmapRegion heightmap_dirty_region;
+  //@inspect hidden runtime
+  u64 heightmap_dirty_base_revision;
+  //@inspect hidden runtime
+  bool heightmap_dirty_valid;
+  /* GrassSystem consumes an independent rectangle; rendering either system
+   * must not erase changes that the other has not processed yet. */
+  //@inspect hidden runtime
+  LDKTerrainHeightmapRegion heightmap_grass_dirty_region;
+  //@inspect hidden runtime
+  u64 heightmap_grass_dirty_base_revision;
+  //@inspect hidden runtime
+  bool heightmap_grass_dirty_valid;
 } LDKTerrainComponent;
 
 LDK_API LDKTerrainComponent ldk_terrain_component_make_default(void);
@@ -51,9 +94,20 @@ LDK_API LDKTerrainComponent ldk_terrain_component_make_default(void);
  */
 LDK_API bool ldk_terrain_component_set(LDKTerrainComponent *component,
     const LDKTerrain *terrain, const LDKImageInfo *heightmap);
+/** Change terrain metadata without replacing its heightmap. Dimensions must
+ * be unchanged; layer masks follow stable IDs if the layer order changes.
+ * Use ldk_terrain_component_set for heightmap/sculpting changes. */
+LDK_API bool ldk_terrain_component_metadata_set(
+    LDKTerrainComponent *component, const LDKTerrain *terrain);
 /** Update only the image and keep terrain metadata. */
 LDK_API bool ldk_terrain_component_heightmap_set(
     LDKTerrainComponent *component, const LDKImageInfo *heightmap);
+/** Publish only modified pixels from a full-size heightmap buffer, preserving
+ * the component's image and accumulating a dirty rectangle for the renderer.
+ * Full image or height-range changes must still use component_set(). */
+LDK_API bool ldk_terrain_component_heightmap_region_set(
+    LDKTerrainComponent *component, const LDKImageInfo *heightmap,
+    u32 x, u32 y, u32 width, u32 height);
 LDK_API bool ldk_terrain_component_heightmap_info_get(
     const LDKTerrainComponent *component, LDKImageInfo *out_info);
 /** Replace a vegetation layer's R8 mask with a deep copy. NULL clears it.

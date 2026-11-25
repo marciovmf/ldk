@@ -418,3 +418,31 @@ bool ldk_image_pixels_set(LDKImage *image,
   memcpy(image->pixels, pixels, (size_t)byte_count);
   return true;
 }
+
+bool ldk_image_pixels_region_set(LDKImage *image,
+    const LDKImageInfo *source, u32 x, u32 y, u32 width, u32 height)
+{
+  if (!image || !source || !source->pixels || !width || !height ||
+      source->width != image->width ||
+      source->height != image->height ||
+      source->format != image->format ||
+      source->channel_count != image->channel_count ||
+      source->bytes_per_channel != image->bytes_per_channel ||
+      source->byte_count != image->byte_count ||
+      x >= image->width || y >= image->height ||
+      width > image->width - x || height > image->height - y)
+    return false;
+
+  const size_t pixel_size = (size_t)image->channel_count *
+      image->bytes_per_channel;
+  const size_t stride = (size_t)image->width * pixel_size;
+  const size_t row_bytes = (size_t)width * pixel_size;
+  const size_t offset = (size_t)x * pixel_size;
+  for (u32 row = 0u; row < height; ++row)
+  {
+    const size_t row_start = ((size_t)y + row) * stride + offset;
+    memmove(image->pixels + row_start,
+        source->pixels + row_start, row_bytes);
+  }
+  return true;
+}

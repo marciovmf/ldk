@@ -2,8 +2,8 @@ material:
   material_texture_slots: 1
   material_texture_0_filter: 0
   material_texture_0_mip_filter: 0
-  material_texture_0_wrap_u: 1
-  material_texture_0_wrap_v: 1
+  material_texture_0_wrap_u: 0
+  material_texture_0_wrap_v: 0
   material_texture_0_uv_scale_x: 1
   material_texture_0_uv_scale_y: 1
   material_texture_0_uv_offset_x: 0

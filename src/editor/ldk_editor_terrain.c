@@ -48,7 +48,6 @@ static void s_terrain_stroke_finish(LDKEditorContext *editor);
 typedef struct LDKEditorTerrainVegetationFold
 {
   u64 layer_id;
-  bool expanded;
   bool editing_name;
   char name_text[X_SMALLSTR_MAX_LENGTH + 1u];
   /* Shared mesh asset is cached for the model dropdown only. The terrain
@@ -61,9 +60,6 @@ typedef struct LDKEditorTerrainVegetationFolds
 {
   LDKEntity owner;
   bool initialized;
-  bool expanded;
-  bool decorations_expanded;
-  bool trees_expanded;
   u32 count;
   LDKEditorTerrainVegetationFold
       layers[LDK_TERRAIN_VEGETATION_LAYER_COUNT];
@@ -76,7 +72,6 @@ static LDKEditorTerrainVegetationFolds s_terrain_vegetation_folds;
  * and explicitly follows the element on move/delete. Nothing is serialized. */
 typedef struct LDKEditorTerrainSurfaceFold
 {
-  bool expanded;
   bool editing_name;
   bool editing_sprite;
   char name_text[LDK_TERRAIN_LAYER_NAME_CAPACITY];
@@ -87,11 +82,31 @@ typedef struct LDKEditorTerrainSurfaceFolds
 {
   LDKEntity owner;
   bool initialized;
-  bool expanded;
   LDKEditorTerrainSurfaceFold surfaces[LDK_TERRAIN_SURFACE_COUNT];
 } LDKEditorTerrainSurfaceFolds;
 
 static LDKEditorTerrainSurfaceFolds s_terrain_surface_folds;
+
+enum
+{
+  LDK_TERRAIN_UI_FOLD_SURFACES = 1u,
+  LDK_TERRAIN_UI_FOLD_VEGETATION = 2u,
+  LDK_TERRAIN_UI_FOLD_DECORATIONS = 3u,
+  LDK_TERRAIN_UI_FOLD_TREES = 4u,
+  LDK_TERRAIN_UI_FOLD_SURFACE_ITEM = 5u,
+  LDK_TERRAIN_UI_FOLD_DISTRIBUTION_ITEM = 6u,
+};
+
+static bool s_terrain_fold_expanded(u32 group, u64 key)
+{
+  return ldki_editor_inspector_terrain_fold_expanded(group, key);
+}
+
+static void s_terrain_fold_expanded_set(
+    u32 group, u64 key, bool expanded)
+{
+  ldki_editor_inspector_terrain_fold_expanded_set(group, key, expanded);
+}
 
 
 static LDKUIIcon s_terrain_ui_icon(LDKEditorContext *editor,
@@ -187,13 +202,36 @@ static bool s_terrain_vegetation_select(LDKEditorContext *editor,
   return true;
 }
 
-static bool s_terrain_publish(LDKEditorContext *editor)
+/* Most strokes touch only a handful of texels. Keep the authored image
+ * alive and let the TerrainSystem rebuild just the intersecting chunks.
+ * Expanding the world height range re-encodes *all* pixels, so that special
+ * operation remains a full terrain replacement. */
+static bool s_terrain_publish_brush(LDKEditorContext *editor,
+    u32 x, u32 y, u32 width, u32 height, bool range_changed)
 {
   LDKEditorTerrainState *state = &editor->terrain_editor;
   LDKTerrainComponent *component = s_terrain_owned_component(state);
   if (!state->loaded || !component || !state->pixels) return false;
   LDKImageInfo image = s_terrain_info(state);
-  if (!ldk_terrain_component_set(component, &state->data, &image)) return false;
+  bool ok = (range_changed || !component->heightmap)
+      ? ldk_terrain_component_set(component, &state->data, &image)
+      : ldk_terrain_component_heightmap_region_set(component, &image,
+          x, y, width, height);
+  if (!ok) return false;
+  state->observed_revision = component->revision;
+  ldki_editor_scene_dirty_set(editor, true);
+  return true;
+}
+
+/* Terrain properties do not modify pixels. Replacing the heightmap here
+ * caused every terrain chunk to be rebuilt on every vegetation slider tick. */
+static bool s_terrain_publish_metadata(LDKEditorContext *editor)
+{
+  LDKEditorTerrainState *state = &editor->terrain_editor;
+  LDKTerrainComponent *component = s_terrain_owned_component(state);
+  if (!state->loaded || !component ||
+      !ldk_terrain_component_metadata_set(component, &state->data))
+    return false;
   state->observed_revision = component->revision;
   ldki_editor_scene_dirty_set(editor, true);
   return true;
@@ -701,7 +739,14 @@ bool ldki_editor_terrain_undo_apply(LDKEditorContext *editor,
   }
   LDKImageInfo info = {candidate.width, candidate.height, 4u, 2u,
       LDK_IMAGE_FORMAT_RGBA16_UNORM, pixel_bytes, pixels};
-  bool ok = ldk_terrain_component_set(component, &candidate, &info);
+  const LDKEditorTerrainHeightSnapshot previous_height =
+      s_terrain_height_snapshot(&component->terrain);
+  const bool same_height_range = memcmp(&previous_height,
+      &region.range_state, sizeof(previous_height)) == 0;
+  bool ok = same_height_range && component->heightmap
+      ? ldk_terrain_component_heightmap_region_set(component, &info,
+          region.x, region.y, region.width, region.height)
+      : ldk_terrain_component_set(component, &candidate, &info);
   free(pixels);
   if (!ok) return false;
   LDKEditorTerrainState *state = &editor->terrain_editor;
@@ -1042,7 +1087,9 @@ static bool s_terrain_brush_apply(LDKEditorContext *editor, Vec3 center)
     }
     const bool changed = s_terrain_brush_level_apply(state, center, dt,
         x0, z0, x1, z1, origin_x, origin_z);
-    if ((changed || range_changed) && s_terrain_publish(editor))
+    if ((changed || range_changed) && s_terrain_publish_brush(editor,
+            (u32)x0, (u32)z0, (u32)(x1-x0+1), (u32)(z1-z0+1),
+            range_changed))
     {
       state->dirty = true;
       state->pixels_dirty = true;
@@ -1137,7 +1184,9 @@ static bool s_terrain_brush_apply(LDKEditorContext *editor, Vec3 center)
       }
     }
   }
-  if (changed && s_terrain_publish(editor))
+  if (changed && s_terrain_publish_brush(editor,
+          (u32)x0, (u32)z0, (u32)(x1-x0+1), (u32)(z1-z0+1),
+          range_changed))
   {
     state->dirty = true;
     state->pixels_dirty = true;
@@ -1388,13 +1437,14 @@ static u32 s_terrain_float_row_input(LDKUIContext *ui, void *user,
 }
 
 static void s_terrain_grid_input(LDKEditorContext *editor,
-    const char *label, char *buffer, u32 capacity, u32 *value)
+    const char *label, char *buffer, u32 capacity, u32 *value,
+    u32 group_depth)
 {
   char *end;
   unsigned long parsed;
   LDKUIContext *ui = &editor->ui;
   ldk_ui_push_id_cstr(ui, label);
-  u32 result = ldk_editor_ui_row_uint(editor, label, 0u, buffer,
+  u32 result = ldk_editor_ui_row_uint(editor, label, group_depth, buffer,
       capacity, false, s_terrain_uint_row_input, NULL, NULL);
   ldk_ui_end_horizontal(ui);
   if (result & (LDK_UI_INPUT_BOX_CHANGED | LDK_UI_INPUT_BOX_COMMITTED))
@@ -1410,13 +1460,13 @@ static void s_terrain_grid_input(LDKEditorContext *editor,
 
 static bool s_terrain_real_input(LDKEditorContext *editor,
     const char *label, char *buffer, u32 capacity,
-    float *value, float minimum, float maximum)
+    float *value, float minimum, float maximum, u32 group_depth)
 {
   char *end;
   float parsed;
   LDKUIContext *ui = &editor->ui;
   ldk_ui_push_id_cstr(ui, label);
-  u32 result = ldk_editor_ui_row_float(editor, label, 0u, buffer,
+  u32 result = ldk_editor_ui_row_float(editor, label, group_depth, buffer,
       capacity, value, false, s_terrain_float_row_input, NULL, NULL);
   ldk_ui_end_horizontal(ui);
   bool changed = false;
@@ -1450,7 +1500,7 @@ static bool s_terrain_surface_apply(LDKEditorContext *editor,
   if (state->stroke_active) s_terrain_stroke_finish(editor);
   LDKTerrain previous = state->data;
   state->data = *candidate;
-  if (!s_terrain_publish(editor))
+  if (!s_terrain_publish_metadata(editor))
   {
     state->data = previous;
     return false;
@@ -1469,8 +1519,9 @@ static void s_terrain_surface_folds_sync(LDKEntity entity)
     memset(folds, 0, sizeof(*folds));
     folds->owner = entity;
     folds->initialized = true;
-    folds->expanded = true;
-    folds->surfaces[0].expanded = true;
+    /* Match the previous Surfaces collection default: open the first item.
+     * This runs only on entity change, not on Expand/Contract actions. */
+    s_terrain_fold_expanded_set(LDK_TERRAIN_UI_FOLD_SURFACE_ITEM, 0u, true);
   }
 }
 
@@ -1511,6 +1562,16 @@ static bool s_terrain_surface_move(LDKEditorContext *editor,
   s_terrain_surface_folds.surfaces[first] =
       s_terrain_surface_folds.surfaces[second];
   s_terrain_surface_folds.surfaces[second] = temporary;
+  /* Surface slots change identity when reordered. Move their fold states
+   * together, just as we move any in-progress input state. */
+  const bool first_expanded = s_terrain_fold_expanded(
+      LDK_TERRAIN_UI_FOLD_SURFACE_ITEM, first);
+  const bool second_expanded = s_terrain_fold_expanded(
+      LDK_TERRAIN_UI_FOLD_SURFACE_ITEM, second);
+  s_terrain_fold_expanded_set(
+      LDK_TERRAIN_UI_FOLD_SURFACE_ITEM, first, second_expanded);
+  s_terrain_fold_expanded_set(
+      LDK_TERRAIN_UI_FOLD_SURFACE_ITEM, second, first_expanded);
   return true;
 }
 
@@ -1535,8 +1596,13 @@ static bool s_terrain_surface_remove(LDKEditorContext *editor, u32 index)
   if (!s_terrain_surface_removed(&state->data, index, &candidate) ||
       !s_terrain_surface_apply(editor, &candidate, true)) return false;
   for (u32 i = index; i + 1u < LDK_TERRAIN_SURFACE_COUNT; ++i)
+  {
     s_terrain_surface_folds.surfaces[i] =
         s_terrain_surface_folds.surfaces[i + 1u];
+    s_terrain_fold_expanded_set(LDK_TERRAIN_UI_FOLD_SURFACE_ITEM, i,
+        s_terrain_fold_expanded(
+            LDK_TERRAIN_UI_FOLD_SURFACE_ITEM, i + 1u));
+  }
   memset(&s_terrain_surface_folds.surfaces[LDK_TERRAIN_SURFACE_COUNT - 1u],
       0, sizeof(s_terrain_surface_folds.surfaces[0]));
   return true;
@@ -1580,7 +1646,8 @@ static bool s_terrain_surface_add(LDKEditorContext *editor)
   if (!s_terrain_surface_apply(editor, &candidate, true)) return false;
   memset(&s_terrain_surface_folds.surfaces[index], 0,
       sizeof(s_terrain_surface_folds.surfaces[index]));
-  s_terrain_surface_folds.surfaces[index].expanded = true;
+  s_terrain_fold_expanded_set(LDK_TERRAIN_UI_FOLD_SURFACE_ITEM,
+      index, true);
   return true;
 }
 
@@ -1594,11 +1661,9 @@ static void s_terrain_surface_name_draw(LDKEditorContext *editor,
   const u32 result = ldk_editor_ui_row_text(editor, "Name", 1u,
       fold->name_text, sizeof(fold->name_text), false, NULL);
   ldk_ui_end_horizontal(&editor->ui);
-  if (result & LDK_UI_INPUT_BOX_CHANGED) fold->editing_name = true;
-  if (result & LDK_UI_INPUT_BOX_CANCELED) fold->editing_name = false;
-  if (result & LDK_UI_INPUT_BOX_COMMITTED)
+  if (result & LDK_UI_INPUT_BOX_CHANGED)
   {
-    fold->editing_name = false;
+    fold->editing_name = true;
     if (fold->name_text[0] && strcmp(fold->name_text, surface->name))
     {
       LDKTerrain candidate = state->data;
@@ -1607,6 +1672,8 @@ static void s_terrain_surface_name_draw(LDKEditorContext *editor,
       (void)s_terrain_surface_apply(editor, &candidate, false);
     }
   }
+  if (result & (LDK_UI_INPUT_BOX_COMMITTED | LDK_UI_INPUT_BOX_CANCELED))
+    fold->editing_name = false;
 }
 
 static void s_terrain_surface_sprite_draw(LDKEditorContext *editor,
@@ -1744,12 +1811,15 @@ static void s_terrain_surface_folds_draw(LDKEditorContext *editor,
   ldk_ui_push_id_cstr(ui, "terrain-surfaces");
   ldk_ui_begin_horizontal(ui);
   ldk_ui_set_next_weight(ui, 1.0f);
+  bool expanded = s_terrain_fold_expanded(LDK_TERRAIN_UI_FOLD_SURFACES, 0u);
   const u32 header = ldk_ui_tree_node_ex(ui, "Surfaces",
-      (LDKUIIcon){0}, s_terrain_surface_folds.expanded, 0u,
-      LDK_UI_TREE_NODE_NONE);
+      (LDKUIIcon){0}, expanded, 0u, LDK_UI_TREE_NODE_NONE);
   if (header & LDK_UI_TREE_NODE_RESULT_TOGGLED)
-    s_terrain_surface_folds.expanded =
-        !s_terrain_surface_folds.expanded;
+  {
+    expanded = !expanded;
+    s_terrain_fold_expanded_set(
+        LDK_TERRAIN_UI_FOLD_SURFACES, 0u, expanded);
+  }
   ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
   ldk_ui_set_next_disabled(ui, state->stroke_active ||
       state->data.surface_count >= LDK_TERRAIN_SURFACE_COUNT);
@@ -1758,7 +1828,7 @@ static void s_terrain_surface_folds_draw(LDKEditorContext *editor,
   ldk_ui_end_horizontal(ui);
   if (add && !s_terrain_surface_add(editor))
     ldki_editor_log_warning(editor, "Could not add terrain surface.");
-  if (s_terrain_surface_folds.expanded)
+  if (expanded)
   {
     for (u32 i = 0u; i < state->data.surface_count; ++i)
     {
@@ -1774,12 +1844,18 @@ static void s_terrain_surface_folds_draw(LDKEditorContext *editor,
       ldk_ui_push_id_u32(ui, i);
       ldk_ui_begin_horizontal(ui);
       ldk_ui_set_next_weight(ui, 1.0f);
+      bool item_expanded = s_terrain_fold_expanded(
+          LDK_TERRAIN_UI_FOLD_SURFACE_ITEM, i);
       const u32 result = ldk_ui_tree_node_ex(ui,
           state->data.surfaces[i].name, (LDKUIIcon){0},
-          fold->expanded, 1u, LDK_UI_TREE_NODE_NONE);
+          item_expanded, 1u, LDK_UI_TREE_NODE_NONE);
       if (result & (LDK_UI_TREE_NODE_RESULT_TOGGLED |
           LDK_UI_TREE_NODE_RESULT_CLICKED))
-        fold->expanded = !fold->expanded;
+      {
+        item_expanded = !item_expanded;
+        s_terrain_fold_expanded_set(
+            LDK_TERRAIN_UI_FOLD_SURFACE_ITEM, i, item_expanded);
+      }
       ldk_ui_set_next_width(ui, ldk_ui_px(24.0f));
       ldk_ui_set_next_disabled(ui, !up || state->stroke_active);
       const bool move_up = ldk_ui_icon_button(ui,
@@ -1801,7 +1877,7 @@ static void s_terrain_surface_folds_draw(LDKEditorContext *editor,
         ldk_ui_pop_id(ui);
         break; /* The element ordering and widget IDs have changed. */
       }
-      if (fold->expanded)
+      if (item_expanded)
         s_terrain_surface_properties_draw(editor, i, fold);
       ldk_ui_pop_id(ui);
     }
@@ -1819,9 +1895,7 @@ static void s_terrain_vegetation_folds_sync(LDKEntity entity,
     memset(folds, 0, sizeof(*folds));
     folds->owner = entity;
     folds->initialized = true;
-    folds->expanded = true;
-    folds->decorations_expanded = true;
-    folds->trees_expanded = true;
+    /* Fold expansion belongs to the Inspector's shared state. */
   }
 
   /* Removing and adding layers must not exhaust the fixed-size fold cache. */
@@ -1841,6 +1915,9 @@ static void s_terrain_vegetation_folds_sync(LDKEntity entity,
       ++i;
       continue;
     }
+    ldki_editor_inspector_terrain_fold_forget(
+        LDK_TERRAIN_UI_FOLD_DISTRIBUTION_ITEM,
+        folds->layers[i].layer_id);
     if (i + 1u < folds->count)
       memmove(&folds->layers[i], &folds->layers[i + 1u],
           (size_t)(folds->count - i - 1u) * sizeof(folds->layers[0]));
@@ -1859,14 +1936,17 @@ static LDKEditorTerrainVegetationFold *s_terrain_vegetation_fold_get(
   LDKEditorTerrainVegetationFold *fold = &folds->layers[folds->count++];
   memset(fold, 0, sizeof(*fold));
   fold->layer_id = layer->id;
-  fold->expanded = selected;
+  if (selected)
+    s_terrain_fold_expanded_set(
+        LDK_TERRAIN_UI_FOLD_DISTRIBUTION_ITEM, layer->id, true);
   snprintf(fold->name_text, sizeof(fold->name_text), "%s",
       x_smallstr_cstr(&layer->type.name));
   return fold;
 }
 
-/* The name is a label, never the painter's lookup key. Commit only a complete
- * valid name, keeping intermediate edits in stable editor-owned memory. */
+/* The name is a label, never the painter's lookup key. Apply valid edits
+ * immediately, like the Inspector's ordinary string fields. Incomplete
+ * input remains in editor-owned memory until the next valid edit. */
 static void s_terrain_vegetation_name_draw(LDKEditorContext *editor,
     const LDKTerrainVegetationLayer *layer,
     LDKEditorTerrainVegetationFold *fold)
@@ -1879,12 +1959,9 @@ static void s_terrain_vegetation_name_draw(LDKEditorContext *editor,
   const u32 result = ldk_editor_ui_row_text(editor, "Name", 1u,
       fold->name_text, sizeof(fold->name_text), false, NULL);
   ldk_ui_end_horizontal(ui);
-  if (result & LDK_UI_INPUT_BOX_CHANGED) fold->editing_name = true;
-  if (result & LDK_UI_INPUT_BOX_CANCELED)
-    fold->editing_name = false;
-  if (result & LDK_UI_INPUT_BOX_COMMITTED)
+  if (result & LDK_UI_INPUT_BOX_CHANGED)
   {
-    fold->editing_name = false;
+    fold->editing_name = true;
     if (fold->name_text[0] &&
         strcmp(fold->name_text, x_smallstr_cstr(&layer->type.name)) != 0)
     {
@@ -1899,11 +1976,13 @@ static void s_terrain_vegetation_name_draw(LDKEditorContext *editor,
           if (state->stroke_active) s_terrain_stroke_finish(editor);
           LDKTerrain previous = state->data;
           state->data = candidate;
-          if (!s_terrain_publish(editor)) state->data = previous;
+          if (!s_terrain_publish_metadata(editor)) state->data = previous;
         }
       }
     }
   }
+  if (result & (LDK_UI_INPUT_BOX_COMMITTED | LDK_UI_INPUT_BOX_CANCELED))
+    fold->editing_name = false;
 }
 
 /* Deleting a layer never reassigns another layer's density mask to the brush.
@@ -1921,6 +2000,8 @@ static bool s_terrain_vegetation_layer_delete(LDKEditorContext *editor,
   s_terrain_undo_discard(editor);
   state->data = component->terrain;
   state->observed_revision = component->revision;
+  ldki_editor_inspector_terrain_fold_forget(
+      LDK_TERRAIN_UI_FOLD_DISTRIBUTION_ITEM, layer_id);
   if (state->vegetation_layer_id == layer_id)
   {
     free(state->vegetation_pixels);
@@ -1980,7 +2061,7 @@ static bool s_terrain_distribution_layer_add(LDKEditorContext *editor,
 
   LDKTerrain previous = state->data;
   state->data = candidate;
-  if (!s_terrain_publish(editor))
+  if (!s_terrain_publish_metadata(editor))
   {
     state->data = previous;
     return false;
@@ -1988,11 +2069,13 @@ static bool s_terrain_distribution_layer_add(LDKEditorContext *editor,
 
   s_terrain_undo_discard(editor);
   (void)s_terrain_vegetation_select(editor, layer_id);
+  s_terrain_fold_expanded_set(
+      LDK_TERRAIN_UI_FOLD_DISTRIBUTION_ITEM, layer_id, true);
   LDKEditorTerrainVegetationFold *created =
       s_terrain_vegetation_fold_get(
           &state->data.vegetation_layers[
               state->data.vegetation_layer_count - 1u], true);
-  if (created) created->expanded = true;
+  (void)created;
   return true;
 }
 
@@ -2375,10 +2458,90 @@ static void s_terrain_vegetation_type_inspector(LDKEditorContext *editor,
       {
         LDKTerrain previous = editor->terrain_editor.data;
         editor->terrain_editor.data = candidate;
-        if (!s_terrain_publish(editor))
+        if (!s_terrain_publish_metadata(editor))
           editor->terrain_editor.data = previous;
       }
     }
+  }
+  ldk_ui_pop_id(ui);
+}
+
+/* Called by the reflected Geometry group, immediately after its normal
+ * terrain mesh fields. Unlike the brush controls, these values describe
+ * the terrain geometry and are hidden when that fold is collapsed. */
+void ldki_editor_terrain_geometry_inspector_draw(LDKEditorContext *editor,
+    LDKEntity entity)
+{
+  if (!editor || x_handle_is_null(entity) ||
+      !ldk_ecs_component_get_const(entity, LDK_COMPONENT_TYPE_TERRAIN))
+    return;
+  LDKEditorTerrainState *state = &editor->terrain_editor;
+  LDKUIContext *ui = &editor->ui;
+  s_terrain_selection_sync(editor);
+  ldk_editor_ui_row_column_update(editor);
+  if (!state->target_width) state->target_width = 256u;
+  if (!state->target_height) state->target_height = 256u;
+  if (state->target_cell_size <= 0.0f) state->target_cell_size = 1.0f;
+  if (state->height_range <= 0.0f)
+  {
+    state->height_range = 64.0f;
+    s_terrain_fields_sync(state);
+  }
+  ldk_ui_push_id_cstr(ui, "terrain-geometry");
+  s_terrain_grid_input(editor, "Width", state->width_text,
+      sizeof(state->width_text), &state->target_width, 1u);
+  s_terrain_grid_input(editor, "Depth", state->depth_text,
+      sizeof(state->depth_text), &state->target_height, 1u);
+  (void)s_terrain_real_input(editor, "Cell Size",
+      state->cell_size_text, sizeof(state->cell_size_text),
+      &state->target_cell_size, 0.001f, 1000.0f, 1u);
+  char grid_info[128];
+  snprintf(grid_info, sizeof(grid_info),
+      "%.1f x %.1f world units",
+      (double)(state->target_width * state->target_cell_size),
+      (double)(state->target_height * state->target_cell_size));
+  ldk_editor_ui_row_label(editor, "World Size", 1u, grid_info);
+  /* Change the world-space maximum without changing the minimum. An
+   * imported image keeps its normalized samples; this simply rescales the
+   * vertical range and immediately updates the scene's terrain component. */
+  const float min_height = state->data.height_offset;
+  float max_height = min_height + state->height_range;
+  if (s_terrain_real_input(editor, "Max Height",
+          state->height_range_text, sizeof(state->height_range_text),
+          &max_height, min_height + 0.001f, min_height + 100000.0f,
+          1u) &&
+      !state->stroke_active && state->loaded)
+  {
+    LDKTerrain candidate = state->data;
+    candidate.height_scale = max_height - min_height;
+    if (ldk_terrain_validate(&candidate))
+    {
+      s_terrain_undo_discard(editor);
+      state->data = candidate;
+      state->height_range = candidate.height_scale;
+      (void)s_terrain_publish_metadata(editor);
+      state->dirty = true;
+    }
+  }
+  if (!state->loaded ||
+      !ldki_editor_entity_equal(state->owner_entity, entity))
+  {
+    ldk_editor_ui_row_label(editor, "Status", 1u,
+        "Unable to load terrain component.");
+    ldk_ui_pop_id(ui);
+    return;
+  }
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  if (ldk_ui_button(ui, "Create Flat Grid"))
+  {
+    if (!s_terrain_create_flat(editor))
+      ldki_editor_log_warning(editor, "Failed to create a flat terrain grid.");
+  }
+  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+  if (ldk_ui_button(ui, "Import from Heightmap"))
+  {
+    if (!s_terrain_import(editor))
+      ldki_editor_log_warning(editor, "Heightmap import cancelled or failed.");
   }
   ldk_ui_pop_id(ui);
 }
@@ -2404,64 +2567,6 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
     s_terrain_fields_sync(state);
   }
   ldk_ui_push_id_cstr(ui, "terrain-editor");
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  ldk_ui_label(ui, "Terrain Editor");
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  ldk_ui_label(ui, "Target terrain grid (Import)");
-  s_terrain_grid_input(editor, "Width", state->width_text,
-      sizeof(state->width_text), &state->target_width);
-  s_terrain_grid_input(editor, "Depth", state->depth_text,
-      sizeof(state->depth_text), &state->target_height);
-  (void)s_terrain_real_input(editor, "Cell Size",
-      state->cell_size_text, sizeof(state->cell_size_text),
-      &state->target_cell_size, 0.001f, 1000.0f);
-  char grid_info[128];
-  snprintf(grid_info, sizeof(grid_info),
-      "%.1f x %.1f world units",
-      (double)(state->target_width * state->target_cell_size),
-      (double)(state->target_height * state->target_cell_size));
-  ldk_editor_ui_row_label(editor, "World Size", 0u, grid_info);
-  /* Change the world-space maximum without changing the minimum. An
-   * imported image keeps its normalized samples; this simply rescales the
-   * vertical range and immediately updates the scene's terrain component. */
-  const float min_height = state->data.height_offset;
-  float max_height = min_height + state->height_range;
-  if (s_terrain_real_input(editor, "Max Height",
-          state->height_range_text, sizeof(state->height_range_text),
-          &max_height, min_height + 0.001f, min_height + 100000.0f) &&
-      !state->stroke_active && state->loaded)
-  {
-    LDKTerrain candidate = state->data;
-    candidate.height_scale = max_height - min_height;
-    if (ldk_terrain_validate(&candidate))
-    {
-      s_terrain_undo_discard(editor);
-      state->data = candidate;
-      state->height_range = candidate.height_scale;
-      (void)s_terrain_publish(editor);
-      state->dirty = true;
-    }
-  }
-  if (!state->loaded ||
-      !ldki_editor_entity_equal(state->owner_entity, entity))
-  {
-    ldk_editor_ui_row_label(editor, "Status", 0u,
-        "Unable to load terrain component.");
-    ldk_ui_pop_id(ui);
-    return;
-  }
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  if (ldk_ui_button(ui, "Create Flat Grid"))
-  {
-    if (!s_terrain_create_flat(editor))
-      ldki_editor_log_warning(editor, "Failed to create a flat terrain grid.");
-  }
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  if (ldk_ui_button(ui, "Import from Heightmap"))
-  {
-    if (!s_terrain_import(editor))
-      ldki_editor_log_warning(editor, "Heightmap import cancelled or failed.");
-  }
   ldk_ui_horizontal_line(ui);
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_label(ui, "Editing mode");
@@ -2529,7 +2634,7 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
   if (state->sculpt_tool == LDK_EDITOR_TERRAIN_FLATTEN)
     (void)s_terrain_real_input(editor, "Target Height",
         state->flatten_height_text, sizeof(state->flatten_height_text),
-        &state->flatten_height, -100000.0f, 100000.0f);
+        &state->flatten_height, -100000.0f, 100000.0f, 0u);
   }
   else
   {
@@ -2574,23 +2679,25 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
   ldk_ui_horizontal_line(ui);
   s_terrain_surface_folds_draw(editor, entity);
   s_terrain_vegetation_folds_sync(entity, state);
-  LDKEditorTerrainVegetationFolds *folds = &s_terrain_vegetation_folds;
   static const char *const category_names[] = {
       "Vegetation", "Decorations", "Trees"};
   static const char *const category_ids[] = {
       "vegetation-fold", "decoration-fold", "tree-fold"};
   for (u32 category = 0u; category < 3u; ++category)
   {
-    bool *expanded = category == 0u ? &folds->expanded :
-        (category == 1u ? &folds->decorations_expanded :
-            &folds->trees_expanded);
+    const u32 fold_group = LDK_TERRAIN_UI_FOLD_VEGETATION + category;
+    bool expanded = s_terrain_fold_expanded(fold_group, 0u);
     ldk_ui_push_id_cstr(ui, category_ids[category]);
     ldk_ui_begin_horizontal(ui);
     ldk_ui_set_next_weight(ui, 1.0f);
     const u32 heading = ldk_ui_tree_node_ex(ui,
         category_names[category], (LDKUIIcon){0},
-        *expanded, 0u, LDK_UI_TREE_NODE_NONE);
-    if (heading & LDK_UI_TREE_NODE_RESULT_TOGGLED) *expanded = !*expanded;
+        expanded, 0u, LDK_UI_TREE_NODE_NONE);
+    if (heading & LDK_UI_TREE_NODE_RESULT_TOGGLED)
+    {
+      expanded = !expanded;
+      s_terrain_fold_expanded_set(fold_group, 0u, expanded);
+    }
     ldk_ui_set_next_width(ui, ldk_ui_px(28.0f));
     ldk_ui_set_next_disabled(ui, state->stroke_active ||
         state->data.vegetation_layer_count >=
@@ -2601,7 +2708,7 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
     if (add && !s_terrain_distribution_layer_add(editor, category))
       ldki_editor_log_warning(editor,
           "Could not add terrain distribution layer: invalid settings or limit.");
-    if (*expanded)
+    if (expanded)
     {
       for (u32 i = 0u; i < state->data.vegetation_layer_count; ++i)
       {
@@ -2618,12 +2725,19 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
         ldk_ui_push_id_u32(ui, (u32)(layer_id >> 32u));
         ldk_ui_begin_horizontal(ui);
         ldk_ui_set_next_weight(ui, 1.0f);
+        bool item_expanded = s_terrain_fold_expanded(
+            LDK_TERRAIN_UI_FOLD_DISTRIBUTION_ITEM, layer_id);
         const u32 result = ldk_ui_tree_node_ex(ui,
             x_smallstr_cstr(&layer->type.name), (LDKUIIcon){0},
-            fold->expanded, 1u,
+            item_expanded, 1u,
             selected ? LDK_UI_TREE_NODE_SELECTED : LDK_UI_TREE_NODE_NONE);
         if (result & LDK_UI_TREE_NODE_RESULT_TOGGLED)
-          fold->expanded = !fold->expanded;
+        {
+          item_expanded = !item_expanded;
+          s_terrain_fold_expanded_set(
+              LDK_TERRAIN_UI_FOLD_DISTRIBUTION_ITEM,
+              layer_id, item_expanded);
+        }
         else if ((result & LDK_UI_TREE_NODE_RESULT_CLICKED) && !selected)
         {
           if (state->stroke_active) s_terrain_stroke_finish(editor);
@@ -2643,7 +2757,7 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
           break;
         }
 
-        if (fold->expanded)
+        if (item_expanded)
         {
           s_terrain_vegetation_name_draw(editor, layer, fold);
           float density = ldk_editor_ui_row_slider_float(editor,
@@ -2658,7 +2772,7 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
             {
               LDKTerrain previous = state->data;
               state->data = candidate;
-              if (!s_terrain_publish(editor)) state->data = previous;
+              if (!s_terrain_publish_metadata(editor)) state->data = previous;
             }
           }
           s_terrain_vegetation_type_inspector(editor, layer, fold);

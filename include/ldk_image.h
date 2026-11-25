@@ -143,6 +143,12 @@ extern "C" {
    */
   LDK_API bool ldk_image_pixels_set(LDKImage *image,
       const void *pixels, u64 byte_count);
+  /** Copy a rectangular region from a same-sized, same-format source image.
+   * Both image storage and its address remain unchanged. Bounds are pixels,
+   * width/height are nonzero, and neither image takes ownership of the other.
+   */
+  LDK_API bool ldk_image_pixels_region_set(LDKImage *image,
+      const LDKImageInfo *source, u32 x, u32 y, u32 width, u32 height);
   LDK_API bool ldk_image_save_png(
       LDKImage const* image, const char* filename);
 

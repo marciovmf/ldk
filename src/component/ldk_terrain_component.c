@@ -9,9 +9,14 @@ LDKTerrainComponent ldk_terrain_component_make_default(void)
 {
   LDKTerrainComponent component = {0};
   ldk_terrain_init(&component.terrain);
+  component.chunk_size = 16u;
+  component.mesh_sample_step = 1u;
+  component.cull = true;
+  component.casts_shadows = true;
   /* Match the previous New Terrain authoring default. */
   component.terrain.height_scale = 64.0f;
   component.revision = 1u;
+  component.heightmap_revision = 1u;
   return component;
 }
 
@@ -77,7 +82,47 @@ bool ldk_terrain_component_set(LDKTerrainComponent *component,
   component->heightmap = owned;
   component->revision = component->revision == UINT64_MAX
       ? 1u : component->revision + 1u;
+  component->heightmap_revision = component->heightmap_revision == UINT64_MAX
+      ? 1u : component->heightmap_revision + 1u;
+  component->heightmap_dirty_valid = false;
+  component->heightmap_grass_dirty_valid = false;
   ldk_image_destroy(old);
+  return true;
+}
+
+bool ldk_terrain_component_metadata_set(
+    LDKTerrainComponent *component, const LDKTerrain *terrain)
+{
+  if (!component || !ldk_terrain_validate(terrain) ||
+      terrain->heightmap_path.length ||
+      terrain->width != component->terrain.width ||
+      terrain->height != component->terrain.height)
+    return false;
+
+  /* A metadata-only edit must not copy pixels, increment the heightmap
+   * revision or invalidate the terrain's geometry cache. Keep masks matched
+   * by stable layer ID if the inspector adds or removes a layer. */
+  LDKTerrainVegetationDensity *density = component->vegetation_density;
+  if (density)
+  {
+    u8 *ordered[LDK_TERRAIN_VEGETATION_LAYER_COUNT] = {0};
+    bool retained[LDK_TERRAIN_VEGETATION_LAYER_COUNT] = {0};
+    for (u32 i = 0u; i < terrain->vegetation_layer_count; ++i)
+      for (u32 j = 0u; j < component->terrain.vegetation_layer_count; ++j)
+        if (terrain->vegetation_layers[i].id ==
+            component->terrain.vegetation_layers[j].id)
+        {
+          ordered[i] = density->samples[j];
+          retained[j] = true;
+          break;
+        }
+    for (u32 i = 0u; i < LDK_TERRAIN_VEGETATION_LAYER_COUNT; ++i)
+      if (!retained[i]) free(density->samples[i]);
+    memcpy(density->samples, ordered, sizeof(ordered));
+  }
+  component->terrain = *terrain;
+  component->revision = component->revision == UINT64_MAX
+      ? 1u : component->revision + 1u;
   return true;
 }
 
@@ -89,6 +134,55 @@ bool ldk_terrain_component_heightmap_set(
     return false;
   }
   return ldk_terrain_component_set(component, &component->terrain, heightmap);
+}
+
+static void s_terrain_region_accumulate(LDKTerrainHeightmapRegion *region,
+    u64 *base_revision, bool *valid, u64 current_revision,
+    u32 x, u32 y, u32 width, u32 height)
+{
+  if (!*valid)
+  {
+    *base_revision = current_revision;
+    *region = (LDKTerrainHeightmapRegion){x, y, width, height};
+    *valid = true;
+    return;
+  }
+  const u32 x0 = region->x < x ? region->x : x;
+  const u32 y0 = region->y < y ? region->y : y;
+  const u32 x1 = region->x + region->width > x + width
+      ? region->x + region->width : x + width;
+  const u32 y1 = region->y + region->height > y + height
+      ? region->y + region->height : y + height;
+  *region = (LDKTerrainHeightmapRegion){x0, y0, x1-x0, y1-y0};
+}
+
+bool ldk_terrain_component_heightmap_region_set(
+    LDKTerrainComponent *component, const LDKImageInfo *heightmap,
+    u32 x, u32 y, u32 width, u32 height)
+{
+  if (!component || !component->heightmap ||
+      !s_terrain_component_image_valid(&component->terrain, heightmap) ||
+      !width || !height || x >= component->terrain.width ||
+      y >= component->terrain.height ||
+      width > component->terrain.width - x ||
+      height > component->terrain.height - y ||
+      !ldk_image_pixels_region_set(component->heightmap, heightmap,
+          x, y, width, height))
+    return false;
+
+  s_terrain_region_accumulate(&component->heightmap_dirty_region,
+      &component->heightmap_dirty_base_revision,
+      &component->heightmap_dirty_valid, component->heightmap_revision,
+      x, y, width, height);
+  s_terrain_region_accumulate(&component->heightmap_grass_dirty_region,
+      &component->heightmap_grass_dirty_base_revision,
+      &component->heightmap_grass_dirty_valid, component->heightmap_revision,
+      x, y, width, height);
+  component->revision = component->revision == UINT64_MAX
+      ? 1u : component->revision + 1u;
+  component->heightmap_revision = component->heightmap_revision == UINT64_MAX
+      ? 1u : component->heightmap_revision + 1u;
+  return true;
 }
 
 bool ldk_terrain_component_heightmap_info_get(

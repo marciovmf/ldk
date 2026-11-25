@@ -121,6 +121,8 @@ typedef struct LDKGrassPatchEntry
   Vec3 bounds_min;
   Vec3 bounds_max;
   bool terrain_owned;
+  u32 terrain_tile_x;
+  u32 terrain_tile_z;
   bool alive;
 } LDKGrassPatchEntry;
 
@@ -208,6 +210,16 @@ typedef struct LDKGrassInteractorState
   bool seen;
 } LDKGrassInteractorState;
 
+/* A terrain layer is invalidated independently of other layers/terrains. */
+typedef struct LDKGrassTerrainLayerCache
+{
+  LDKEntity entity;
+  u64 layer_id;
+  u64 hash;
+  u64 heightmap_revision;
+  bool seen;
+} LDKGrassTerrainLayerCache;
+
 typedef struct LDKGrassRuntime
 {
   LDKGrassSystem *owner;
@@ -219,6 +231,9 @@ typedef struct LDKGrassRuntime
   LDKGrassBatch *batches;
   u32 batch_count;
   u32 batch_capacity;
+  LDKGrassTerrainLayerCache *terrain_layers;
+  u32 terrain_layer_count;
+  u32 terrain_layer_capacity;
 
   LDKGrassInteraction *interactions;
   u32 interaction_count;
@@ -1724,6 +1739,8 @@ static bool s_batches_reserve(u32 required)
   return true;
 }
 
+static void s_batch_release(LDKGrassBatch *batch);
+
 static u32 s_batch_find_or_add(const LDKGrassResolvedDesc *desc)
 {
   LDKGrassBatch *batch;
@@ -1736,12 +1753,29 @@ static u32 s_batch_find_or_add(const LDKGrassResolvedDesc *desc)
     }
   }
 
-  if (!s_batches_reserve(s_grass.batch_count + 1u))
+  /* Reuse a batch no longer referenced by any live patch. Slider edits
+   * otherwise accumulate a new GPU mesh/material for every intermediate
+   * value until the next full GrassSystem rebuild. */
+  u32 slot = s_grass.batch_count;
+  for (u32 i = 0u; i < s_grass.batch_count; ++i)
   {
-    return LDK_GRASS_INVALID_BATCH;
+    bool referenced = false;
+    for (u32 j = 0u; j < s_grass.patch_count; ++j)
+      if (s_grass.patches[j].alive &&
+          s_grass.patches[j].batch_index == i)
+      {
+        referenced = true;
+        break;
+      }
+    if (!referenced) {slot = i; break;}
   }
+  if (slot == s_grass.batch_count &&
+      !s_batches_reserve(s_grass.batch_count + 1u))
+    return LDK_GRASS_INVALID_BATCH;
 
-  batch = &s_grass.batches[s_grass.batch_count];
+  batch = &s_grass.batches[slot];
+  if (slot < s_grass.batch_count)
+    s_batch_release(batch);
   memset(batch, 0, sizeof(*batch));
   batch->shape = desc->shape;
   batch->kind = desc->kind;
@@ -1774,7 +1808,8 @@ static u32 s_batch_find_or_add(const LDKGrassResolvedDesc *desc)
   batch->lod_instance_set = ldk_renderer_instance_set_null();
   batch->lod_dirty = true;
   batch->dirty = true;
-  return s_grass.batch_count++;
+  if (slot == s_grass.batch_count) ++s_grass.batch_count;
+  return slot;
 }
 
 static float s_noise_sample(float x, float z);
@@ -3789,6 +3824,7 @@ void ldk_grass_clear(void)
   /* A subsequent update should recreate editor-authored terrain patches. */
   s_grass.terrain_sync_hash = UINT64_MAX;
   s_grass.terrain_quick_hash = 0u;
+  s_grass.terrain_layer_count = 0u;
 }
 
 /* Terrain-authored patches are internal to GrassSystem. Never remove patches
@@ -3806,6 +3842,7 @@ static void s_terrain_patches_remove(void)
   }
   s_grass.terrain_sync_hash = UINT64_MAX;
   s_grass.terrain_quick_hash = 0u;
+  s_grass.terrain_layer_count = 0u;
 }
 
 /* Only create a patch for terrain tiles whose mask may actually contribute
@@ -3864,6 +3901,205 @@ static bool s_terrain_source_collect(LDKEntity entity, void *user)
   return true;
 }
 
+/* Layer identity is stable across edits and reorderings. */
+static i32 s_terrain_layer_cache_find(LDKEntity entity, u64 layer_id)
+{
+  for (u32 i = 0u; i < s_grass.terrain_layer_count; ++i)
+    if (s_grass.terrain_layers[i].layer_id == layer_id &&
+        s_grass.terrain_layers[i].entity.index == entity.index &&
+        s_grass.terrain_layers[i].entity.version == entity.version)
+      return (i32)i;
+  return -1;
+}
+
+static bool s_terrain_layer_cache_reserve(u32 required)
+{
+  if (required <= s_grass.terrain_layer_capacity) return true;
+  u32 capacity = s_grass.terrain_layer_capacity
+      ? s_grass.terrain_layer_capacity * 2u : 16u;
+  if (capacity < required) capacity = required;
+  if (!s_allocation_size_is_valid(capacity,
+          sizeof(*s_grass.terrain_layers))) return false;
+  LDKGrassTerrainLayerCache *items = realloc(s_grass.terrain_layers,
+      (size_t)capacity * sizeof(*items));
+  if (!items) return false;
+  s_grass.terrain_layers = items;
+  s_grass.terrain_layer_capacity = capacity;
+  return true;
+}
+
+/* Clump centers can be up to 2.85 world-space grid cells (3m each)
+ * away from their source candidate, plus clump_radius. Do not use a fixed
+ * one-tile halo when a user configures large clumps on small terrain cells. */
+static u32 s_terrain_region_halo(const LDKTerrain *terrain,
+    const LDKTerrainVegetationLayer *layer)
+{
+  float reach = layer->type.clumping > 0.0f
+      ? 9.0f + layer->type.clump_radius : 0.0f;
+  const float tile_size = LDK_GRASS_TERRAIN_PATCH_CELLS * terrain->cell_size;
+  const float value = ceilf(reach / tile_size);
+  const u32 max_tiles = 1u + (terrain->width + terrain->height) /
+      LDK_GRASS_TERRAIN_PATCH_CELLS;
+  return 1u + (value >= (float)max_tiles ? max_tiles : (u32)value);
+}
+
+/* Include neighboring tiles for clumped positions and terrain normals. */
+static bool s_terrain_tile_in_region(u32 tx, u32 tz,
+    const LDKTerrainHeightmapRegion *region, u32 halo)
+{
+  if (!region) return true;
+  const u32 first_x = region->x / LDK_GRASS_TERRAIN_PATCH_CELLS;
+  const u32 first_z = region->y / LDK_GRASS_TERRAIN_PATCH_CELLS;
+  const u32 last_x = (region->x + region->width - 1u) /
+      LDK_GRASS_TERRAIN_PATCH_CELLS;
+  const u32 last_z = (region->y + region->height - 1u) /
+      LDK_GRASS_TERRAIN_PATCH_CELLS;
+  return (u64)tx + halo >= first_x && (u64)tz + halo >= first_z &&
+      (u64)tx <= (u64)last_x + halo &&
+      (u64)tz <= (u64)last_z + halo;
+}
+
+static void s_terrain_layer_patches_remove(LDKEntity entity, u64 layer_id)
+{
+  for (u32 i = 0u; i < s_grass.patch_count; ++i)
+  {
+    LDKGrassPatchEntry *entry = &s_grass.patches[i];
+    if (entry->alive && entry->terrain_owned &&
+        entry->desc.terrain_entity.index == entity.index &&
+        entry->desc.terrain_entity.version == entity.version &&
+        entry->desc.terrain_vegetation_layer_id == layer_id)
+      (void)ldk_grass_remove((LDKGrassPatch){i, entry->version});
+  }
+}
+
+/* Remove only the patches overlapping a sculpted heightmap region.
+ * All other patch instance arrays and their mesh/material settings survive. */
+static void s_terrain_layer_patches_remove_region(LDKEntity entity,
+    u64 layer_id, const LDKTerrainHeightmapRegion *region, u32 halo)
+{
+  for (u32 i = 0u; i < s_grass.patch_count; ++i)
+  {
+    LDKGrassPatchEntry *entry = &s_grass.patches[i];
+    if (entry->alive && entry->terrain_owned &&
+        s_entity_equal(entry->desc.terrain_entity, entity) &&
+        entry->desc.terrain_vegetation_layer_id == layer_id &&
+        s_terrain_tile_in_region(entry->terrain_tile_x,
+            entry->terrain_tile_z, region, halo))
+      (void)ldk_grass_remove((LDKGrassPatch){i, entry->version});
+  }
+}
+
+/* Source identity and placement-relevant settings, never the revision of
+ * unrelated layers/surfaces. The mask buffer is replaced before the previous
+ * one is freed, so its pointer reliably detects a painted mask update. */
+static u64 s_terrain_layer_hash(const LDKGrassTerrainSource *source,
+    const LDKTerrainVegetationLayer *layer, const u8 *mask,
+    u64 asset_revision)
+{
+  const LDKTerrain *terrain = &source->terrain;
+  u64 hash = UINT64_C(14695981039346656037);
+#define HASH_FIELD(x) s_hash_bytes(&hash, &(x), sizeof(x))
+  HASH_FIELD(source->entity);
+  HASH_FIELD(source->world);
+  HASH_FIELD(terrain->width);
+  HASH_FIELD(terrain->height);
+  HASH_FIELD(terrain->cell_size);
+  HASH_FIELD(terrain->height_scale);
+  HASH_FIELD(terrain->height_offset);
+  HASH_FIELD(terrain->height_channel);
+  HASH_FIELD(terrain->center_on_origin);
+  HASH_FIELD(terrain->origin_x);
+  HASH_FIELD(terrain->origin_z);
+  HASH_FIELD(layer->id);
+  HASH_FIELD(layer->density_scale);
+  HASH_FIELD(layer->type);
+  HASH_FIELD(mask);
+  HASH_FIELD(asset_revision);
+#undef HASH_FIELD
+  return hash;
+}
+
+/* Regenerate only one changed layer, leaving every other layer and terrain
+ * untouched. A failed rebuild is retried on the following frame. */
+static bool s_terrain_layer_patches_create(const LDKGrassSystem *system,
+    const LDKGrassTerrainSource *source,
+    const LDKTerrainVegetationLayer *layer, const u8 *embedded,
+    u32 *patch_total, const LDKTerrainHeightmapRegion *region,
+    u32 region_halo)
+{
+  const LDKTerrain *terrain = &source->terrain;
+  if (!embedded || layer->density_scale <= 0.0f) return true;
+  if (!region)
+  {
+    bool any = false;
+    for (size_t j = 0u; j < (size_t)terrain->width * terrain->height; ++j)
+      if (embedded[j]) {any = true; break;}
+    if (!any) return true;
+  }
+
+  const u32 tiles_x = 1u + (terrain->width - 1u) /
+      LDK_GRASS_TERRAIN_PATCH_CELLS;
+  const u32 tiles_z = 1u + (terrain->height - 1u) /
+      LDK_GRASS_TERRAIN_PATCH_CELLS;
+  float origin_x = terrain->origin_x;
+  float origin_z = terrain->origin_z;
+  if (terrain->center_on_origin)
+  {
+    origin_x -= (float)terrain->width * terrain->cell_size * 0.5f;
+    origin_z -= (float)terrain->height * terrain->cell_size * 0.5f;
+  }
+  for (u32 tz = 0u; tz < tiles_z; ++tz)
+  {
+    u32 z0 = tz * LDK_GRASS_TERRAIN_PATCH_CELLS;
+    u32 z1 = z0 + LDK_GRASS_TERRAIN_PATCH_CELLS;
+    if (z1 < z0 || z1 > terrain->height) z1 = terrain->height;
+    for (u32 tx = 0u; tx < tiles_x; ++tx)
+    {
+      if (!s_terrain_tile_in_region(tx, tz, region, region_halo)) continue;
+      u32 x0 = tx * LDK_GRASS_TERRAIN_PATCH_CELLS;
+      u32 x1 = x0 + LDK_GRASS_TERRAIN_PATCH_CELLS;
+      if (x1 < x0 || x1 > terrain->width) x1 = terrain->width;
+      bool covered = false;
+      for (u32 z = z0; z < z1 && !covered; ++z)
+        for (u32 x = x0; x < x1; ++x)
+          if (embedded[(size_t)z * terrain->width + x])
+          {
+            covered = true;
+            break;
+          }
+      if (!covered) continue;
+      if (*patch_total >= LDK_GRASS_TERRAIN_PATCH_LIMIT)
+      {
+        ldk_log_error("Too many terrain vegetation patches.\n");
+        return false;
+      }
+      LDKGrassPatchDesc desc;
+      ldk_grass_patch_desc_defaults(&desc);
+      desc.plane.origin = vec3_make(
+          origin_x + (float)x0 * terrain->cell_size, 0.0f,
+          origin_z + (float)z1 * terrain->cell_size);
+      desc.plane.axis_u = vec3_make(
+          (float)(x1 - x0) * terrain->cell_size, 0.0f, 0.0f);
+      desc.plane.axis_v = vec3_make(
+          0.0f, 0.0f, -(float)(z1 - z0) * terrain->cell_size);
+      desc.density_scale = layer->density_scale;
+      desc.seed = s_random_state(system->seed ^
+          (u32)layer->id ^ (u32)(layer->id >> 32u) ^
+          (tx * 0x9e3779b9u) ^ (tz * 0x85ebca6bu));
+      desc.terrain_entity = source->entity;
+      desc.terrain_vegetation_layer_id = layer->id;
+      LDKGrassPatch patch = ldk_grass_add(&layer->type, &desc);
+      if (!ldk_grass_patch_is_valid(patch)) return false;
+      LDKGrassPatchEntry *entry = s_patch_get(patch);
+      entry->terrain_owned = true;
+      entry->terrain_tile_x = tx;
+      entry->terrain_tile_z = tz;
+      ++*patch_total;
+    }
+  }
+  return true;
+}
+
 static bool s_terrain_patches_sync(const LDKGrassSystem *system)
 {
   if (!system) return false;
@@ -3872,116 +4108,128 @@ static bool s_terrain_patches_sync(const LDKGrassSystem *system)
   LDKGrassTerrainCollection list = {0};
   list.ok = true;
   (void)ldk_ecs_entity_foreach(s_terrain_source_collect, &list);
-  if (!list.ok)
-  {
-    free(list.sources);
-    return false;
-  }
+  if (!list.ok) {free(list.sources); return false;}
+
+  u64 asset_revision = assets->source ? assets->source->revision : 0u;
   u64 hash = UINT64_C(14695981039346656037);
   s_hash_bytes(&hash, &s_grass.config_hash, sizeof(s_grass.config_hash));
-  if (assets->source)
-    s_hash_bytes(&hash, &assets->source->revision,
-        sizeof(assets->source->revision));
+  s_hash_bytes(&hash, &asset_revision, sizeof(asset_revision));
   for (u32 i = 0u; i < list.count; ++i)
   {
     const LDKGrassTerrainSource *source = &list.sources[i];
     s_hash_bytes(&hash, &source->entity, sizeof(source->entity));
     s_hash_bytes(&hash, &source->world, sizeof(source->world));
-    s_hash_bytes(&hash, &source->revision,
-        sizeof(source->revision));
-
+    s_hash_bytes(&hash, &source->revision, sizeof(source->revision));
   }
   if (hash == s_grass.terrain_sync_hash)
   {
     free(list.sources);
     return true;
   }
-  s_terrain_patches_remove();
+
+  for (u32 i = 0u; i < s_grass.terrain_layer_count; ++i)
+    s_grass.terrain_layers[i].seen = false;
+
+  /* Prune deleted/disabled layers before creating new patches, so replacing
+   * a layer at the patch limit does not temporarily exceed that limit. */
+  for (u32 n = 0u; n < list.count; ++n)
+  {
+    const LDKGrassTerrainSource *source = &list.sources[n];
+    for (u32 i = 0u; i < source->terrain.vegetation_layer_count; ++i)
+    {
+      i32 index = s_terrain_layer_cache_find(source->entity,
+          source->terrain.vegetation_layers[i].id);
+      if (index >= 0) s_grass.terrain_layers[index].seen = true;
+    }
+  }
+  for (u32 i = 0u; i < s_grass.terrain_layer_count;)
+  {
+    if (s_grass.terrain_layers[i].seen) {++i; continue;}
+    const LDKGrassTerrainLayerCache stale = s_grass.terrain_layers[i];
+    s_terrain_layer_patches_remove(stale.entity, stale.layer_id);
+    s_grass.terrain_layers[i] =
+        s_grass.terrain_layers[--s_grass.terrain_layer_count];
+  }
+
   u32 patch_total = 0u;
+  for (u32 i = 0u; i < s_grass.patch_count; ++i)
+    if (s_grass.patches[i].alive && s_grass.patches[i].terrain_owned)
+      ++patch_total;
+
   for (u32 n = 0u; n < list.count; ++n)
   {
     const LDKGrassTerrainSource *source = &list.sources[n];
     const LDKTerrain *terrain = &source->terrain;
-    const u32 tiles_x = 1u + (terrain->width - 1u) /
-        LDK_GRASS_TERRAIN_PATCH_CELLS;
-    const u32 tiles_z = 1u + (terrain->height - 1u) /
-        LDK_GRASS_TERRAIN_PATCH_CELLS;
-    float origin_x = terrain->origin_x;
-    float origin_z = terrain->origin_z;
-    if (terrain->center_on_origin)
-    {
-      origin_x -= (float)terrain->width * terrain->cell_size * 0.5f;
-      origin_z -= (float)terrain->height * terrain->cell_size * 0.5f;
-    }
     for (u32 i = 0u; i < terrain->vegetation_layer_count; ++i)
     {
       const LDKTerrainVegetationLayer *layer = &terrain->vegetation_layers[i];
-      if (layer->density_scale <= 0.0f) continue;
       const u8 *embedded = ldk_terrain_component_vegetation_density_get(
           source->component, layer->id);
-      if (!embedded) continue;
-      bool any = false;
-      for (size_t j = 0u; j < (size_t)terrain->width * terrain->height;
-           ++j)
-        if (embedded[j]) {any = true; break;}
-      if (!any) continue;
-      for (u32 tz = 0u; tz < tiles_z; ++tz)
+      const u64 layer_hash = s_terrain_layer_hash(
+          source, layer, embedded, asset_revision);
+      i32 index = s_terrain_layer_cache_find(source->entity, layer->id);
+      if (index < 0)
       {
-        u32 z0 = tz * LDK_GRASS_TERRAIN_PATCH_CELLS;
-        u32 z1 = z0 + LDK_GRASS_TERRAIN_PATCH_CELLS;
-        if (z1 < z0 || z1 > terrain->height) z1 = terrain->height;
-        for (u32 tx = 0u; tx < tiles_x; ++tx)
+        if (!s_terrain_layer_cache_reserve(s_grass.terrain_layer_count + 1u))
         {
-          u32 x0 = tx * LDK_GRASS_TERRAIN_PATCH_CELLS;
-          u32 x1 = x0 + LDK_GRASS_TERRAIN_PATCH_CELLS;
-          if (x1 < x0 || x1 > terrain->width) x1 = terrain->width;
-          if (embedded)
-          {
-            bool covered = false;
-            for (u32 z = z0; z < z1 && !covered; ++z)
-              for (u32 x = x0; x < x1; ++x)
-                if (embedded[(size_t)z * terrain->width + x])
-                {
-                  covered = true;
-                  break;
-                }
-            if (!covered) continue;
-          }
-          if (patch_total >= LDK_GRASS_TERRAIN_PATCH_LIMIT)
-          {
-            ldk_log_error("Too many terrain vegetation patches.\n");
-            s_terrain_patches_remove();
-            free(list.sources);
-            return false;
-          }
-          LDKGrassPatchDesc desc;
-          ldk_grass_patch_desc_defaults(&desc);
-          desc.plane.origin = vec3_make(
-              origin_x + (float)x0 * terrain->cell_size, 0.0f,
-              origin_z + (float)z1 * terrain->cell_size);
-          desc.plane.axis_u = vec3_make(
-              (float)(x1 - x0) * terrain->cell_size, 0.0f, 0.0f);
-          desc.plane.axis_v = vec3_make(
-              0.0f, 0.0f, -(float)(z1 - z0) * terrain->cell_size);
-          desc.density_scale = layer->density_scale;
-          desc.seed = s_random_state(system->seed ^
-              (u32)layer->id ^ (u32)(layer->id >> 32u) ^
-              (tx * 0x9e3779b9u) ^ (tz * 0x85ebca6bu));
-          desc.terrain_entity = source->entity;
-          desc.terrain_vegetation_layer_id = layer->id;
-          LDKGrassPatch patch = ldk_grass_add(&layer->type, &desc);
-          if (!ldk_grass_patch_is_valid(patch))
-          {
-            s_terrain_patches_remove();
-            free(list.sources);
-            return false;
-          }
-          LDKGrassPatchEntry *entry = s_patch_get(patch);
-          entry->terrain_owned = true;
-          ++patch_total;
+          free(list.sources);
+          return false;
         }
+        index = (i32)s_grass.terrain_layer_count++;
+        s_grass.terrain_layers[index] = (LDKGrassTerrainLayerCache){0};
+        s_grass.terrain_layers[index].entity = source->entity;
+        s_grass.terrain_layers[index].layer_id = layer->id;
       }
+      LDKGrassTerrainLayerCache *cache = &s_grass.terrain_layers[index];
+      cache->seen = true;
+      const u64 heightmap_revision = source->component->heightmap_revision;
+      const bool layer_changed = cache->hash != layer_hash;
+      const bool height_changed = cache->heightmap_revision != heightmap_revision;
+      if (!layer_changed && !height_changed) continue;
+
+      /* A height-only brush refresh touches just neighboring terrain patches.
+       * Full terrain replacement, grid edits, or missed revisions fall back
+       * to rebuilding the affected layer, never unrelated terrains. */
+      const bool region_update = !layer_changed && height_changed &&
+          source->component->heightmap_grass_dirty_valid &&
+          cache->heightmap_revision ==
+              source->component->heightmap_grass_dirty_base_revision;
+      const LDKTerrainHeightmapRegion *region = region_update
+          ? &source->component->heightmap_grass_dirty_region : NULL;
+      const u32 region_halo = s_terrain_region_halo(terrain, layer);
+      if (region_update)
+        s_terrain_layer_patches_remove_region(
+            source->entity, layer->id, region, region_halo);
+      else
+        s_terrain_layer_patches_remove(source->entity, layer->id);
+      patch_total = 0u;
+      for (u32 j = 0u; j < s_grass.patch_count; ++j)
+        if (s_grass.patches[j].alive && s_grass.patches[j].terrain_owned)
+          ++patch_total;
+      if (!s_terrain_layer_patches_create(system, source, layer,
+              embedded, &patch_total, region, region_halo))
+      {
+        /* A failure forces a full refresh on retry, ensuring that a
+         * partially updated layer cannot be considered synchronized. */
+        s_terrain_layer_patches_remove(source->entity, layer->id);
+        cache->hash = 0u;
+        free(list.sources);
+        return false;
+      }
+      cache->hash = layer_hash;
+      cache->heightmap_revision = heightmap_revision;
     }
+  }
+
+  /* Acknowledge only after *all* layers on this terrain have consumed the
+   * accumulated edit region. Terrain mesh rendering owns a separate cursor. */
+  for (u32 n = 0u; n < list.count; ++n)
+  {
+    LDKTerrainComponent *component = ldk_ecs_component_get(
+        list.sources[n].entity, LDK_COMPONENT_TYPE_TERRAIN);
+    if (component && component->heightmap_grass_dirty_valid &&
+        component->revision == list.sources[n].revision)
+      component->heightmap_grass_dirty_valid = false;
   }
   s_grass.terrain_sync_hash = hash;
   free(list.sources);
@@ -4591,5 +4839,6 @@ void ldk_grass_system_terminate(void *data)
   s_interaction_field_release();
   free(s_grass.patches);
   free(s_grass.batches);
+  free(s_grass.terrain_layers);
   memset(&s_grass, 0, sizeof(s_grass));
 }

@@ -108,34 +108,18 @@ void ldk_terrain_system_terminate(void *data);
 //@system name=LDKTerrainSystem initialize=ldk_terrain_system_initialize update=ldk_terrain_system_update terminate=ldk_terrain_system_terminate flags=LDK_SYSTEM_FLAG_ENABLED|LDK_SYSTEM_FLAG_ENGINE_NATIVE|LDK_SYSTEM_FLAG_RUN_WHEN_PAUSED bucket=LDK_SYSTEM_BUCKET_RENDER
 typedef struct LDKTerrainSystem
 {
-  //@begin_group "Geometry"
-  /** Number of rendered mesh cells per chunk. */
-  //@inspect min=1 max=256
-  u32 chunk_size;
-  /** Source heightmap cells per mesh vertex (1 = full resolution). */
-  //@inspect min=1 max=256
-  u32 mesh_sample_step;
-  //@end_group
-
-  //@begin_group "Rendering"
-  bool cull;
-  bool casts_shadows;
-  //@end_group
-
-  //@begin_group "Runtime"
-  //@inspect readonly runtime
+  //@inspect hidden runtime
   u32 data_width;
-  //@inspect readonly runtime
+  //@inspect hidden runtime
   u32 data_height;
-  //@inspect readonly runtime
+  //@inspect hidden runtime
   u32 chunk_count;
-  //@inspect readonly runtime
+  //@inspect hidden runtime
   u32 visible_chunk_count;
-  //@inspect readonly runtime
+  //@inspect hidden runtime
   u32 mesh_update_count;
-  //@inspect readonly runtime
+  //@inspect hidden runtime
   bool has_geometry;
-  //@end_group
 } LDKTerrainSystem;
 
 #ifdef __cplusplus

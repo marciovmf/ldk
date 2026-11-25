@@ -21,6 +21,166 @@
  * standalone fields node. A previous scene writer gave the embedded terrain
  * only six spaces instead of twelve, making it a sibling of components and
  * silently causing flat terrain on reload. */
+static int test_component_render_settings(void)
+{
+  LDKTerrainComponent a = ldk_terrain_component_make_default();
+  LDKTerrainComponent b = ldk_terrain_component_make_default();
+  ASSERT_EQ(a.chunk_size, 16u);
+  ASSERT_EQ(a.mesh_sample_step, 1u);
+  ASSERT_TRUE(a.cull);
+  ASSERT_TRUE(a.casts_shadows);
+  b.chunk_size = 32u;
+  b.mesh_sample_step = 4u;
+  b.cull = false;
+  b.casts_shadows = false;
+  ASSERT_EQ(a.chunk_size, 16u);
+  ASSERT_EQ(b.chunk_size, 32u);
+  ASSERT_EQ(a.mesh_sample_step, 1u);
+  ASSERT_EQ(b.mesh_sample_step, 4u);
+  ASSERT_TRUE(!b.cull && !b.casts_shadows);
+  ASSERT_TRUE(ldk_terrain_component_set(&b, &b.terrain, NULL));
+  ASSERT_EQ(b.chunk_size, 32u);
+  ASSERT_EQ(b.mesh_sample_step, 4u);
+  ASSERT_TRUE(!b.cull && !b.casts_shadows);
+  return 0;
+}
+
+static LDKGrassTypeDesc s_vegetation_type(const char *name);
+
+static int test_component_metadata_does_not_replace_heightmap(void)
+{
+  LDKTerrainComponent component = ldk_terrain_component_make_default();
+  component.terrain.width = 2u;
+  component.terrain.height = 2u;
+  const u16 pixels[2u * 2u * 4u] = {0};
+  LDKImageInfo image = {2u, 2u, 4u, 2u,
+      LDK_IMAGE_FORMAT_RGBA16_UNORM, sizeof(pixels), (u8 *)pixels};
+  ASSERT_TRUE(ldk_terrain_component_set(
+      &component, &component.terrain, &image));
+  const u64 source_revision = component.heightmap_revision;
+  const LDKImage *source_image = component.heightmap;
+  ASSERT_TRUE(source_image != NULL);
+
+  LDKGrassTypeDesc grass = s_vegetation_type("A");
+  u64 id_a = 0u, id_b = 0u;
+  ASSERT_TRUE(ldk_terrain_component_vegetation_layer_add(
+      &component, &grass, 1.0f, 0u, &id_a));
+  grass = s_vegetation_type("B");
+  ASSERT_TRUE(ldk_terrain_component_vegetation_layer_add(
+      &component, &grass, 1.0f, 0u, &id_b));
+  const u8 mask_a[] = {255u, 0u, 0u, 255u};
+  const u8 mask_b[] = {0u, 255u, 255u, 0u};
+  ASSERT_TRUE(ldk_terrain_component_vegetation_density_set(
+      &component, id_a, mask_a));
+  ASSERT_TRUE(ldk_terrain_component_vegetation_density_set(
+      &component, id_b, mask_b));
+
+  LDKTerrain updated = component.terrain;
+  updated.vegetation_layers[0] = component.terrain.vegetation_layers[1];
+  updated.vegetation_layers[1] = component.terrain.vegetation_layers[0];
+  updated.vegetation_layers[0].density_scale = 0.33f;
+  ASSERT_TRUE(ldk_terrain_component_metadata_set(&component, &updated));
+  ASSERT_TRUE(component.heightmap == source_image);
+  ASSERT_EQ(component.heightmap_revision, source_revision);
+  ASSERT_EQ(component.terrain.vegetation_layers[0].id, id_b);
+  ASSERT_EQ(component.terrain.vegetation_layers[1].id, id_a);
+  ASSERT_TRUE(memcmp(ldk_terrain_component_vegetation_density_get(
+      &component, id_a), mask_a, sizeof(mask_a)) == 0);
+  ASSERT_TRUE(memcmp(ldk_terrain_component_vegetation_density_get(
+      &component, id_b), mask_b, sizeof(mask_b)) == 0);
+
+  updated.width = 4u;
+  ASSERT_FALSE(ldk_terrain_component_metadata_set(&component, &updated));
+  ASSERT_TRUE(component.heightmap == source_image);
+  ASSERT_EQ(component.heightmap_revision, source_revision);
+  ASSERT_TRUE(ldk_terrain_component_set(
+      &component, &component.terrain, &image));
+  ASSERT_TRUE(component.heightmap_revision != source_revision);
+  ldk_image_destroy(component.heightmap);
+  if (component.vegetation_density)
+  {
+    for (u32 i = 0u; i < LDK_TERRAIN_VEGETATION_LAYER_COUNT; ++i)
+      free(component.vegetation_density->samples[i]);
+    free(component.vegetation_density);
+  }
+  return 0;
+}
+
+static int test_component_local_heightmap_edits(void)
+{
+  LDKTerrainComponent component = ldk_terrain_component_make_default();
+  component.terrain.width = 8u;
+  component.terrain.height = 8u;
+  u16 pixels[8u * 8u * 4u] = {0};
+  LDKImageInfo image = {8u, 8u, 4u, 2u,
+      LDK_IMAGE_FORMAT_RGBA16_UNORM, sizeof(pixels), (const u8 *)pixels};
+  ASSERT_TRUE(ldk_terrain_component_set(&component, &component.terrain, &image));
+  const LDKImage *original_image = component.heightmap;
+  LDKImageInfo snapshot = {0};
+  ASSERT_TRUE(ldk_image_get_info(component.heightmap, &snapshot));
+  const u8 *original_pixels = snapshot.pixels;
+  const u64 original_revision = component.heightmap_revision;
+
+  /* Initial region and a second overlapping region accumulate without
+   * copying the entire owned image or losing the first dirty rectangle. */
+  pixels[(2u * 8u + 2u) * 4u] = 100u;
+  ASSERT_TRUE(ldk_terrain_component_heightmap_region_set(
+      &component, &image, 2u, 2u, 1u, 1u));
+  ASSERT_TRUE(component.heightmap == original_image);
+  ASSERT_EQ(component.heightmap_dirty_base_revision, original_revision);
+  ASSERT_EQ(component.heightmap_grass_dirty_base_revision, original_revision);
+  ASSERT_EQ(component.heightmap_dirty_region.x, 2u);
+  ASSERT_EQ(component.heightmap_dirty_region.y, 2u);
+  ASSERT_EQ(component.heightmap_dirty_region.width, 1u);
+  ASSERT_EQ(component.heightmap_dirty_region.height, 1u);
+
+  pixels[(3u * 8u + 5u) * 4u] = 200u;
+  ASSERT_TRUE(ldk_terrain_component_heightmap_region_set(
+      &component, &image, 5u, 3u, 1u, 1u));
+  ASSERT_TRUE(component.heightmap_dirty_valid);
+  ASSERT_TRUE(component.heightmap_grass_dirty_valid);
+  ASSERT_EQ(component.heightmap_dirty_base_revision, original_revision);
+  ASSERT_EQ(component.heightmap_grass_dirty_base_revision, original_revision);
+  ASSERT_EQ(component.heightmap_dirty_region.x, 2u);
+  ASSERT_EQ(component.heightmap_dirty_region.y, 2u);
+  ASSERT_EQ(component.heightmap_dirty_region.width, 4u);
+  ASSERT_EQ(component.heightmap_dirty_region.height, 2u);
+  ASSERT_EQ(component.heightmap_grass_dirty_region.x, 2u);
+  ASSERT_EQ(component.heightmap_grass_dirty_region.width, 4u);
+  ASSERT_TRUE(ldk_image_get_info(component.heightmap, &snapshot));
+  ASSERT_TRUE(snapshot.pixels == original_pixels);
+  const u16 *stored = (const u16 *)snapshot.pixels;
+  ASSERT_EQ(stored[(2u * 8u + 2u) * 4u], 100u);
+  ASSERT_EQ(stored[(3u * 8u + 5u) * 4u], 200u);
+  ASSERT_EQ(stored[(3u * 8u + 4u) * 4u], 0u);
+  ASSERT_FALSE(ldk_terrain_component_heightmap_region_set(
+      &component, &image, 8u, 0u, 1u, 1u));
+  ASSERT_FALSE(ldk_terrain_component_heightmap_region_set(
+      &component, &image, 7u, 0u, 2u, 1u));
+
+  /* Independently acknowledged consumers start from their own revisions. */
+  component.heightmap_dirty_valid = false;
+  pixels[(1u * 8u + 1u) * 4u] = 300u;
+  const u64 new_revision = component.heightmap_revision;
+  ASSERT_TRUE(ldk_terrain_component_heightmap_region_set(
+      &component, &image, 1u, 1u, 1u, 1u));
+  ASSERT_EQ(component.heightmap_dirty_base_revision, new_revision);
+  ASSERT_EQ(component.heightmap_dirty_region.x, 1u);
+  ASSERT_EQ(component.heightmap_dirty_region.width, 1u);
+  ASSERT_EQ(component.heightmap_grass_dirty_base_revision, original_revision);
+  ASSERT_EQ(component.heightmap_grass_dirty_region.x, 1u);
+  ASSERT_EQ(component.heightmap_grass_dirty_region.y, 1u);
+  ASSERT_EQ(component.heightmap_grass_dirty_region.width, 5u);
+  ASSERT_EQ(component.heightmap_grass_dirty_region.height, 3u);
+
+  /* A full replacement invalidates both incremental tracking cursors. */
+  ASSERT_TRUE(ldk_terrain_component_set(&component, &component.terrain, &image));
+  ASSERT_FALSE(component.heightmap_dirty_valid);
+  ASSERT_FALSE(component.heightmap_grass_dirty_valid);
+  ldk_image_destroy(component.heightmap);
+  return 0;
+}
+
 static int test_component_embedded_scene_roundtrip(void)
 {
   LDKTerrainComponent source = ldk_terrain_component_make_default();
@@ -405,6 +565,9 @@ static int test_component_vegetation_invalid_base64(void)
 int main(void)
 {
   STDXTestCase tests[] = {
+      X_TEST(test_component_render_settings),
+      X_TEST(test_component_metadata_does_not_replace_heightmap),
+      X_TEST(test_component_local_heightmap_edits),
       X_TEST(test_component_embedded_scene_roundtrip),
       X_TEST(test_component_legacy_scene_nesting),
       X_TEST(test_component_flat_terrain),

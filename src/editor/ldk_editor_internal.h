@@ -515,6 +515,17 @@ void ldki_editor_gizmo_terminate(LDKEditorContext *editor);
 /* Terrain authoring UI is a built-in inspector for LDKTerrainComponent. */
 void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
     LDKEntity entity);
+void ldki_editor_terrain_geometry_inspector_draw(LDKEditorContext *editor,
+    LDKEntity entity);
+/* Group IDs 1-4 are headings, while item folds 5-6 follow the Inspector's
+ * Expand Arrays default (collapsed until opened by the user). */
+#define LDK_EDITOR_TERRAIN_FOLD_FIRST_ITEM 5u
+/* Terrain collections reuse the Inspector's persisted per-selection fold
+ * state so its Expand all / Contract all toolbar applies to custom UI. */
+bool ldki_editor_inspector_terrain_fold_expanded(u32 fold_group, u64 key);
+void ldki_editor_inspector_terrain_fold_expanded_set(
+    u32 fold_group, u64 key, bool expanded);
+void ldki_editor_inspector_terrain_fold_forget(u32 fold_group, u64 key);
 void ldki_editor_terrain_view_update(
     LDKEditorContext *editor, LDKUIRect scene_view_rect);
 void ldki_editor_terrain_submit(LDKEditorContext *editor);
