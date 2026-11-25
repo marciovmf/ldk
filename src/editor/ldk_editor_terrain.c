@@ -1432,16 +1432,52 @@ void ldki_editor_terrain_frame_end(LDKEditorContext *editor)
     s_terrain_stroke_finish(editor);
 }
 
+/* World-space length occupied by one vertical screen pixel at the brush hit. */
+static float s_terrain_brush_world_per_pixel(LDKEditorContext *editor,
+    Vec3 world_hit)
+{
+  u32 width = 0u;
+  u32 height = 0u;
+  Mat4 view;
+  LDKCamera *camera = ldk_ecs_component_get(
+      editor->editor_camera, LDK_COMPONENT_TYPE_CAMERA);
+  if (camera == NULL ||
+      !ldk_renderer_view_extent_get(editor->renderer,
+          editor->scene_view, &width, &height) ||
+      width == 0u || height == 0u)
+    return 0.0f;
+
+  if (camera->projection == LDK_CAMERA_PROJECTION_ORTHOGRAPHIC)
+    return camera->orthographic_height / (float)height;
+
+  if (!ldk_camera_get_view_matrix(editor->editor_camera, &view))
+    return 0.0f;
+
+  Vec3 camera_hit = mat4_mul_point(view, world_hit);
+  float depth = fmaxf(-camera_hit.z, camera->near_plane);
+  return 2.0f * depth * tanf(camera->fov_y * 0.5f) / (float)height;
+}
+
 void ldki_editor_terrain_submit(LDKEditorContext *editor)
 {
   LDKEditorTerrainState *state = &editor->terrain_editor;
   if (!state->enabled || !state->hovered || !state->pixels ||
       !editor->renderer) return;
+
+  float world_per_pixel = s_terrain_brush_world_per_pixel(
+      editor, state->hover_position);
+  if (!isfinite(world_per_pixel) || world_per_pixel <= 0.0f)
+    return;
+
   LDKDebugDraw draw = ldk_debug_draw_make(
       editor->renderer, editor->scene_view);
   draw.color = editor->debug_color;
-  draw.thickness = 0.045f;
   draw.depth_test = true;
+  /* Keep the brush outlines and center guide clearly readable at distance.
+   * Debug-draw thickness is in world units, so target a wide screen-space
+   * stroke while retaining bounds for extreme camera distances. */
+  draw.thickness = fminf(fmaxf(world_per_pixel * 9.0f, 0.02f), 4.0f);
+
   Mat4 world, inverse;
   if (!s_terrain_entity_world(editor, &world, &inverse)) return;
   Vec3 local_hit = mat4_mul_point(inverse, state->hover_position);
@@ -1474,6 +1510,16 @@ void ldki_editor_terrain_submit(LDKEditorContext *editor)
       previous_ok = ok;
     }
   }
+
+  /* Center guide: constant apparent height, half above and half below the
+   * terrain. Depth testing naturally hides the underground portion. */
+  float guide_height = fminf(fmaxf(
+      world_per_pixel * 56.0f, 0.25f), 30.0f);
+  float half_height = guide_height * 0.5f;
+  Vec3 center = state->hover_position;
+  Vec3 bottom = vec3_make(center.x, center.y - half_height, center.z);
+  Vec3 top = vec3_make(center.x, center.y + half_height, center.z);
+  (void)ldk_debug_draw_line(&draw, bottom, top);
 }
 
 void ldki_editor_terrain_terminate(LDKEditorContext *editor)
