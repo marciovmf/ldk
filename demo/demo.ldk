@@ -55,6 +55,7 @@ count=2
 1.name=base
 
 
+
 [.box]
 dummy.box = "assets/tftf_island.material|assets/ldk.ico"
 
@@ -62,3 +63,4 @@ dummy.box = "assets/tftf_island.material|assets/ldk.ico"
 @package/ldk_prototype_textures.box=1
 @package/ldk_particles.box=1
 @package/ldk_skybox.box=1
+@package/ldk_foliage.box=0
