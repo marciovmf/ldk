@@ -255,14 +255,9 @@ static void s_terrain_edit_mode_toggle(LDKEditorContext *editor,
     LDKEditorTerrainEditMode mode)
 {
   LDKEditorTerrainState *state = &editor->terrain_editor;
-  if (state->stroke_active) s_terrain_stroke_finish(editor);
-  if (state->enabled && state->edit_mode == mode)
-  {
-    state->enabled = false;
-    state->hovered = false;
+  if (state->edit_mode == mode)
     return;
-  }
-  state->enabled = true;
+  if (state->stroke_active) s_terrain_stroke_finish(editor);
   state->edit_mode = mode;
   s_terrain_brush_layer_sync(editor);
 }
@@ -2098,6 +2093,7 @@ static bool s_terrain_vegetation_layer_delete(LDKEditorContext *editor,
           state->data.vegetation_layers[next].id);
     }
   }
+  s_terrain_brush_layer_sync(editor);
   ldki_editor_scene_dirty_set(editor, true);
   return true;
 }
@@ -2652,37 +2648,56 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
   ldk_ui_push_id_cstr(ui, "terrain-editor");
   ldk_ui_horizontal_line(ui);
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  ldk_ui_label(ui, "Editing mode");
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_begin_horizontal(ui);
-  const bool sculpt_active = state->enabled &&
-      state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_SCULPT;
+  ldk_ui_set_next_weight(ui, 1.0f);
+  const bool editor_enabled = state->enabled;
   if (ldk_ui_toggle_icon_button(ui,
           s_terrain_ui_icon(editor, LDK_EDITOR_ICON_TERRAIN_EDITOR),
-          "Sculpt", sculpt_active) != sculpt_active)
-    s_terrain_edit_mode_toggle(editor, LDK_EDITOR_TERRAIN_EDIT_SCULPT);
-  const bool decoration_active = state->enabled &&
-      state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_DECORATION;
-  if (ldk_ui_toggle_icon_button(ui, (LDKUIIcon){0},
-          "Decoration", decoration_active) != decoration_active)
-    s_terrain_edit_mode_toggle(editor, LDK_EDITOR_TERRAIN_EDIT_DECORATION);
-  const bool trees_active = state->enabled &&
-      state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_TREES;
-  if (ldk_ui_toggle_icon_button(ui, (LDKUIIcon){0},
-          "Trees", trees_active) != trees_active)
-    s_terrain_edit_mode_toggle(editor, LDK_EDITOR_TERRAIN_EDIT_TREES);
-  const bool vegetation_active = state->enabled &&
-      state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_VEGETATION;
-  if (ldk_ui_toggle_icon_button(ui, (LDKUIIcon){0},
-          "Vegetation", vegetation_active) != vegetation_active)
-    s_terrain_edit_mode_toggle(editor, LDK_EDITOR_TERRAIN_EDIT_VEGETATION);
+          editor_enabled ? "Terrain Editor ON" : "Terrain Editor OFF",
+          editor_enabled) != editor_enabled)
+  {
+    if (state->stroke_active) s_terrain_stroke_finish(editor);
+    state->enabled = !editor_enabled;
+    if (!state->enabled)
+      state->hovered = false;
+    else
+      s_terrain_brush_layer_sync(editor);
+  }
   ldk_ui_end_horizontal(ui);
+  if (state->enabled)
+  {
+    ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+    ldk_ui_begin_horizontal(ui);
+    const bool sculpt_active = state->enabled &&
+        state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_SCULPT;
+    if (ldk_ui_toggle_icon_button(ui,
+            s_terrain_ui_icon(editor, LDK_EDITOR_ICON_TERRAIN_EDITOR),
+            "Sculpt", sculpt_active) != sculpt_active)
+      s_terrain_edit_mode_toggle(editor, LDK_EDITOR_TERRAIN_EDIT_SCULPT);
+    const bool decoration_active = state->enabled &&
+        state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_DECORATION;
+    if (ldk_ui_toggle_icon_button(ui,
+            s_terrain_ui_icon(editor, LDK_EDITOR_ICON_TERRAIN_TOOL_DECORATION),
+            "Decoration", decoration_active) != decoration_active)
+      s_terrain_edit_mode_toggle(editor, LDK_EDITOR_TERRAIN_EDIT_DECORATION);
+    const bool trees_active = state->enabled &&
+        state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_TREES;
+    if (ldk_ui_toggle_icon_button(ui,
+            s_terrain_ui_icon(editor, LDK_EDITOR_ICON_TERRAIN_TOOL_TREE),
+            "Trees", trees_active) != trees_active)
+      s_terrain_edit_mode_toggle(editor, LDK_EDITOR_TERRAIN_EDIT_TREES);
+    const bool vegetation_active = state->enabled &&
+        state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_VEGETATION;
+    if (ldk_ui_toggle_icon_button(ui,
+            s_terrain_ui_icon(editor, LDK_EDITOR_ICON_TERRAIN_TOOL_GRASS),
+            "Vegetation", vegetation_active) != vegetation_active)
+      s_terrain_edit_mode_toggle(editor, LDK_EDITOR_TERRAIN_EDIT_VEGETATION);
+    ldk_ui_end_horizontal(ui);
+  }
   if (state->enabled)
   {
     if (state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_SCULPT)
   {
-  ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
-  ldk_ui_label(ui, "Sculpt");
   ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
   ldk_ui_begin_horizontal(ui);
   bool raise_selected = state->sculpt_tool == LDK_EDITOR_TERRAIN_RAISE;
@@ -2695,9 +2710,10 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
           s_terrain_ui_icon(editor, LDK_EDITOR_ICON_TERRAIN_LOWER),
           "Lower", lower_selected) && !lower_selected)
     state->sculpt_tool = LDK_EDITOR_TERRAIN_LOWER;
-  if (ldk_ui_button(ui,
-          state->sculpt_tool == LDK_EDITOR_TERRAIN_SMOOTH ?
-              "[Smooth]" : "Smooth"))
+  bool smooth_selected = state->sculpt_tool == LDK_EDITOR_TERRAIN_SMOOTH;
+  if (ldk_ui_toggle_icon_button(ui,
+          s_terrain_ui_icon(editor, LDK_EDITOR_ICON_TERRAIN_TOOL_SMOOTH),
+          "Smooth", smooth_selected) && !smooth_selected)
     state->sculpt_tool = LDK_EDITOR_TERRAIN_SMOOTH;
   bool flatten_selected = state->sculpt_tool == LDK_EDITOR_TERRAIN_FLATTEN;
   if (ldk_ui_toggle_icon_button(ui,
@@ -2720,12 +2736,18 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
     ldk_ui_label(ui, brush_title);
     ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
     ldk_ui_begin_horizontal(ui);
-    if (ldk_ui_button(ui, state->vegetation_erase ? "Paint" : "[Paint]"))
+    const bool paint_selected = !state->vegetation_erase;
+    if (ldk_ui_toggle_icon_button(ui,
+            s_terrain_ui_icon(editor, LDK_EDITOR_ICON_TERRAIN_TOOL_PAINTBRUSH),
+            "Paint", paint_selected) && !paint_selected)
     {
       if (state->stroke_active) s_terrain_stroke_finish(editor);
       state->vegetation_erase = false;
     }
-    if (ldk_ui_button(ui, state->vegetation_erase ? "[Erase]" : "Erase"))
+    const bool erase_selected = state->vegetation_erase;
+    if (ldk_ui_toggle_icon_button(ui,
+            s_terrain_ui_icon(editor, LDK_EDITOR_ICON_TERRAIN_TOOL_ERASER),
+            "Erase", erase_selected) && !erase_selected)
     {
       if (state->stroke_active) s_terrain_stroke_finish(editor);
       state->vegetation_erase = true;
@@ -2780,8 +2802,14 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
       "Falloff", 0u, state->falloff, 0.0f, 1.0f, false, NULL);
   ldk_ui_end_horizontal(ui);
   }
-  ldk_ui_horizontal_line(ui);
-  s_terrain_surface_folds_draw(editor, entity);
+  /* When editing is off, every collection is shown; active modes filter.
+   * The fold state remains owned by the Inspector across mode changes. */
+  if (!state->enabled ||
+      state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_SCULPT)
+  {
+    ldk_ui_horizontal_line(ui);
+    s_terrain_surface_folds_draw(editor, entity);
+  }
   s_terrain_vegetation_folds_sync(entity, state);
   static const char *const category_names[] = {
       "Vegetation", "Decorations", "Trees"};
@@ -2789,6 +2817,11 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
       "vegetation-fold", "decoration-fold", "tree-fold"};
   for (u32 category = 0u; category < 3u; ++category)
   {
+    if (state->enabled &&
+        (!s_terrain_distribution_mode(state->edit_mode) ||
+         (u32)s_terrain_edit_mode_kind(state->edit_mode) != category))
+      continue;
+    ldk_ui_horizontal_line(ui);
     const u32 fold_group = LDK_TERRAIN_UI_FOLD_VEGETATION + category;
     bool expanded = s_terrain_fold_expanded(fold_group, 0u);
     ldk_ui_push_id_cstr(ui, category_ids[category]);
