@@ -3910,7 +3910,8 @@ static bool s_project_explorer_entries_draw(LDKEditorContext *editor,
         }
       }
 
-      if ((is_directory && result.clicked) || (!is_directory && result.pressed))
+      //if ((is_directory && result.clicked) || (!is_directory && result.pressed))
+      if (result.clicked)
       {
         s_project_explorer_entry_activate(editor, state, entry, is_directory);
       }
