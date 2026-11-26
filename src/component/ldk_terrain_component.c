@@ -17,6 +17,7 @@ LDKTerrainComponent ldk_terrain_component_make_default(void)
   component.terrain.height_scale = 64.0f;
   component.revision = 1u;
   component.heightmap_revision = 1u;
+  component.surface_paint_revision = 1u;
   return component;
 }
 
@@ -76,6 +77,13 @@ bool ldk_terrain_component_set(LDKTerrainComponent *component,
     for (u32 i = 0u; i < LDK_TERRAIN_VEGETATION_LAYER_COUNT; ++i)
       free(density->samples[i]);
     memcpy(density->samples, masks, sizeof(masks));
+  }
+  if (!same_grid)
+  {
+    free(component->surface_paint);
+    component->surface_paint = NULL;
+    ++component->surface_paint_revision;
+    component->surface_paint_dirty_valid = false;
   }
   LDKImage *old = component->heightmap;
   component->terrain = *terrain;
@@ -196,6 +204,100 @@ bool ldk_terrain_component_heightmap_info_get(
 }
 
 
+static bool s_surface_paint_region_valid(const LDKTerrainComponent *c,
+    u32 x, u32 y, u32 width, u32 height)
+{
+  return c && width && height && x < c->terrain.width &&
+      y < c->terrain.height && width <= c->terrain.width - x &&
+      height <= c->terrain.height - y &&
+      (u64)c->terrain.width * c->terrain.height <= SIZE_MAX / 8u;
+}
+
+bool ldk_terrain_component_surface_paint_region_set(
+    LDKTerrainComponent *c, const u8 *samples,
+    u32 x, u32 y, u32 width, u32 height)
+{
+  if (!samples || !s_surface_paint_region_valid(c, x, y, width, height))
+    return false;
+  const size_t bytes = (size_t)c->terrain.width * c->terrain.height * 8u;
+  if (!c->surface_paint)
+  {
+    c->surface_paint = calloc(bytes, 1u);
+    if (!c->surface_paint) return false;
+  }
+  for (u32 row = y; row < y + height; ++row)
+  {
+    const size_t offset = ((size_t)row * c->terrain.width + x) * 8u;
+    memcpy(c->surface_paint + offset, samples + offset, (size_t)width * 8u);
+  }
+  s_terrain_region_accumulate(&c->surface_paint_dirty_region,
+      &c->surface_paint_dirty_base_revision,
+      &c->surface_paint_dirty_valid, c->surface_paint_revision,
+      x, y, width, height);
+  /* Surface-paint pixels do not change metadata, geometry or vegetation.
+   * Do not invalidate their caches through the generic component revision. */
+  ++c->surface_paint_revision;
+  return true;
+}
+
+bool ldk_terrain_component_surface_paint_set(
+    LDKTerrainComponent *c, const u8 *samples)
+{
+  if (!c || (u64)c->terrain.width * c->terrain.height > SIZE_MAX / 8u)
+    return false;
+  const size_t bytes = (size_t)c->terrain.width * c->terrain.height * 8u;
+  u8 *owned = NULL;
+  if (samples)
+  {
+    owned = malloc(bytes);
+    if (!owned) return false;
+    memcpy(owned, samples, bytes);
+  }
+  free(c->surface_paint);
+  c->surface_paint = owned;
+  c->surface_paint_dirty_valid = false;
+  ++c->surface_paint_revision;
+  ++c->revision;
+  return true;
+}
+
+bool ldk_terrain_component_surface_paint_swap(
+    LDKTerrainComponent *c, u32 a, u32 b)
+{
+  if (!c || a >= c->terrain.surface_count ||
+      b >= c->terrain.surface_count) return false;
+  if (a == b || !c->surface_paint) return true;
+  const size_t count = (size_t)c->terrain.width * c->terrain.height;
+  for (size_t i = 0u; i < count; ++i)
+  {
+    u8 *at = c->surface_paint + i * 8u;
+    u8 tmp = at[a]; at[a] = at[b]; at[b] = tmp;
+  }
+  c->surface_paint_dirty_valid = false;
+  ++c->surface_paint_revision;
+  ++c->revision;
+  return true;
+}
+
+bool ldk_terrain_component_surface_paint_remove(
+    LDKTerrainComponent *c, u32 index)
+{
+  if (!c || index >= LDK_TERRAIN_SURFACE_COUNT) return false;
+  if (!c->surface_paint) return true;
+  const size_t count = (size_t)c->terrain.width * c->terrain.height;
+  for (size_t i = 0u; i < count; ++i)
+  {
+    u8 *at = c->surface_paint + i * 8u;
+    for (u32 j = index; j + 1u < LDK_TERRAIN_SURFACE_COUNT; ++j)
+      at[j] = at[j + 1u];
+    at[LDK_TERRAIN_SURFACE_COUNT - 1u] = 0u;
+  }
+  c->surface_paint_dirty_valid = false;
+  ++c->surface_paint_revision;
+  ++c->revision;
+  return true;
+}
+
 static i32 s_terrain_vegetation_index(const LDKTerrainComponent *component,
     u64 layer_id)
 {
@@ -308,6 +410,7 @@ static bool s_terrain_attach(LDKEntityRegistry *entities,
   const LDKTerrainComponent *source = initial_value;
   target->heightmap = NULL;
   target->vegetation_density = NULL;
+  target->surface_paint = NULL;
   LDKImageInfo image = {0};
   if (source->heightmap &&
       !ldk_image_get_info(source->heightmap, &image))
@@ -335,6 +438,21 @@ static bool s_terrain_attach(LDKEntityRegistry *entities,
       target->heightmap = NULL;
       return false;
     }
+  if (source->surface_paint &&
+      !ldk_terrain_component_surface_paint_set(target, source->surface_paint))
+  {
+    ldk_image_destroy(target->heightmap);
+    target->heightmap = NULL;
+    if (target->vegetation_density)
+    {
+      for (u32 j = 0u; j < LDK_TERRAIN_VEGETATION_LAYER_COUNT; ++j)
+        free(target->vegetation_density->samples[j]);
+      free(target->vegetation_density);
+      target->vegetation_density = NULL;
+    }
+    return false;
+  }
+  target->surface_paint_revision = source->surface_paint_revision;
   target->revision = source->revision;
   return true;
 }
@@ -355,6 +473,8 @@ static void s_terrain_destroy(LDKEntityRegistry *entities,
   }
   ldk_image_destroy(terrain->heightmap);
   terrain->heightmap = NULL;
+  free(terrain->surface_paint);
+  terrain->surface_paint = NULL;
   if (terrain->vegetation_density)
   {
     for (u32 i = 0u; i < LDK_TERRAIN_VEGETATION_LAYER_COUNT; ++i)

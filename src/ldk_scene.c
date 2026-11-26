@@ -2275,9 +2275,10 @@ static bool s_apply_entity_components(const TMLDocument *doc,
           LDKTerrain terrain;
           LDKImage *image = NULL;
           u8 *masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT] = {0};
+          u8 *surface_paint = NULL;
           LDKImageInfo info = {0};
-          bool valid = ldk_terrain_from_tml_node_with_component_data(
-              &terrain, &image, masks, doc, terrain_node) &&
+          bool valid = ldk_terrain_from_tml_node_with_surface_paint(
+              &terrain, &image, masks, &surface_paint, doc, terrain_node) &&
               (!image || ldk_image_get_info(image, &info)) &&
               ldk_terrain_component_set((LDKTerrainComponent *)component,
                   &terrain, image ? &info : NULL);
@@ -2291,6 +2292,10 @@ static bool s_apply_entity_components(const TMLDocument *doc,
                 valid = false;
                 break;
               }
+          if (valid && surface_paint)
+            valid = ldk_terrain_component_surface_paint_set(
+                (LDKTerrainComponent *)component, surface_paint);
+          free(surface_paint);
           for (u32 i = 0u; i < LDK_TERRAIN_VEGETATION_LAYER_COUNT; ++i)
             free(masks[i]);
           ldk_image_destroy(image);
@@ -3824,11 +3829,11 @@ static bool s_write_embedded_terrain(XStrBuilder *out,
   if (component->heightmap &&
       !ldk_image_get_info(component->heightmap, &image)) return false;
   char *text = NULL;
-  if (!ldk_terrain_to_tml_with_component_data(&component->terrain,
+  if (!ldk_terrain_to_tml_with_surface_paint(&component->terrain,
           component->heightmap ? &image : NULL,
           component->vegetation_density
               ? (const u8 *const *)component->vegetation_density->samples
-              : NULL, &text))
+              : NULL, component->surface_paint, &text))
     return false;
   static const char header[] = "terrain:\n";
   if (strncmp(text, header, sizeof(header) - 1u) != 0)

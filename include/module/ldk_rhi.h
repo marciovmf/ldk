@@ -933,6 +933,9 @@ extern "C"
     LDKRHITexture (*texture_create)(void* backend_user_data, const LDKRHITextureDesc* desc);
     void (*texture_destroy)(void* backend_user_data, LDKRHITexture texture);
     bool (*texture_update)(void* backend_user_data, LDKRHITexture texture, uint32_t mip_level, uint32_t layer, const void* data, uint32_t size);
+    bool (*texture_update_region)(void* backend_user_data,
+        LDKRHITexture texture, uint32_t x, uint32_t y,
+        uint32_t width, uint32_t height, const void *data, uint32_t size);
 
     LDKRHISampler (*create_sampler)(void* backend_user_data, const LDKRHISamplerDesc* desc);
     void (*destroy_sampler)(void* backend_user_data, LDKRHISampler sampler);
@@ -1265,6 +1268,9 @@ extern "C"
    */
   LDK_API bool ldk_rhi_texture_update(LDKRHIContext* context, LDKRHITexture texture, uint32_t mip_level,
       uint32_t layer, const void* data, uint32_t size);
+  LDK_API bool ldk_rhi_texture_update_region(LDKRHIContext *context,
+      LDKRHITexture texture, uint32_t x, uint32_t y,
+      uint32_t width, uint32_t height, const void *data, uint32_t size);
 
   /**
    * @brief Creates a sampler object.
@@ -1772,6 +1778,9 @@ extern "C"
    */
   LDK_API bool ldk_rhi_texture_update(LDKRHIContext* context, LDKRHITexture texture,
       uint32_t mip_level, uint32_t layer, const void* data, uint32_t size);
+  LDK_API bool ldk_rhi_texture_update_region(LDKRHIContext *context,
+      LDKRHITexture texture, uint32_t x, uint32_t y,
+      uint32_t width, uint32_t height, const void *data, uint32_t size);
 
   /**
    * @brief Creates a sampler object from filtering and wrapping state.

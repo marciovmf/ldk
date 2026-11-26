@@ -319,6 +319,7 @@ typedef struct LDKEditorTerrainHeightSnapshot
 typedef enum LDKEditorTerrainEditMode
 {
   LDK_EDITOR_TERRAIN_EDIT_SCULPT = 0,
+  LDK_EDITOR_TERRAIN_EDIT_PAINT,
   LDK_EDITOR_TERRAIN_EDIT_VEGETATION,
   LDK_EDITOR_TERRAIN_EDIT_DECORATION,
   LDK_EDITOR_TERRAIN_EDIT_TREES
@@ -334,6 +335,16 @@ typedef struct LDKEditorTerrainState
   u8 *stroke_start;
   /* Scratch R8 mask for the selected vegetation layer. */
   u8 *vegetation_pixels;
+  /* Eight interleaved R8 weights; scratch copy of component state. */
+  u8 *surface_paint_pixels;
+  u32 surface_paint_index;
+  bool surface_paint_erase;
+  u32 stroke_kind; /* 0 sculpt, 1 distribution, 2 surface painting */
+  /* Local brush bounds used by Paint and Sculpt Undo comparisons. */
+  bool stroke_paint_dirty;
+  bool stroke_sculpt_full_scan;
+  u32 stroke_paint_x0, stroke_paint_y0;
+  u32 stroke_paint_x1, stroke_paint_y1;
   u64 vegetation_layer_id;
   u64 stroke_layer_id;
   char vegetation_type_text[LDK_TERRAIN_LAYER_NAME_CAPACITY];

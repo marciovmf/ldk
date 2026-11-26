@@ -197,6 +197,16 @@ LDK_API bool ldk_terrain_to_tml_with_component_data(
     const LDKTerrain *terrain, const LDKImageInfo *heightmap,
     const u8 *const masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT],
     char **out_text);
+/* Extended scene format: R8 painting weights attached to existing Surfaces,
+ * stored as eight interleaved channels. NULL/absent means procedural only. */
+LDK_API bool ldk_terrain_to_tml_with_surface_paint(
+    const LDKTerrain *terrain, const LDKImageInfo *heightmap,
+    const u8 *const masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT],
+    const u8 *surface_paint, char **out_text);
+LDK_API bool ldk_terrain_from_tml_node_with_surface_paint(
+    LDKTerrain *terrain, LDKImage **out_image,
+    u8 *masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT], u8 **surface_paint,
+    const TMLDocument *doc, const TMLNode *node);
 LDK_API bool ldk_terrain_from_tml_node_with_component_data(
     LDKTerrain *terrain, LDKImage **out_image,
     u8 *masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT],

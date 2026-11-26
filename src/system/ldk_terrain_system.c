@@ -69,6 +69,10 @@ typedef struct LDKTerrainRuntime
   LDKResourceTexture texture;
   LDKResourceTexture normal_map;
   LDKResourceTexture specular_map;
+  LDKResourceTexture paint_textures[2];
+  u64 paint_revision;
+  u32 paint_width;
+  u32 paint_height;
 } LDKTerrainRuntime;
 
 /* Each TerrainComponent owns its render cache. The active pointer is used
@@ -126,6 +130,8 @@ static LDKTerrainRuntime *s_terrain_entry_get(
   entry->texture = ldk_renderer_texture_null();
   entry->normal_map = ldk_renderer_texture_null();
   entry->specular_map = ldk_renderer_texture_null();
+  entry->paint_textures[0] = ldk_renderer_texture_null();
+  entry->paint_textures[1] = ldk_renderer_texture_null();
   entry->material_asset = ldk_asset_material_null();
   ldk_terrain_init(&entry->config);
   s_terrain_entries[s_terrain_count++] = entry;
@@ -1097,6 +1103,108 @@ static bool s_material_resolve(LDKTerrainSystem *system,
   return true;
 }
 
+/* A Surface's paint occupies one channel in two terrain-owned RGBA8
+ * textures. Updating these weights never touches terrain geometry. */
+static bool s_paint_update(const LDKTerrainComponent *component,
+    LDKRenderer *renderer)
+{
+  if (!component || !renderer || !ldk_renderer_material_is_valid(
+          renderer, s_runtime.material)) return false;
+  const u32 width = component->terrain.width;
+  const u32 height = component->terrain.height;
+  const bool present = component->surface_paint != NULL;
+  if (!present || s_runtime.paint_width != width ||
+      s_runtime.paint_height != height)
+  {
+    for (u32 i = 0u; i < 2u; ++i)
+    {
+      ldk_renderer_texture_destroy(renderer, s_runtime.paint_textures[i]);
+      s_runtime.paint_textures[i] = ldk_renderer_texture_null();
+    }
+    s_runtime.paint_width = width;
+    s_runtime.paint_height = height;
+    s_runtime.paint_revision = 0u;
+  }
+  if (present && s_runtime.paint_revision != component->surface_paint_revision)
+  {
+    bool partial = component->surface_paint_dirty_valid &&
+        s_runtime.paint_revision ==
+            component->surface_paint_dirty_base_revision &&
+        ldk_renderer_texture_is_valid(renderer, s_runtime.paint_textures[0]) &&
+        ldk_renderer_texture_is_valid(renderer, s_runtime.paint_textures[1]);
+    const u32 x = partial ? component->surface_paint_dirty_region.x : 0u;
+    const u32 y = partial ? component->surface_paint_dirty_region.y : 0u;
+    const u32 rw = partial ? component->surface_paint_dirty_region.width : width;
+    const u32 rh = partial ? component->surface_paint_dirty_region.height : height;
+    if (!rw || !rh || x >= width || y >= height ||
+        rw > width - x || rh > height - y) return false;
+    const u64 count = (u64)rw * rh;
+    if (!count || count > SIZE_MAX / 8u || count > UINT32_MAX / 4u)
+      return false;
+    const size_t bytes = (size_t)count * 4u;
+    u8 *buffer = malloc(bytes * 2u);
+    if (!buffer) return false;
+    for (u32 row = 0u; row < rh; ++row)
+      for (u32 col = 0u; col < rw; ++col)
+      {
+        const size_t dest = ((size_t)row * rw + col) * 4u;
+        const size_t src = ((size_t)(y + row) * width + x + col) * 8u;
+        memcpy(buffer + dest, component->surface_paint + src, 4u);
+        memcpy(buffer + bytes + dest, component->surface_paint + src + 4u, 4u);
+      }
+    LDKRendererTextureOptions options;
+    ldk_renderer_texture_options_defaults(&options);
+    options.min_filter = LDK_RHI_FILTER_LINEAR;
+    options.mag_filter = LDK_RHI_FILTER_LINEAR;
+    options.mip_filter = LDK_RHI_FILTER_NEAREST;
+    LDKRendererTextureDesc desc = {0};
+    desc.width = width;
+    desc.height = height;
+    desc.channel_count = 4u;
+    desc.format = LDK_RHI_FORMAT_RGBA8_UNORM;
+    desc.pixels = buffer;
+    desc.byte_count = bytes;
+    desc.options = &options;
+    bool ok = true;
+    for (u32 i = 0u; i < 2u; ++i)
+    {
+      if (!ldk_renderer_texture_is_valid(renderer,
+              s_runtime.paint_textures[i]))
+      {
+        desc.pixels = buffer + bytes * i;
+        s_runtime.paint_textures[i] = ldk_renderer_texture_create(
+            renderer, &desc);
+        ok = ok && ldk_renderer_texture_is_valid(
+            renderer, s_runtime.paint_textures[i]);
+      }
+      else
+      {
+        bool updated = partial
+            ? ldk_renderer_texture_rgba8_region_update(renderer,
+                s_runtime.paint_textures[i], x, y, rw, rh,
+                buffer + bytes * i)
+            : ldk_renderer_texture_update(renderer,
+                s_runtime.paint_textures[i], buffer + bytes * i, bytes);
+        ok = updated && ok;
+      }
+    }
+    free(buffer);
+    if (!ok) return false;
+    s_runtime.paint_revision = component->surface_paint_revision;
+  }
+  const float origin_x = s_runtime.config.origin_x -
+      (s_runtime.config.center_on_origin
+          ? (float)width * s_runtime.config.cell_size * 0.5f : 0.0f);
+  const float origin_z = s_runtime.config.origin_z -
+      (s_runtime.config.center_on_origin
+          ? (float)height * s_runtime.config.cell_size * 0.5f : 0.0f);
+  Vec4 uv = vec4_make(origin_x, origin_z,
+      1.0f / (width * s_runtime.config.cell_size),
+      1.0f / (height * s_runtime.config.cell_size));
+  return ldk_renderer_terrain_material_paint_set(renderer, s_runtime.material,
+      s_runtime.paint_textures[0], s_runtime.paint_textures[1], uv);
+}
+
 /* Release one entity's resources. Must be called with its cache current. */
 static void s_terrain_entry_destroy(LDKTerrainRuntime *entry,
     LDKRenderer *renderer)
@@ -1106,6 +1214,8 @@ static void s_terrain_entry_destroy(LDKTerrainRuntime *entry,
   if (renderer)
   {
     s_material_release(renderer);
+    for (u32 i = 0u; i < 2u; ++i)
+      ldk_renderer_texture_destroy(renderer, entry->paint_textures[i]);
     s_chunks_destroy(renderer);
   }
   else
@@ -1385,7 +1495,17 @@ static bool s_terrain_visit(LDKEntity entity, void *user)
         mutable_component->heightmap_revision == entry->source_revision)
       mutable_component->heightmap_dirty_valid = false;
   }
-  if (!s_material_resolve(system, renderer, assets)) return true;
+  if (!s_material_resolve(system, renderer, assets) ||
+      !s_paint_update(component, renderer)) return true;
+  if (component->surface_paint_dirty_valid &&
+      entry->paint_revision == component->surface_paint_revision)
+  {
+    LDKTerrainComponent *mutable_component = ldk_ecs_component_get(
+        entity, LDK_COMPONENT_TYPE_TERRAIN);
+    if (mutable_component &&
+        mutable_component->surface_paint_revision == entry->paint_revision)
+      mutable_component->surface_paint_dirty_valid = false;
+  }
   system->has_geometry = true;
   if (!system->data_width) system->data_width = entry->source.width;
   if (!system->data_height) system->data_height = entry->source.height;

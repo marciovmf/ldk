@@ -916,6 +916,10 @@ extern "C" {
     u32 terrain_surface_count;
     LDKRendererTerrainSurfaceDesc
         terrain_surfaces[LDK_RENDERER_TERRAIN_SURFACE_COUNT];
+    /* Terrain-only surface paint textures (weights 0..3, 4..7). Borrowed. */
+    LDKResourceTexture terrain_paint_textures[2];
+    Vec4 terrain_paint_uv; /* origin XZ, inverse terrain extent XZ */
+    bool terrain_paint_enabled;
   } LDKRendererMaterialDesc;
 
   /** @group ldk.module.renderer */
@@ -1663,6 +1667,10 @@ extern "C" {
    * @return true if the texture was updated, false otherwise.
    * @group ldk.module.renderer
    */
+  /* Update only an RGBA8 rectangle. Source rows are tightly packed. */
+  LDK_API bool ldk_renderer_texture_rgba8_region_update(
+      LDKRenderer *renderer, LDKResourceTexture texture,
+      u32 x, u32 y, u32 width, u32 height, const u8 *pixels);
   LDK_API bool ldk_renderer_texture_update(
       LDKRenderer* renderer,
       LDKResourceTexture texture,
@@ -1682,6 +1690,14 @@ extern "C" {
    * @param texture Texture resource handle to destroy.
    * @group ldk.module.renderer
    */
+  /* Attach terrain-owned paint maps to an already resolved terrain material.
+   * The texture handles are borrowed and may be updated without rebuilding the
+   * material or its geometry. NULL texture handles disable surface painting. */
+  LDK_API bool ldk_renderer_terrain_material_paint_set(
+      LDKRenderer *renderer, LDKResourceMaterial material,
+      LDKResourceTexture first, LDKResourceTexture second,
+      Vec4 uv_transform);
+
   LDK_API void ldk_renderer_texture_destroy(
       LDKRenderer* renderer,
       LDKResourceTexture texture);

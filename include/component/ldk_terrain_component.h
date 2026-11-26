@@ -64,6 +64,19 @@ typedef struct LDKTerrainComponent
    * The wrapper and its non-NULL buffers are owned by the component. */
   //@inspect hidden runtime
   LDKTerrainVegetationDensity *vegetation_density;
+  /* Eight interleaved R8 weights per heightmap texel. NULL means no manual
+   * painting (all weights zero). Sum of weights must never exceed 255. */
+  //@inspect hidden runtime
+  u8 *surface_paint;
+  //@inspect hidden runtime
+  u64 surface_paint_revision;
+  /* Pending paint rectangle since surface_paint_dirty_base_revision. */
+  //@inspect hidden runtime
+  LDKTerrainHeightmapRegion surface_paint_dirty_region;
+  //@inspect hidden runtime
+  u64 surface_paint_dirty_base_revision;
+  //@inspect hidden runtime
+  bool surface_paint_dirty_valid;
   //@inspect hidden runtime
   u64 revision;
   /* Changes only when the owned heightmap or grid actually changes. */
@@ -113,6 +126,18 @@ LDK_API bool ldk_terrain_component_heightmap_info_get(
 /** Replace a vegetation layer's R8 mask with a deep copy. NULL clears it.
  * The layer ID is stable even when layers move in the metadata array.
  */
+/* Publish a changed rectangle from an interleaved 8-channel paint image.
+ * The complete source buffer is borrowed, not retained. */
+LDK_API bool ldk_terrain_component_surface_paint_region_set(
+    LDKTerrainComponent *component, const u8 *samples,
+    u32 x, u32 y, u32 width, u32 height);
+LDK_API bool ldk_terrain_component_surface_paint_set(
+    LDKTerrainComponent *component, const u8 *samples);
+/* Keep paint attached to its Surface when the Inspector reorders slots. */
+LDK_API bool ldk_terrain_component_surface_paint_swap(
+    LDKTerrainComponent *component, u32 a, u32 b);
+LDK_API bool ldk_terrain_component_surface_paint_remove(
+    LDKTerrainComponent *component, u32 index);
 LDK_API bool ldk_terrain_component_vegetation_density_set(
     LDKTerrainComponent *component, u64 layer_id, const u8 *samples);
 /** Add/remove a vegetation layer while keeping its owned mask aligned. */

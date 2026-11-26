@@ -956,6 +956,28 @@ static bool ldk_rhi_gl33_texture_update(void* backend_user_data, LDKRHITexture t
   return true;
 }
 
+/* A tightly packed RGBA8 rectangle; used by terrain paint updates. */
+static bool ldk_rhi_gl33_texture_update_region(void *backend_user_data,
+    LDKRHITexture texture, uint32_t x, uint32_t y,
+    uint32_t width, uint32_t height, const void *data, uint32_t size)
+{
+  LDKRHIGL33Backend *backend = backend_user_data;
+  if (!backend || !data || texture >= backend->texture_capacity)
+    return false;
+  LDKRHIGL33TextureInfo info = backend->textures[texture];
+  if (info.target != GL_TEXTURE_2D ||
+      info.format != LDK_RHI_FORMAT_RGBA8_UNORM ||
+      !width || !height || x >= info.width || y >= info.height ||
+      width > info.width - x || height > info.height - y ||
+      (uint64_t)width * height * 4u != size) return false;
+  glBindTexture(GL_TEXTURE_2D, (GLuint)texture);
+  glTexSubImage2D(GL_TEXTURE_2D, 0, (GLint)x, (GLint)y,
+      (GLsizei)width, (GLsizei)height, GL_RGBA, GL_UNSIGNED_BYTE, data);
+  if (info.mip_count > 1) glGenerateMipmap(GL_TEXTURE_2D);
+  glBindTexture(GL_TEXTURE_2D, 0);
+  return true;
+}
+
 static LDKRHISampler ldk_rhi_gl33_create_sampler(void* backend_user_data, const LDKRHISamplerDesc* desc)
 {
   (void)backend_user_data;
@@ -1786,6 +1808,7 @@ bool ldk_rhi_gl33_initialize(LDKRHIContext* context)
   functions.texture_create = ldk_rhi_gl33_texture_create;
   functions.texture_destroy = ldk_rhi_gl33_texture_destroy;
   functions.texture_update = ldk_rhi_gl33_texture_update;
+  functions.texture_update_region = ldk_rhi_gl33_texture_update_region;
   functions.create_sampler = ldk_rhi_gl33_create_sampler;
   functions.destroy_sampler = ldk_rhi_gl33_destroy_sampler;
   functions.shader_module_create = ldk_rhi_gl33_shader_module_create;

@@ -1163,6 +1163,19 @@ bool ldk_rhi_texture_update(LDKRHIContext* context, LDKRHITexture texture, uint3
   return context->functions.texture_update(context->backend_user_data, texture, mip_level, layer, data, size);
 }
 
+bool ldk_rhi_texture_update_region(LDKRHIContext *context,
+    LDKRHITexture texture, uint32_t x, uint32_t y,
+    uint32_t width, uint32_t height, const void *data, uint32_t size)
+{
+  if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_texture(texture) ||
+      ldk_rhi_is_deferred_delete_pending(context,
+          LDK_RHI_DEFERRED_DELETE_TEXTURE, texture) ||
+      !data || !size || !width || !height ||
+      !context->functions.texture_update_region) return false;
+  return context->functions.texture_update_region(
+      context->backend_user_data, texture, x, y, width, height, data, size);
+}
+
 LDKRHISampler ldk_rhi_sampler_create(LDKRHIContext* context, const LDKRHISamplerDesc* desc)
 {
   if (!ldk_rhi_has_backend(context) || !ldk_rhi_is_valid_sampler_desc(desc) || context->functions.create_sampler == NULL)

@@ -887,8 +887,12 @@ void ldki_editor_scene_dirty_set(LDKEditorContext *editor, bool dirty)
   {
     return;
   }
+  const bool was_dirty = s_editor_scene_is_dirty(editor);
   editor->scene_dirty = dirty;
-  s_editor_set_title(editor);
+  /* Brush samples may call this every frame. Updating the native window
+   * title is unnecessary unless the displayed dirty marker changes. */
+  if (was_dirty != s_editor_scene_is_dirty(editor))
+    s_editor_set_title(editor);
 }
 
 bool ldki_editor_scene_discard_confirm(LDKEditorContext *editor)

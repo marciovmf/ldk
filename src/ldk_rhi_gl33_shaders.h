@@ -884,6 +884,8 @@
   "  vec4 u_terrain_uv_scale[8];\n" \
   "};\n" \
   "uniform sampler2D LDK_TEXTURE_3;\n" \
+  "uniform sampler2D LDK_TEXTURE_12;\n" \
+  "uniform sampler2D LDK_TEXTURE_13;\n" \
   "out vec4 out_color;\n" \
   "vec4 ldk_terrain_atlas_sample(int index, vec2 uv)\n" \
   "{\n" \
@@ -943,6 +945,26 @@
   "        : step(threshold, slope_degrees);\n" \
   "    if (t > 0.0)\n" \
   "      color = mix(color, ldk_terrain_surface(i, normal), t);\n" \
+  "  }\n" \
+  "  if (u_terrain_info.y > 0.5)\n" \
+  "  {\n" \
+  "    vec2 paint_uv = (v_uv - u_uv_transform[7].xy) * u_uv_transform[7].zw;\n" \
+  "    vec4 low = texture(LDK_TEXTURE_12, paint_uv);\n" \
+  "    vec4 high = texture(LDK_TEXTURE_13, paint_uv);\n" \
+  "    float weights[8] = float[8](low.r, low.g, low.b, low.a,\n" \
+  "        high.r, high.g, high.b, high.a);\n" \
+  "    float total = 0.0;\n" \
+  "    vec4 painted = vec4(0.0);\n" \
+  "    for (int i = 0; i < 8; ++i)\n" \
+  "    {\n" \
+  "      if (i >= count) break;\n" \
+  "      total += weights[i];\n" \
+  "      if (weights[i] > 0.0)\n" \
+  "        painted += weights[i] * ldk_terrain_surface(i, normal);\n" \
+  "    }\n" \
+  "    /* Preserve the exact procedural result in untouched regions. */\n" \
+  "    if (total > 0.0)\n" \
+  "      color = mix(color, painted / total, clamp(total, 0.0, 1.0));\n" \
   "  }\n" \
   "  color *= u_material_color * v_instance_color;\n" \
   "  color.rgb *= mix(vec3(1.0), 2.0 * v_color.rgb, v_color.a);\n" \

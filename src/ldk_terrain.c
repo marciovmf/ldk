@@ -772,15 +772,15 @@ invalid:
  * encoding separate from heightmap R16 so a scene does not pay for redundant
  * RGBA channels or external PNG assets. */
 static bool s_terrain_density_encode(XStrBuilder *out, const u8 *bytes,
-    u64 count)
+    u64 count, const char *key)
 {
   if (!out || !bytes || !count || count > (UINT32_MAX / 4u) * 3u - 2u)
     return false;
   char encoded[4096];
   size_t used = 0u;
   u32 accumulator = 0u, bits = 0u;
-  x_strbuilder_append(out, "      density_encoding: \"u8-base64\"\n"
-      "      density_samples: \"");
+  x_strbuilder_append_format(out, "      %s_encoding: \"u8-base64\"\n"
+      "      %s_samples: \"", key, key);
   for (u64 i = 0u; i < count; ++i)
   {
     accumulator = (accumulator << 8u) | bytes[i];
@@ -849,7 +849,7 @@ static bool s_terrain_density_decode(TMLString encoded, u64 count,
 static bool s_terrain_to_tml_internal(const LDKTerrain *terrain,
     const LDKImageInfo *heightmap,
     const u8 *const masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT],
-    char **out_text)
+    const u8 *surface_paint, char **out_text)
 {
   XStrBuilder *out;
   const char *text;
@@ -921,6 +921,23 @@ static bool s_terrain_to_tml_internal(const LDKTerrain *terrain,
     s_write_float_entry(out, "      slope_blend_degrees: ",
         s->slope_blend_degrees);
     s_write_string_entry(out, "      paint_mask: ", s->paint_mask_path.buf);
+    if (surface_paint)
+    {
+      const u64 count = (u64)terrain->width * terrain->height;
+      if (count > SIZE_MAX) {x_strbuilder_destroy(out); return false;}
+      u8 *channel = malloc((size_t)count);
+      if (!channel) {x_strbuilder_destroy(out); return false;}
+      bool nonzero = false;
+      for (size_t j = 0u; j < (size_t)count; ++j)
+      {
+        channel[j] = surface_paint[j * 8u + i];
+        if (channel[j]) nonzero = true;
+      }
+      bool ok = !nonzero || s_terrain_density_encode(
+          out, channel, count, "paint");
+      free(channel);
+      if (!ok) {x_strbuilder_destroy(out); return false;}
+    }
   }
 
   x_strbuilder_append_format(out,
@@ -987,7 +1004,7 @@ static bool s_terrain_to_tml_internal(const LDKTerrain *terrain,
         type->noise_color_stop_2_color,
         type->noise_color_stop_3_color);
     if (masks && masks[i] && !s_terrain_density_encode(out, masks[i],
-            (u64)terrain->width * terrain->height))
+            (u64)terrain->width * terrain->height, "density"))
     {
       x_strbuilder_destroy(out);
       return false;
@@ -1010,13 +1027,13 @@ static bool s_terrain_to_tml_internal(const LDKTerrain *terrain,
 
 bool ldk_terrain_to_tml(const LDKTerrain *terrain, char **out_text)
 {
-  return s_terrain_to_tml_internal(terrain, NULL, NULL, out_text);
+  return s_terrain_to_tml_internal(terrain, NULL, NULL, NULL, out_text);
 }
 
 bool ldk_terrain_to_tml_with_heightmap(const LDKTerrain *terrain,
     const LDKImageInfo *heightmap, char **out_text)
 {
-  return s_terrain_to_tml_internal(terrain, heightmap, NULL, out_text);
+  return s_terrain_to_tml_internal(terrain, heightmap, NULL, NULL, out_text);
 }
 
 static bool s_read_string(const TMLDocument *doc, const TMLNode *node,
@@ -1047,7 +1064,16 @@ bool ldk_terrain_to_tml_with_component_data(const LDKTerrain *terrain,
     const u8 *const masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT],
     char **out_text)
 {
-  return s_terrain_to_tml_internal(terrain, heightmap, masks, out_text);
+  return s_terrain_to_tml_internal(terrain, heightmap, masks, NULL, out_text);
+}
+
+bool ldk_terrain_to_tml_with_surface_paint(const LDKTerrain *terrain,
+    const LDKImageInfo *heightmap,
+    const u8 *const masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT],
+    const u8 *surface_paint, char **out_text)
+{
+  return s_terrain_to_tml_internal(terrain, heightmap, masks,
+      surface_paint, out_text);
 }
 
 static bool s_read_float(const TMLDocument *doc, const TMLNode *node,
@@ -1134,7 +1160,7 @@ static bool s_read_vec3(const TMLDocument *doc, const TMLNode *node,
 static bool s_terrain_from_tml_node_internal(LDKTerrain *terrain,
     LDKImage **out_image,
     u8 *masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT],
-    const TMLDocument *doc, const TMLNode *root)
+    u8 **surface_paint, const TMLDocument *doc, const TMLNode *root)
 {
   const TMLNode *surfaces;
   const TMLNode *vegetation;
@@ -1148,6 +1174,7 @@ static bool s_terrain_from_tml_node_internal(LDKTerrain *terrain,
   if (masks)
     for (u32 i = 0u; i < LDK_TERRAIN_VEGETATION_LAYER_COUNT; ++i)
       masks[i] = NULL;
+  if (surface_paint) *surface_paint = NULL;
   ldk_terrain_init(&candidate);
   valid = root && root->name.size == sizeof("terrain") - 1u &&
       memcmp(root->name.data, "terrain", sizeof("terrain") - 1u) == 0 &&
@@ -1364,8 +1391,45 @@ static bool s_terrain_from_tml_node_internal(LDKTerrain *terrain,
       if (!valid) break;
     }
   }
+  u8 *decoded_paint = NULL;
+  if (valid && surface_paint)
+  {
+    const u64 count = (u64)candidate.width * candidate.height;
+    if (count > SIZE_MAX / 8u) valid = false;
+    for (u32 i = 0u; valid && i < candidate.surface_count; ++i)
+    {
+      const TMLNode *node = tml_node_child_at(doc, surfaces, i);
+      if (!tml_node_find_entry(doc, node, "paint_samples")) continue;
+      TMLString encoding = {0}, samples = {0};
+      static const char name[] = "u8-base64";
+      u8 *channel = NULL;
+      valid = tml_node_get_string(doc, node, "paint_encoding", &encoding) &&
+          encoding.size == sizeof(name) - 1u &&
+          memcmp(encoding.data, name, sizeof(name) - 1u) == 0 &&
+          tml_node_get_string(doc, node, "paint_samples", &samples) &&
+          s_terrain_density_decode(samples, count, &channel);
+      if (!valid) break;
+      if (!decoded_paint)
+        decoded_paint = calloc((size_t)count, 8u);
+      if (!decoded_paint) valid = false;
+      if (valid)
+        for (size_t j = 0u; j < (size_t)count; ++j)
+          decoded_paint[j * 8u + i] = channel[j];
+      free(channel);
+    }
+    /* Malformed scenes must never exceed full manual coverage. */
+    if (valid && decoded_paint)
+      for (size_t j = 0u; j < (size_t)count; ++j)
+      {
+        u32 sum = 0u;
+        for (u32 i = 0u; i < candidate.surface_count; ++i)
+          sum += decoded_paint[j * 8u + i];
+        if (sum > 255u) {valid = false; break;}
+      }
+  }
   if (!valid)
   {
+    free(decoded_paint);
     ldk_image_destroy(embedded);
     if (masks)
       for (u32 i = 0u; i < LDK_TERRAIN_VEGETATION_LAYER_COUNT; ++i)
@@ -1377,6 +1441,7 @@ static bool s_terrain_from_tml_node_internal(LDKTerrain *terrain,
   }
   *terrain = candidate;
   *out_image = embedded;
+  if (surface_paint) *surface_paint = decoded_paint;
   return true;
 }
 
@@ -1384,7 +1449,7 @@ bool ldk_terrain_from_tml_node_with_heightmap(LDKTerrain *terrain,
     LDKImage **out_image, const TMLDocument *doc, const TMLNode *node)
 {
   return s_terrain_from_tml_node_internal(terrain, out_image, NULL,
-      doc, node);
+      NULL, doc, node);
 }
 
 bool ldk_terrain_from_tml_node_with_component_data(LDKTerrain *terrain,
@@ -1394,7 +1459,17 @@ bool ldk_terrain_from_tml_node_with_component_data(LDKTerrain *terrain,
 {
   if (!masks) return false;
   return s_terrain_from_tml_node_internal(terrain, out_image, masks,
-      doc, node);
+      NULL, doc, node);
+}
+
+bool ldk_terrain_from_tml_node_with_surface_paint(LDKTerrain *terrain,
+    LDKImage **out_image,
+    u8 *masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT], u8 **surface_paint,
+    const TMLDocument *doc, const TMLNode *node)
+{
+  if (!masks || !surface_paint) return false;
+  return s_terrain_from_tml_node_internal(terrain, out_image, masks,
+      surface_paint, doc, node);
 }
 
 bool ldk_terrain_from_tml_with_heightmap(LDKTerrain *terrain,

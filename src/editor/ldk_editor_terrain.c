@@ -35,8 +35,7 @@ typedef struct LDKEditorTerrainUndoRegion
 {
   u32 x, y, width, height;
   u32 pixel_size;
-  /* Sculpt (0) stores RGBA16 pixels and height range; vegetation (1)
-   * stores R8 density samples addressed by stable layer ID. */
+  /* 0: RGBA16 height, 1: R8 distribution, 2: eight surface R8 weights. */
   u32 kind;
   u64 layer_id;
   LDKEditorTerrainHeightSnapshot range_state;
@@ -209,7 +208,9 @@ static bool s_terrain_vegetation_select(LDKEditorContext *editor,
  * format or painter for Decorations and Trees. */
 static bool s_terrain_distribution_mode(LDKEditorTerrainEditMode mode)
 {
-  return mode != LDK_EDITOR_TERRAIN_EDIT_SCULPT;
+  return mode == LDK_EDITOR_TERRAIN_EDIT_VEGETATION ||
+      mode == LDK_EDITOR_TERRAIN_EDIT_DECORATION ||
+      mode == LDK_EDITOR_TERRAIN_EDIT_TREES;
 }
 
 static LDKGrassLayerKind s_terrain_edit_mode_kind(
@@ -293,6 +294,27 @@ static bool s_terrain_publish_brush(LDKEditorContext *editor,
       : ldk_terrain_component_heightmap_region_set(component, &image,
           x, y, width, height);
   if (!ok) return false;
+  if (state->stroke_active && state->stroke_kind == 0u)
+  {
+    if (range_changed) state->stroke_sculpt_full_scan = true;
+    if (!state->stroke_paint_dirty)
+    {
+      state->stroke_paint_x0 = x;
+      state->stroke_paint_y0 = y;
+      state->stroke_paint_x1 = x + width - 1u;
+      state->stroke_paint_y1 = y + height - 1u;
+      state->stroke_paint_dirty = true;
+    }
+    else
+    {
+      if (x < state->stroke_paint_x0) state->stroke_paint_x0 = x;
+      if (y < state->stroke_paint_y0) state->stroke_paint_y0 = y;
+      if (x + width - 1u > state->stroke_paint_x1)
+        state->stroke_paint_x1 = x + width - 1u;
+      if (y + height - 1u > state->stroke_paint_y1)
+        state->stroke_paint_y1 = y + height - 1u;
+    }
+  }
   state->observed_revision = component->revision;
   ldki_editor_scene_dirty_set(editor, true);
   return true;
@@ -344,6 +366,7 @@ static void s_terrain_reset(LDKEditorContext *editor, bool unused)
   LDKEditorTerrainState *state = &editor->terrain_editor;
   free(state->pixels);
   free(state->vegetation_pixels);
+  free(state->surface_paint_pixels);
   free(state->stroke_start);
   memset(state, 0, sizeof(*state));
   state->target_width = 256u;
@@ -403,6 +426,17 @@ static bool s_terrain_bind(LDKEditorContext *editor, LDKEntity entity,
   state->data = component->terrain;
   state->pixels = pixels;
   state->pixel_bytes = (size_t)bytes;
+  const size_t paint_bytes = (size_t)sample_count * 8u;
+  state->surface_paint_pixels = calloc(paint_bytes, 1u);
+  if (!state->surface_paint_pixels)
+  {
+    free(state->pixels);
+    state->pixels = NULL;
+    return false;
+  }
+  if (component->surface_paint)
+    memcpy(state->surface_paint_pixels,
+        component->surface_paint, paint_bytes);
   state->image_format = LDK_IMAGE_FORMAT_RGBA16_UNORM;
   state->target_width = state->data.width;
   state->target_height = state->data.height;
@@ -531,17 +565,28 @@ static bool s_terrain_create_flat(LDKEditorContext *editor)
   if (!sample_count || sample_count > SIZE_MAX / 8u) return false;
   const size_t bytes = (size_t)sample_count * 8u;
   u8 *pixels = calloc(1u, (size_t)bytes);
-  if (!pixels) return false;
+  u8 *surface_pixels = calloc((size_t)bytes, 1u);
+  if (!pixels || !surface_pixels)
+  {
+    free(pixels);
+    free(surface_pixels);
+    return false;
+  }
   /* Flat terrain needs no serialized samples. Keep a zeroed scratch grid
    * for sculpting; the first brush stroke publishes the RGBA16 image. */
   LDKTerrainComponent *component = s_terrain_owned_component(state);
   if (!component || !ldk_terrain_component_set(component, &terrain, NULL))
   {
     free(pixels);
+    free(surface_pixels);
     return false;
   }
+  if (component->surface_paint)
+    memcpy(surface_pixels, component->surface_paint, (size_t)bytes);
   s_terrain_undo_discard(editor);
   free(state->pixels);
+  free(state->surface_paint_pixels);
+  state->surface_paint_pixels = surface_pixels;
   free(state->stroke_start);
   state->stroke_start = NULL;
   state->pixels = pixels;
@@ -568,6 +613,7 @@ static bool s_terrain_import(LDKEditorContext *editor)
   LDKImageInfo info = {0};
   LDKTerrain imported;
   u8 *pixels = NULL;
+  u8 *surface_pixels = NULL;
   bool success = false;
   if (!state->loaded || !state->target_width || !state->target_height ||
       !isfinite(state->target_cell_size) || state->target_cell_size <= 0.0f)
@@ -595,13 +641,22 @@ static bool s_terrain_import(LDKEditorContext *editor)
   pixels = malloc((size_t)info.byte_count);
   if (!pixels) goto done;
   memcpy(pixels, info.pixels, (size_t)info.byte_count);
+  const u64 surface_bytes = (u64)candidate.width * candidate.height * 8u;
+  if (!surface_bytes || surface_bytes > SIZE_MAX) goto done;
+  surface_pixels = calloc((size_t)surface_bytes, 1u);
+  if (!surface_pixels) goto done;
   /* Publish the complete replacement atomically. On failure the component
    * and working copy remain unchanged. */
   LDKTerrainComponent *component = s_terrain_owned_component(state);
   if (!component || !ldk_terrain_component_set(component, &candidate, &info))
     goto done;
+  if (component->surface_paint)
+    memcpy(surface_pixels, component->surface_paint, (size_t)surface_bytes);
   s_terrain_undo_discard(editor); /* Grid size changed: old regions are invalid. */
   free(state->pixels);
+  free(state->surface_paint_pixels);
+  state->surface_paint_pixels = surface_pixels;
+  surface_pixels = NULL;
   free(state->stroke_start);
   state->stroke_start = NULL;
   state->pixels = pixels;
@@ -618,6 +673,7 @@ static bool s_terrain_import(LDKEditorContext *editor)
   pixels = NULL;
   success = true;
 done:
+  free(surface_pixels);
   free(pixels);
   ldk_image_destroy(scaled);
   ldk_image_destroy(source);
@@ -631,16 +687,26 @@ static void s_terrain_stroke_finish(LDKEditorContext *editor)
   LDKEditorTerrainState *state = &editor->terrain_editor;
   if (!state->stroke_active) return;
   state->stroke_active = false;
-  const bool vegetation = state->stroke_layer_id != 0u;
-  const u8 *current = vegetation ? state->vegetation_pixels : state->pixels;
+  const bool vegetation = state->stroke_kind == 1u;
+  const bool painting = state->stroke_kind == 2u;
+  const u8 *current = vegetation ? state->vegetation_pixels :
+      (painting ? state->surface_paint_pixels : state->pixels);
   if (!state->stroke_start || !current) goto done;
   const u32 width = state->data.width, height = state->data.height;
-  const u32 pixel_size = vegetation ? 1u :
-      (state->image_format == LDK_IMAGE_FORMAT_RGBA16_UNORM ? 8u : 4u);
+  const u32 pixel_size = vegetation ? 1u : (painting ? 8u :
+      (state->image_format == LDK_IMAGE_FORMAT_RGBA16_UNORM ? 8u : 4u));
   u32 min_x = width, min_y = height, max_x = 0u, max_y = 0u;
-  for (u32 y = 0u; y < height; ++y)
+  /* For ordinary Paint and Sculpt strokes, only compare visited texels.
+   * Range expansion re-encodes the full heightmap and requires a full scan. */
+  const bool bounded = !vegetation && !state->stroke_sculpt_full_scan;
+  if (bounded && !state->stroke_paint_dirty) goto done;
+  const u32 scan_x0 = bounded ? state->stroke_paint_x0 : 0u;
+  const u32 scan_y0 = bounded ? state->stroke_paint_y0 : 0u;
+  const u32 scan_x1 = bounded ? state->stroke_paint_x1 + 1u : width;
+  const u32 scan_y1 = bounded ? state->stroke_paint_y1 + 1u : height;
+  for (u32 y = scan_y0; y < scan_y1; ++y)
   {
-    for (u32 x = 0u; x < width; ++x)
+    for (u32 x = scan_x0; x < scan_x1; ++x)
     {
       size_t at = ((size_t)y * width + x) * pixel_size;
       if (memcmp(current + at, state->stroke_start + at,
@@ -657,7 +723,7 @@ static void s_terrain_stroke_finish(LDKEditorContext *editor)
       s_terrain_height_snapshot(&state->data);
   if (min_x == width)
   {
-    if (vegetation || memcmp(&after_height, &state->stroke_height_start,
+    if (vegetation || painting || memcmp(&after_height, &state->stroke_height_start,
             sizeof(after_height)) == 0) goto done;
     /* A metadata-only change still needs an Undo region header. */
     min_x = min_y = max_x = max_y = 0u;
@@ -673,7 +739,7 @@ static void s_terrain_stroke_finish(LDKEditorContext *editor)
   header.width = rw;
   header.height = rh;
   header.pixel_size = pixel_size;
-  header.kind = vegetation ? 1u : 0u;
+  header.kind = state->stroke_kind;
   header.layer_id = state->stroke_layer_id;
   header.range_state = state->stroke_height_start;
   memcpy(before, &header, sizeof(header));
@@ -699,6 +765,9 @@ static void s_terrain_stroke_finish(LDKEditorContext *editor)
   free(state->stroke_start);
   state->stroke_start = NULL;
   state->stroke_layer_id = 0u;
+  state->stroke_kind = 0u;
+  state->stroke_paint_dirty = false;
+  state->stroke_sculpt_full_scan = false;
 }
 
 bool ldki_editor_terrain_undo_is_key(LDKEditorUndoKey key)
@@ -735,13 +804,46 @@ bool ldki_editor_terrain_undo_apply(LDKEditorContext *editor,
       region.y >= component->terrain.height ||
       region.width > component->terrain.width - region.x ||
       region.height > component->terrain.height - region.y ||
-      (region.kind > 1u ||
+      (region.kind > 2u ||
        region.pixel_size != (region.kind == 1u ? 1u : 8u)) ||
       (u64)region.width * region.height * region.pixel_size >
           SIZE_MAX - sizeof(region) ||
       size != sizeof(region) + (size_t)region.width * region.height *
           region.pixel_size)
     return false;
+  if (region.kind == 2u)
+  {
+    const u64 count = (u64)component->terrain.width *
+        component->terrain.height;
+    if (!count || count > SIZE_MAX / 8u) return false;
+    u8 *pixels = calloc((size_t)count, 8u);
+    if (!pixels) return false;
+    if (component->surface_paint)
+      memcpy(pixels, component->surface_paint, (size_t)count * 8u);
+    const u8 *source = (const u8 *)bytes + sizeof(region);
+    for (u32 y = 0u; y < region.height; ++y)
+      memcpy(pixels + ((size_t)(region.y + y) *
+              component->terrain.width + region.x) * 8u,
+          source + (size_t)y * region.width * 8u,
+          (size_t)region.width * 8u);
+    bool ok = ldk_terrain_component_surface_paint_region_set(
+        component, pixels, region.x, region.y, region.width, region.height);
+    if (ok)
+    {
+      LDKEditorTerrainState *state = &editor->terrain_editor;
+      if (state->loaded &&
+          s_terrain_undo_owner(state->owner_entity) == key.owner)
+      {
+        state->observed_revision = component->revision;
+        free(state->surface_paint_pixels);
+        state->surface_paint_pixels = pixels;
+        pixels = NULL;
+      }
+      ldki_editor_scene_dirty_set(editor, true);
+    }
+    free(pixels);
+    return ok;
+  }
   if (region.kind == 1u)
   {
     if (!region.layer_id || !ldk_terrain_validate(&component->terrain))
@@ -838,6 +940,8 @@ bool ldki_editor_terrain_undo_apply(LDKEditorContext *editor,
     const u64 layer_id = state->vegetation_layer_id;
     const LDKEditorTerrainEditMode edit_mode = state->edit_mode;
     const bool vegetation_erase = state->vegetation_erase;
+    const u32 surface_paint_index = state->surface_paint_index;
+    const bool surface_paint_erase = state->surface_paint_erase;
     char vegetation_type_text[LDK_TERRAIN_LAYER_NAME_CAPACITY];
     memcpy(vegetation_type_text, state->vegetation_type_text,
         sizeof(vegetation_type_text));
@@ -851,6 +955,8 @@ bool ldki_editor_terrain_undo_apply(LDKEditorContext *editor,
     state->flatten_height = flatten_height;
     state->edit_mode = edit_mode;
     state->vegetation_erase = vegetation_erase;
+    state->surface_paint_index = surface_paint_index;
+    state->surface_paint_erase = surface_paint_erase;
     memcpy(state->vegetation_type_text, vegetation_type_text,
         sizeof(vegetation_type_text));
     if (layer_id && state->vegetation_layer_id != layer_id)
@@ -872,16 +978,22 @@ static bool s_terrain_stroke_begin(LDKEditorContext *editor)
     editor->undo_end_requested = false;
   }
   const bool vegetation = s_terrain_distribution_mode(state->edit_mode);
+  const bool painting = state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_PAINT;
   if (vegetation) s_terrain_brush_layer_sync(editor);
   const size_t bytes = vegetation
       ? (size_t)state->data.width * state->data.height
-      : state->pixel_bytes;
-  const u8 *pixels = vegetation ? state->vegetation_pixels : state->pixels;
+      : (painting ? (size_t)state->data.width * state->data.height * 8u
+          : state->pixel_bytes);
+  const u8 *pixels = vegetation ? state->vegetation_pixels :
+      (painting ? state->surface_paint_pixels : state->pixels);
   if (!pixels) return false;
   state->stroke_start = malloc(bytes);
   if (!state->stroke_start) return false;
   memcpy(state->stroke_start, pixels, bytes);
   state->stroke_layer_id = vegetation ? state->vegetation_layer_id : 0u;
+  state->stroke_kind = vegetation ? 1u : (painting ? 2u : 0u);
+  state->stroke_paint_dirty = false;
+  state->stroke_sculpt_full_scan = false;
   state->stroke_height_start = s_terrain_height_snapshot(&state->data);
   /* Flatten uses the explicit inspector target throughout the stroke. */
   state->stroke_active = true;
@@ -1035,6 +1147,15 @@ static bool s_terrain_brush_expand_range(LDKEditorContext *editor,
   if (state->image_format != LDK_IMAGE_FORMAT_RGBA16_UNORM)
     return false;
 
+  /* Re-encoding a large heightmap is O(width * height), and forces a full
+   * geometry refresh. Reserve headroom whenever the brush reaches an end
+   * of the encoded interval, rather than repeating this on every sample. */
+  const float old_min = candidate.height_offset;
+  const float old_max = old_min + candidate.height_scale;
+  const float padding = fmaxf(1.0f, candidate.height_scale * 0.25f);
+  if (minimum < old_min) minimum -= padding;
+  if (maximum > old_max) maximum += padding;
+
   u8 *copy = malloc(state->pixel_bytes);
   if (!copy) return false;
   memcpy(copy, state->pixels, state->pixel_bytes);
@@ -1116,6 +1237,113 @@ static bool s_terrain_vegetation_brush_apply(
   if (!component || !ldk_terrain_component_vegetation_density_set(
           component, state->vegetation_layer_id, state->vegetation_pixels))
     return false;
+  state->observed_revision = component->revision;
+  state->dirty = true;
+  ldki_editor_scene_dirty_set(editor, true);
+  return true;
+}
+
+/* Surface painting only changes manual weights. Remaining coverage always
+ * belongs to the existing procedural height/slope compositor. */
+static bool s_terrain_surface_paint_apply(LDKEditorContext *editor,
+    Vec3 center)
+{
+  LDKEditorTerrainState *state = &editor->terrain_editor;
+  const LDKTerrain *terrain = &state->data;
+  if (!state->surface_paint_pixels || !state->radius ||
+      state->surface_paint_index >= terrain->surface_count) return false;
+  const float ox = terrain->origin_x - (terrain->center_on_origin
+      ? terrain->width * terrain->cell_size * 0.5f : 0.0f);
+  const float oz = terrain->origin_z - (terrain->center_on_origin
+      ? terrain->height * terrain->cell_size * 0.5f : 0.0f);
+  int x0 = (int)floorf((center.x - state->radius - ox) / terrain->cell_size);
+  int y0 = (int)floorf((center.z - state->radius - oz) / terrain->cell_size);
+  int x1 = (int)ceilf((center.x + state->radius - ox) / terrain->cell_size);
+  int y1 = (int)ceilf((center.z + state->radius - oz) / terrain->cell_size);
+  if (x0 < 0) x0 = 0;
+  if (y0 < 0) y0 = 0;
+  if (x1 >= (int)terrain->width) x1 = (int)terrain->width - 1;
+  if (y1 >= (int)terrain->height) y1 = (int)terrain->height - 1;
+  if (x1 < x0 || y1 < y0) return false;
+  const float inner = state->radius * (1.0f - state->falloff);
+  const float dt = fmaxf(0.001f, fminf(0.05f, editor->ui.delta_time));
+  bool changed = false;
+  for (int y = y0; y <= y1; ++y)
+    for (int x = x0; x <= x1; ++x)
+    {
+      const float wx = ox + ((float)x + 0.5f) * terrain->cell_size;
+      const float wz = oz + ((float)y + 0.5f) * terrain->cell_size;
+      const float distance = sqrtf((wx - center.x) * (wx - center.x) +
+          (wz - center.z) * (wz - center.z));
+      if (distance >= state->radius) continue;
+      float weight = distance <= inner ? 1.0f :
+          s_terrain_clamp01((state->radius - distance) /
+              fmaxf(state->radius - inner, 0.00001f));
+      weight = weight * weight * (3.0f - 2.0f * weight);
+      const float alpha = s_terrain_clamp01(
+          state->strength * dt * weight);
+      if (alpha <= 0.0f) continue;
+      u8 *samples = state->surface_paint_pixels +
+          ((size_t)y * terrain->width + x) * 8u;
+      const u32 selected = state->surface_paint_index;
+      u8 old = samples[selected];
+      const float target = state->surface_paint_erase ? 0.0f : 255.0f;
+      u8 next = (u8)lroundf(old + (target - old) * alpha);
+      if (next == old && old != (u8)target)
+        next = old < target ? old + 1u : old - 1u;
+      if (next == old) continue;
+      samples[selected] = next;
+      if (!state->surface_paint_erase)
+      {
+        u32 other = 0u;
+        for (u32 i = 0u; i < terrain->surface_count; ++i)
+          if (i != selected) other += samples[i];
+        if (other + next > 255u)
+        {
+          const u32 remaining = 255u - next;
+          u32 allocated = 0u;
+          for (u32 i = 0u; i < terrain->surface_count; ++i)
+            if (i != selected)
+            {
+              const u32 value = (u32)samples[i] * remaining / other;
+              samples[i] = (u8)value;
+              allocated += value;
+            }
+          /* Truncation may leave a small procedural contribution. That's
+           * intentional: no painted weight is silently increased. */
+          (void)allocated;
+        }
+      }
+      changed = true;
+    }
+  if (!changed) return false;
+  LDKTerrainComponent *component = s_terrain_owned_component(state);
+  if (!component || !ldk_terrain_component_surface_paint_region_set(
+          component, state->surface_paint_pixels, (u32)x0, (u32)y0,
+          (u32)(x1 - x0 + 1), (u32)(y1 - y0 + 1)))
+    return false;
+  if (state->stroke_active && state->stroke_kind == 2u)
+  {
+    if (!state->stroke_paint_dirty)
+    {
+      state->stroke_paint_x0 = (u32)x0;
+      state->stroke_paint_y0 = (u32)y0;
+      state->stroke_paint_x1 = (u32)x1;
+      state->stroke_paint_y1 = (u32)y1;
+      state->stroke_paint_dirty = true;
+    }
+    else
+    {
+      if ((u32)x0 < state->stroke_paint_x0)
+        state->stroke_paint_x0 = (u32)x0;
+      if ((u32)y0 < state->stroke_paint_y0)
+        state->stroke_paint_y0 = (u32)y0;
+      if ((u32)x1 > state->stroke_paint_x1)
+        state->stroke_paint_x1 = (u32)x1;
+      if ((u32)y1 > state->stroke_paint_y1)
+        state->stroke_paint_y1 = (u32)y1;
+    }
+  }
   state->observed_revision = component->revision;
   state->dirty = true;
   ldki_editor_scene_dirty_set(editor, true);
@@ -1418,6 +1646,8 @@ void ldki_editor_terrain_view_update(
   {
     if (s_terrain_distribution_mode(state->edit_mode))
       (void)s_terrain_vegetation_brush_apply(editor, local_hit);
+    else if (state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_PAINT)
+      (void)s_terrain_surface_paint_apply(editor, local_hit);
     else
       (void)s_terrain_brush_apply(editor, local_hit);
   }
@@ -1681,6 +1911,22 @@ static bool s_terrain_surface_move(LDKEditorContext *editor,
   LDKTerrain candidate;
   if (!s_terrain_surface_swapped(&state->data, first, second, &candidate) ||
       !s_terrain_surface_apply(editor, &candidate, true)) return false;
+  LDKTerrainComponent *component = s_terrain_owned_component(state);
+  if (component && !ldk_terrain_component_surface_paint_swap(
+          component, first, second)) return false;
+  if (state->surface_paint_pixels)
+  {
+    size_t count = (size_t)state->data.width * state->data.height;
+    for (size_t i = 0u; i < count; ++i)
+    {
+      u8 *at = state->surface_paint_pixels + i * 8u;
+      u8 old = at[first]; at[first] = at[second]; at[second] = old;
+    }
+  }
+  if (state->surface_paint_index == first) state->surface_paint_index = second;
+  else if (state->surface_paint_index == second)
+    state->surface_paint_index = first;
+  if (component) state->observed_revision = component->revision;
   LDKEditorTerrainSurfaceFold temporary =
       s_terrain_surface_folds.surfaces[first];
   s_terrain_surface_folds.surfaces[first] =
@@ -1719,6 +1965,23 @@ static bool s_terrain_surface_remove(LDKEditorContext *editor, u32 index)
   LDKTerrain candidate;
   if (!s_terrain_surface_removed(&state->data, index, &candidate) ||
       !s_terrain_surface_apply(editor, &candidate, true)) return false;
+  LDKTerrainComponent *component = s_terrain_owned_component(state);
+  if (component && !ldk_terrain_component_surface_paint_remove(
+          component, index)) return false;
+  if (state->surface_paint_pixels)
+  {
+    size_t count = (size_t)state->data.width * state->data.height;
+    for (size_t p = 0u; p < count; ++p)
+    {
+      u8 *at = state->surface_paint_pixels + p * 8u;
+      for (u32 j = index; j + 1u < LDK_TERRAIN_SURFACE_COUNT; ++j)
+        at[j] = at[j + 1u];
+      at[LDK_TERRAIN_SURFACE_COUNT - 1u] = 0u;
+    }
+  }
+  if (state->surface_paint_index >= state->data.surface_count)
+    state->surface_paint_index = state->data.surface_count - 1u;
+  if (component) state->observed_revision = component->revision;
   for (u32 i = index; i + 1u < LDK_TERRAIN_SURFACE_COUNT; ++i)
   {
     s_terrain_surface_folds.surfaces[i] =
@@ -2720,6 +2983,12 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
             s_terrain_ui_icon(editor, LDK_EDITOR_ICON_TERRAIN_EDITOR),
             "Sculpt", sculpt_active) != sculpt_active)
       s_terrain_edit_mode_toggle(editor, LDK_EDITOR_TERRAIN_EDIT_SCULPT);
+    const bool surface_paint_active = state->enabled &&
+        state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_PAINT;
+    if (ldk_ui_toggle_icon_button(ui,
+            s_terrain_ui_icon(editor, LDK_EDITOR_ICON_TERRAIN_TOOL_PAINTBRUSH),
+            "Paint", surface_paint_active) != surface_paint_active)
+      s_terrain_edit_mode_toggle(editor, LDK_EDITOR_TERRAIN_EDIT_PAINT);
     const bool decoration_active = state->enabled &&
         state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_DECORATION;
     if (ldk_ui_toggle_icon_button(ui,
@@ -2771,6 +3040,42 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
     (void)s_terrain_real_input(editor, "Target Height",
         state->flatten_height_text, sizeof(state->flatten_height_text),
         &state->flatten_height, -100000.0f, 100000.0f, 0u);
+  }
+  else if (state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_PAINT)
+  {
+    ldk_ui_set_next_height(ui, ldk_ui_px(LDK_UI_DEFAULT_CONTROL_HEIGHT));
+    ldk_ui_begin_horizontal(ui);
+    const bool paint_selected = !state->surface_paint_erase;
+    if (ldk_ui_toggle_icon_button(ui,
+            s_terrain_ui_icon(editor, LDK_EDITOR_ICON_TERRAIN_TOOL_PAINTBRUSH),
+            "Paint", paint_selected) && !paint_selected)
+    {
+      if (state->stroke_active) s_terrain_stroke_finish(editor);
+      state->surface_paint_erase = false;
+    }
+    const bool erase_selected = state->surface_paint_erase;
+    if (ldk_ui_toggle_icon_button(ui,
+            s_terrain_ui_icon(editor, LDK_EDITOR_ICON_TERRAIN_TOOL_ERASER),
+            "Erase", erase_selected) && !erase_selected)
+    {
+      if (state->stroke_active) s_terrain_stroke_finish(editor);
+      state->surface_paint_erase = true;
+    }
+    ldk_ui_end_horizontal(ui);
+    const char *names[LDK_TERRAIN_SURFACE_COUNT] = {0};
+    for (u32 i = 0u; i < state->data.surface_count; ++i)
+      names[i] = state->data.surfaces[i].name;
+    if (state->surface_paint_index >= state->data.surface_count)
+      state->surface_paint_index = 0u;
+    const u32 chosen = ldk_editor_ui_row_enum(editor, "Surface", 0u,
+        names, state->data.surface_count, state->surface_paint_index,
+        false, NULL);
+    if (chosen < state->data.surface_count &&
+        chosen != state->surface_paint_index)
+    {
+      if (state->stroke_active) s_terrain_stroke_finish(editor);
+      state->surface_paint_index = chosen;
+    }
   }
   else
   {
@@ -2851,7 +3156,8 @@ void ldki_editor_terrain_inspector_draw(LDKEditorContext *editor,
   /* When editing is off, every collection is shown; active modes filter.
    * The fold state remains owned by the Inspector across mode changes. */
   if (!state->enabled ||
-      state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_SCULPT)
+      state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_SCULPT ||
+      state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_PAINT)
   {
     ldk_ui_horizontal_line(ui);
     s_terrain_surface_folds_draw(editor, entity);

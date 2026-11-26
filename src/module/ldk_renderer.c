@@ -2909,6 +2909,21 @@ bool ldk_renderer_texture_update(LDKRenderer* renderer,
       pixels, (u32)byte_count);
 }
 
+bool ldk_renderer_texture_rgba8_region_update(
+    LDKRenderer *renderer, LDKResourceTexture texture,
+    u32 x, u32 y, u32 width, u32 height, const u8 *pixels)
+{
+  if (!renderer || !renderer->rhi || !pixels) return false;
+  LDKRendererTextureResource *resource =
+      s_renderer_texture_get_resource(renderer, texture);
+  if (!resource || resource->format != LDK_RHI_FORMAT_RGBA8_UNORM ||
+      !width || !height || x >= resource->width || y >= resource->height ||
+      width > resource->width - x || height > resource->height - y ||
+      (u64)width * height * 4u > UINT32_MAX) return false;
+  return ldk_rhi_texture_update_region(renderer->rhi, resource->texture,
+      x, y, width, height, pixels, width * height * 4u);
+}
+
 LDKResourceTexture ldk_renderer_texture_create_from_image(
     LDKRenderer* renderer, LDKImage const* image,
     LDKRendererTextureOptions const* options)
@@ -3502,6 +3517,25 @@ bool ldk_renderer_terrain_material_resolve(LDKRenderer *renderer,
   return true;
 }
 
+bool ldk_renderer_terrain_material_paint_set(
+    LDKRenderer *renderer, LDKResourceMaterial material,
+    LDKResourceTexture first, LDKResourceTexture second,
+    Vec4 uv_transform)
+{
+  LDKRendererMaterialResource *resource =
+      s_renderer_material_get_resource(renderer, material);
+  if (!resource || !resource->desc.terrain) return false;
+  const bool enabled = first.id != LDK_RHI_INVALID_RESOURCE &&
+      second.id != LDK_RHI_INVALID_RESOURCE;
+  if (enabled && (!ldk_renderer_texture_is_valid(renderer, first) ||
+      !ldk_renderer_texture_is_valid(renderer, second))) return false;
+  resource->desc.terrain_paint_enabled = enabled;
+  resource->desc.terrain_paint_textures[0] = first;
+  resource->desc.terrain_paint_textures[1] = second;
+  resource->desc.terrain_paint_uv = uv_transform;
+  return true;
+}
+
 LDKResourceMaterial ldk_renderer_material_null(void)
 {
   return LDK_RESOURCE_MATERIAL_INVALID;
@@ -3913,6 +3947,10 @@ LDKResourceMaterial ldk_renderer_material_create(
       desc->vegetation_mesh_inv_height;
   resource->desc.terrain = desc->terrain;
   resource->desc.terrain_surface_count = desc->terrain_surface_count;
+  resource->desc.terrain_paint_uv = desc->terrain_paint_uv;
+  resource->desc.terrain_paint_enabled = desc->terrain_paint_enabled;
+  memcpy(resource->desc.terrain_paint_textures, desc->terrain_paint_textures,
+      sizeof(desc->terrain_paint_textures));
   if (desc->terrain_surface_count <= LDK_RENDERER_TERRAIN_SURFACE_COUNT)
   {
     memcpy(resource->desc.terrain_surfaces, desc->terrain_surfaces,

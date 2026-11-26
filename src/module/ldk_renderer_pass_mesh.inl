@@ -1448,6 +1448,19 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
       }
     }
 
+    if (material->selection == LDK_RENDERER_MATERIAL_SELECTION_TERRAIN &&
+        material->desc.terrain_paint_enabled)
+    {
+      for (u32 i = 0u; i < 2u; ++i)
+      {
+        LDKRendererTextureResource *paint = s_renderer_texture_get_resource(
+            renderer, material->desc.terrain_paint_textures[i]);
+        if (!paint) return;
+        textures[6u + i] = paint->texture;
+        samplers[6u + i] = paint->sampler;
+      }
+    }
+
     if (lit)
     {
       if (material->desc.normal_map.id != LDK_RHI_INVALID_RESOURCE)
@@ -1515,6 +1528,12 @@ static void s_renderer_mesh_pass_draw_run(LDKRenderer* renderer,
   {
     material_params.terrain_info[0] =
         (float)material->desc.terrain_surface_count;
+    material_params.terrain_info[1] =
+        material->desc.terrain_paint_enabled ? 1.0f : 0.0f;
+    material_params.uv_transform[7][0] = material->desc.terrain_paint_uv.x;
+    material_params.uv_transform[7][1] = material->desc.terrain_paint_uv.y;
+    material_params.uv_transform[7][2] = material->desc.terrain_paint_uv.z;
+    material_params.uv_transform[7][3] = material->desc.terrain_paint_uv.w;
     for (u32 i = 0u; i < material->desc.terrain_surface_count; ++i)
     {
       const LDKRendererTerrainSurfaceDesc *surface =
