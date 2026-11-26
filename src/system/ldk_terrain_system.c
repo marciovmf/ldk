@@ -19,27 +19,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Diagnostic A/B switch (rebuild after changing it):
- * 0: normal terrain painting, with GPU uploads and shader composition;
- * 1: bypass painting GPU uploads AND shader composition;
- * 2: keep paint GPU uploads, bypass shader composition.
- * CPU paint data, Undo/Redo and scene serialization are untouched. */
-#ifndef LDK_TERRAIN_DIAGNOSTIC_PAINT_MODE
-#define LDK_TERRAIN_DIAGNOSTIC_PAINT_MODE 0
-#endif
-#if LDK_TERRAIN_DIAGNOSTIC_PAINT_MODE < 0 || \
-    LDK_TERRAIN_DIAGNOSTIC_PAINT_MODE > 2
-#error Unsupported LDK_TERRAIN_DIAGNOSTIC_PAINT_MODE
-#endif
-
-static bool s_terrain_perf_log_slow(double milliseconds)
-{
-  static u32 samples = 0u;
-  if (milliseconds < 5.0) return false;
-  ++samples;
-  return samples <= 24u || samples % 60u == 0u;
-}
-
 typedef struct LDKTerrainChunk
 {
   LDKResourceMesh mesh;
@@ -934,8 +913,6 @@ static bool s_chunks_update_region(LDKTerrainSystem *system,
 
   float origin_x, origin_z;
   s_world_origin(system, &origin_x, &origin_z);
-  const u64 perf_start = ldk_os_time_ticks_get();
-  u32 updated_count = 0u;
   bool updated = false;
   for (u32 cy = 0u; cy < chunks_y; ++cy)
   {
@@ -959,17 +936,9 @@ static bool s_chunks_update_region(LDKTerrainSystem *system,
               mesh_cells_y, origin_x, origin_z))
         return false;
       updated = true;
-      ++updated_count;
     }
   }
   if (updated) ++system->mesh_update_count;
-  const double elapsed = ldk_os_time_ticks_interval_get_milliseconds(
-      perf_start, ldk_os_time_ticks_get());
-  if (s_terrain_perf_log_slow(elapsed))
-    ldk_log_warning("[TerrainPerf] sculpt mesh region: %.2f ms, "
-        "chunks=%u/%u, rect=(%u,%u %ux%u)\n", elapsed,
-        updated_count, s_runtime.chunk_count, region.x, region.y,
-        region.width, region.height);
   return true;
 }
 
@@ -1144,12 +1113,6 @@ static bool s_paint_update(const LDKTerrainComponent *component,
   const u32 width = component->terrain.width;
   const u32 height = component->terrain.height;
   const bool present = component->surface_paint != NULL;
-#if LDK_TERRAIN_DIAGNOSTIC_PAINT_MODE == 1
-  /* A/B baseline: neither sample paint in the shader nor upload its masks. */
-  return ldk_renderer_terrain_material_paint_set(renderer, s_runtime.material,
-      ldk_renderer_texture_null(), ldk_renderer_texture_null(),
-      vec4_make(0.0f, 0.0f, 1.0f, 1.0f));
-#endif
   if (!present || s_runtime.paint_width != width ||
       s_runtime.paint_height != height)
   {
@@ -1164,7 +1127,6 @@ static bool s_paint_update(const LDKTerrainComponent *component,
   }
   if (present && s_runtime.paint_revision != component->surface_paint_revision)
   {
-    const u64 perf_start = ldk_os_time_ticks_get();
     bool partial = component->surface_paint_dirty_valid &&
         s_runtime.paint_revision ==
             component->surface_paint_dirty_base_revision &&
@@ -1227,13 +1189,6 @@ static bool s_paint_update(const LDKTerrainComponent *component,
       }
     }
     free(buffer);
-    const double elapsed = ldk_os_time_ticks_interval_get_milliseconds(
-        perf_start, ldk_os_time_ticks_get());
-    if (s_terrain_perf_log_slow(elapsed))
-      ldk_log_warning("[TerrainPerf] paint texture update: %.2f ms, "
-          "path=%s, rect=(%u,%u %ux%u), mode=%d\n", elapsed,
-          partial ? "region" : "full", x, y, rw, rh,
-          LDK_TERRAIN_DIAGNOSTIC_PAINT_MODE);
     if (!ok) return false;
     s_runtime.paint_revision = component->surface_paint_revision;
   }
@@ -1246,14 +1201,8 @@ static bool s_paint_update(const LDKTerrainComponent *component,
   Vec4 uv = vec4_make(origin_x, origin_z,
       1.0f / (width * s_runtime.config.cell_size),
       1.0f / (height * s_runtime.config.cell_size));
-#if LDK_TERRAIN_DIAGNOSTIC_PAINT_MODE == 2
-  /* Upload remains active; material does not expose maps to the shader. */
-  return ldk_renderer_terrain_material_paint_set(renderer, s_runtime.material,
-      ldk_renderer_texture_null(), ldk_renderer_texture_null(), uv);
-#else
   return ldk_renderer_terrain_material_paint_set(renderer, s_runtime.material,
       s_runtime.paint_textures[0], s_runtime.paint_textures[1], uv);
-#endif
 }
 
 /* Release one entity's resources. Must be called with its cache current. */
@@ -1472,7 +1421,6 @@ static bool s_terrain_visit(LDKEntity entity, void *user)
       !ldk_scenegraph_update_entity(entity)) return true;
   Mat4 world;
   if (!ldk_transform_get_world_matrix(entity, &world)) return true;
-  const u64 perf_start = ldk_os_time_ticks_get();
   LDKTerrainRuntime *entry = s_terrain_entry_get(entity, context->system);
   if (!entry) return false;
   s_current = entry;
@@ -1500,8 +1448,6 @@ static bool s_terrain_visit(LDKEntity entity, void *user)
       (x_handle_is_null(generic.h) &&
           (entry->source.width != entry->config.width ||
            entry->source.height != entry->config.height));
-  bool partial_geometry = false;
-  bool full_geometry = false;
   if (source_changed)
   {
     /* Incremental edit is safe only if the renderer has the exact revision
@@ -1522,7 +1468,6 @@ static bool s_terrain_visit(LDKEntity entity, void *user)
           s_chunks_update_region(system, renderer, region);
       if (partial) entry->geometry_hash = s_geometry_hash(system);
     }
-    partial_geometry = partial;
     if (!partial)
     {
       if (!s_source_refresh(system, assets, component))
@@ -1538,7 +1483,6 @@ static bool s_terrain_visit(LDKEntity entity, void *user)
   u64 gh = s_geometry_hash(system);
   if (!entry->chunks || entry->geometry_hash != gh)
   {
-    full_geometry = true;
     if (!s_chunks_rebuild(system, renderer)) return true;
   }
   if (source_changed && component->heightmap_dirty_valid)
@@ -1551,10 +1495,8 @@ static bool s_terrain_visit(LDKEntity entity, void *user)
         mutable_component->heightmap_revision == entry->source_revision)
       mutable_component->heightmap_dirty_valid = false;
   }
-  const u64 perf_geometry_done = ldk_os_time_ticks_get();
   if (!s_material_resolve(system, renderer, assets) ||
       !s_paint_update(component, renderer)) return true;
-  const u64 perf_material_done = ldk_os_time_ticks_get();
   if (component->surface_paint_dirty_valid &&
       entry->paint_revision == component->surface_paint_revision)
   {
@@ -1591,24 +1533,6 @@ static bool s_terrain_visit(LDKEntity entity, void *user)
         system->visible_chunk_count++;
     }
   }
-  const u64 perf_end = ldk_os_time_ticks_get();
-  const double elapsed = ldk_os_time_ticks_interval_get_milliseconds(
-      perf_start, perf_end);
-  if (s_terrain_perf_log_slow(elapsed))
-    ldk_log_warning("[TerrainPerf] terrain visit: %.2f ms, "
-        "config+height+mesh=%.2f ms, material+paint=%.2f ms, "
-        "submit=%.2f ms, source=%u, partial_mesh=%u, "
-        "full_mesh=%u, paint_revision=%llu, mode=%d\n", elapsed,
-        ldk_os_time_ticks_interval_get_milliseconds(perf_start,
-            perf_geometry_done),
-        ldk_os_time_ticks_interval_get_milliseconds(perf_geometry_done,
-            perf_material_done),
-        ldk_os_time_ticks_interval_get_milliseconds(perf_material_done,
-            perf_end),
-        source_changed ? 1u : 0u, partial_geometry ? 1u : 0u,
-        full_geometry ? 1u : 0u,
-        (unsigned long long)component->surface_paint_revision,
-        LDK_TERRAIN_DIAGNOSTIC_PAINT_MODE);
   return true;
 }
 

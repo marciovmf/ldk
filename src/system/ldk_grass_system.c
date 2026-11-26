@@ -4533,13 +4533,6 @@ static bool s_terrain_layer_patches_reproject(
     const LDKTerrainVegetationLayer *layer,
     const LDKTerrainHeightmapRegion *region, u32 halo)
 {
-  const u64 perf_start = ldk_os_time_ticks_get();
-  u32 modified_patches = 0u;
-  u32 modified_instances = 0u;
-  u64 inspected_instances = 0u;
-  u32 indexed_patches = 0u;
-  double scan_ms = 0.0;
-  double bounds_ms = 0.0;
   const LDKTerrain *terrain = &source->terrain;
   const Vec3 up = vec3_make(0.0f, 1.0f, 0.0f);
   LDKImageInfo heights = {0};
@@ -4586,14 +4579,12 @@ static bool s_terrain_layer_patches_reproject(
     const LDKGrassTerrainCandidateIndex *index = entry->candidate_index;
     const bool indexed = index && index->ready &&
         index->candidate_slots && index->slot_candidates;
-    if (indexed) ++indexed_patches;
     LDKGrassTerrainCandidateIterator it = {0};
     const LDKGrassTerrainClip clip = {min_x, min_z, max_x, max_z};
     if (indexed)
       s_terrain_candidate_iterator_init(&it, index,
           &entry->desc.plane, &clip);
     u32 cursor = 0u;
-    const u64 scan_start = ldk_os_time_ticks_get();
     while (true)
     {
       u32 i;
@@ -4623,7 +4614,6 @@ static bool s_terrain_layer_patches_reproject(
         local = mat4_mul_point(inverse, world_position);
         if (!s_terrain_clip_contains(&clip, local.x, local.z)) continue;
       }
-      ++inspected_instances;
       Mat4 *instance = &entry->instances[i];
       float height;
       Vec3 terrain_normal;
@@ -4665,38 +4655,18 @@ static bool s_terrain_layer_patches_reproject(
       instance->m[13] = new_position.y;
       instance->m[14] = new_position.z;
       entry->terrain_normals[i] = new_normal;
-      ++modified_instances;
       changed = true;
     }
-    scan_ms += ldk_os_time_ticks_interval_get_milliseconds(
-        scan_start, ldk_os_time_ticks_get());
     if (changed)
     {
-      const u64 bounds_start = ldk_os_time_ticks_get();
-      ++modified_patches;
       LDKGrassResolvedDesc resolved;
       if (!s_resolved_desc_build(system, &entry->type, &entry->desc,
               &resolved)) return false;
       s_patch_bounds_calculate(&resolved, entry->instances,
           entry->instance_count, &entry->bounds_min, &entry->bounds_max);
-      bounds_ms += ldk_os_time_ticks_interval_get_milliseconds(
-          bounds_start, ldk_os_time_ticks_get());
       if (entry->batch_index < s_grass.batch_count)
         s_grass.batches[entry->batch_index].dirty = true;
     }
-  }
-  const double elapsed = ldk_os_time_ticks_interval_get_milliseconds(
-      perf_start, ldk_os_time_ticks_get());
-  if (elapsed >= 10.0)
-  {
-    static u32 slow_reproject_count;
-    if (++slow_reproject_count <= 24u || slow_reproject_count % 60u == 0u)
-      ldk_log_warning("[TerrainPerf] grass reproject: %.2f ms, "
-          "patches=%u, indexed=%u, inspected=%llu, updated=%u, "
-          "scan=%.2f ms, bounds=%.2f ms\n", elapsed,
-          modified_patches, indexed_patches,
-          (unsigned long long)inspected_instances,
-          modified_instances, scan_ms, bounds_ms);
   }
   return true;
 }
@@ -4790,11 +4760,6 @@ static bool s_terrain_layer_patches_density_refresh(
   u32 updated = 0u;
   u32 generated_count = 0u;
   u32 indexed = 0u;
-  u64 inspected_instances = 0u;
-  double generate_ms = 0.0;
-  double compact_ms = 0.0;
-  double bounds_ms = 0.0;
-  const u64 refresh_start = ldk_os_time_ticks_get();
   for (u32 j = 0u; j < s_grass.patch_count; ++j)
   {
     LDKGrassPatchEntry *entry = &s_grass.patches[j];
@@ -4804,7 +4769,6 @@ static bool s_terrain_layer_patches_density_refresh(
         !s_terrain_tile_in_region(entry->terrain_tile_x,
             entry->terrain_tile_z, region, halo)) continue;
 
-    const u64 generate_start = ldk_os_time_ticks_get();
     LDKGrassResolvedDesc resolved;
     if (!s_resolved_desc_build(system, &entry->type, &entry->desc,
             &resolved)) return false;
@@ -4818,9 +4782,6 @@ static bool s_terrain_layer_patches_density_refresh(
             &new_normals, &new_count, &clip,
             &entry->candidate_index, &new_ids)) return false;
     if (had_index) ++indexed;
-    generate_ms += ldk_os_time_ticks_interval_get_milliseconds(
-        generate_start, ldk_os_time_ticks_get());
-    const u64 compact_start = ldk_os_time_ticks_get();
 
     LDKGrassTerrainCandidateIndex *candidate_index = entry->candidate_index;
     const bool mapped = candidate_index && candidate_index->ready &&
@@ -4852,7 +4813,6 @@ static bool s_terrain_layer_patches_density_refresh(
         (void)random_state;
         if (!s_terrain_clip_contains(&clip, position.x, position.z))
           continue;
-        ++inspected_instances;
         if (candidate_index->candidate_slots[candidate_id] != UINT32_MAX &&
             s_random_unit(&random_state) >
                 s_terrain_mask_sample(&mask_placement,
@@ -4923,7 +4883,6 @@ static bool s_terrain_layer_patches_density_refresh(
     else
     {
       /* Fallback when the optional candidate index could not be built. */
-        inspected_instances += entry->instance_count;
       u32 retained = 0u;
       for (u32 i = 0u; i < entry->instance_count; ++i)
       {
@@ -5010,13 +4969,8 @@ static bool s_terrain_layer_patches_density_refresh(
       entry->instance_count = combined_count;
       free(new_ids);
     }
-    compact_ms += ldk_os_time_ticks_interval_get_milliseconds(
-        compact_start, ldk_os_time_ticks_get());
-    const u64 bounds_start = ldk_os_time_ticks_get();
     s_patch_bounds_calculate(&resolved, entry->instances,
         entry->instance_count, &entry->bounds_min, &entry->bounds_max);
-    bounds_ms += ldk_os_time_ticks_interval_get_milliseconds(
-        bounds_start, ldk_os_time_ticks_get());
     if (entry->batch_index < s_grass.batch_count)
       s_grass.batches[entry->batch_index].dirty = true;
     ++updated;
@@ -5025,18 +4979,6 @@ static bool s_terrain_layer_patches_density_refresh(
   if (out_updated) *out_updated = updated;
   if (out_candidates) *out_candidates = generated_count;
   if (out_indexed) *out_indexed = indexed;
-  const double refresh_ms = ldk_os_time_ticks_interval_get_milliseconds(
-      refresh_start, ldk_os_time_ticks_get());
-  if (refresh_ms >= 25.0)
-  {
-    static u32 slow_detail_count;
-    if (++slow_detail_count <= 24u || slow_detail_count % 60u == 0u)
-      ldk_log_warning("[TerrainPerf] grass density detail: %.2f ms, "
-          "indexed=%u, inspected=%llu, generated=%u, "
-          "generate=%.2f ms, compact=%.2f ms, bounds=%.2f ms\n",
-          refresh_ms, indexed, (unsigned long long)inspected_instances,
-          generated_count, generate_ms, compact_ms, bounds_ms);
-  }
   return true;
 }
 
@@ -5129,8 +5071,6 @@ static bool s_terrain_patches_sync(const LDKGrassSystem *system)
       const bool layer_changed = cache->hash != layer_hash;
       const bool height_changed = cache->heightmap_revision != heightmap_revision;
       const bool density_changed = cache->density_revision != density_revision;
-      const bool asset_changed = layer->type.kind !=
-          LDK_GRASS_LAYER_VEGETATION && cache->asset_revision != asset_revision;
       if (!layer_changed && !height_changed && !density_changed) continue;
 
       /* A mask brush modifies only the touched patch tiles; a Sculpt brush
@@ -5185,16 +5125,12 @@ static bool s_terrain_patches_sync(const LDKGrassSystem *system)
        * mask can change, preserving all instances outside the edit area. */
       if (region_update && density_changed && !height_changed)
       {
-        const u64 refresh_start = ldk_os_time_ticks_get();
-        u32 updated = 0u;
-        u32 indexed = 0u;
         /* Newly painted tiles did not have a patch before. Create their
          * metadata cheaply, then refresh the same small region once. */
         patch_total = 0u;
         for (u32 j = 0u; j < s_grass.patch_count; ++j)
           if (s_grass.patches[j].alive && s_grass.patches[j].terrain_owned)
             ++patch_total;
-        const u32 old_total = patch_total;
         if (!s_terrain_layer_patches_create(system, source, layer,
                 embedded, &patch_total, region, region_halo, true, true))
         {
@@ -5202,9 +5138,8 @@ static bool s_terrain_patches_sync(const LDKGrassSystem *system)
           free(list.sources);
           return false;
         }
-        const u32 created = patch_total - old_total;
         if (!s_terrain_layer_patches_density_refresh(system, source,
-                layer, region, region_halo, &updated, NULL, &indexed))
+                layer, region, region_halo, NULL, NULL, NULL))
         {
           cache->hash = 0u;
           free(list.sources);
@@ -5214,21 +5149,8 @@ static bool s_terrain_patches_sync(const LDKGrassSystem *system)
         cache->heightmap_revision = heightmap_revision;
         cache->density_revision = density_revision;
         cache->asset_revision = asset_revision;
-        const double refresh_ms =
-            ldk_os_time_ticks_interval_get_milliseconds(
-                refresh_start, ldk_os_time_ticks_get());
-        if (refresh_ms >= 10.0)
-        {
-          static u32 slow_refresh_count;
-          if (++slow_refresh_count <= 24u || slow_refresh_count % 60u == 0u)
-            ldk_log_warning("[TerrainPerf] grass density refresh: %.2f ms, "
-                "updated_patches=%u, indexed_patches=%u, "
-                "created_patches=%u, patches_total=%u\n",
-                refresh_ms, updated, indexed, created, patch_total);
-        }
         continue;
       }
-      const u64 rebuild_start = ldk_os_time_ticks_get();
       if (region_update)
         s_terrain_layer_patches_remove_region(
             source->entity, layer->id, region, region_halo);
@@ -5252,20 +5174,6 @@ static bool s_terrain_patches_sync(const LDKGrassSystem *system)
       cache->heightmap_revision = heightmap_revision;
       cache->density_revision = density_revision;
       cache->asset_revision = asset_revision;
-      const double rebuild_ms =
-          ldk_os_time_ticks_interval_get_milliseconds(
-              rebuild_start, ldk_os_time_ticks_get());
-      if (rebuild_ms >= 10.0)
-      {
-        static u32 slow_rebuild_count;
-        if (++slow_rebuild_count <= 24u || slow_rebuild_count % 60u == 0u)
-          ldk_log_warning("[TerrainPerf] grass rebuild: %.2f ms, "
-              "layer_changed=%u, height_changed=%u, density_changed=%u, "
-              "asset_changed=%u, regional=%u, patches_total=%u\n", rebuild_ms,
-              layer_changed ? 1u : 0u, height_changed ? 1u : 0u,
-              density_changed ? 1u : 0u, asset_changed ? 1u : 0u,
-              region_update ? 1u : 0u, patch_total);
-      }
     }
   }
 
@@ -5758,7 +5666,6 @@ void ldk_grass_system_update(
     return;
   }
 
-  const u64 perf_start = ldk_os_time_ticks_get();
   config_hash = s_system_config_hash(system);
   if (config_hash != s_grass.config_hash)
   {
@@ -5774,7 +5681,6 @@ void ldk_grass_system_update(
   {
     return;
   }
-  const u64 perf_sync_end = ldk_os_time_ticks_get();
 
   s_interaction_components_collect();
   if (!s_interaction_field_update(dt))
@@ -5783,22 +5689,7 @@ void ldk_grass_system_update(
   }
 
   s_grass_submit();
-  const u64 perf_end = ldk_os_time_ticks_get();
-  const double elapsed = ldk_os_time_ticks_interval_get_milliseconds(
-      perf_start, perf_end);
-  if (elapsed >= 5.0)
-  {
-    static u32 slow_grass_count;
-    ++slow_grass_count;
-    if (slow_grass_count <= 24u || slow_grass_count % 60u == 0u)
-      ldk_log_warning("[TerrainPerf] grass: %.2f ms, "
-          "sync=%.2f ms, interaction+submit=%.2f ms, "
-          "patches=%u\n", elapsed,
-          ldk_os_time_ticks_interval_get_milliseconds(perf_start,
-              perf_sync_end),
-          ldk_os_time_ticks_interval_get_milliseconds(perf_sync_end,
-              perf_end), s_grass.patch_count);
-  }
+
 }
 
 void ldk_grass_system_on_editor_update(

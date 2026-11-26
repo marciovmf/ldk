@@ -370,7 +370,10 @@ static bool on_event_keyboard(const LDKEvent *event, void *state)
         ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_INSPECTOR) ||
         ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_HIERARCHY) ||
         ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_SCENE) ||
-        ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_GAME);
+        ldki_editor_window_is_focused(editor, LDK_EDITOR_WINDOW_GAME) ||
+        /* Terrain strokes handle mouse input directly in the Scene viewport.
+         * That interaction need not transfer keyboard focus to the dock. */
+        (editor->terrain_editor.enabled && editor->terrain_editor.loaded);
     bool text_editing = editor->ui.input_box_id != 0 &&
         editor->ui.focused_id == editor->ui.input_box_id;
 
