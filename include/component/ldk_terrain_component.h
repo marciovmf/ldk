@@ -18,16 +18,7 @@
 extern "C" {
 #endif
 
-/** Optional owned R8 mask buffers, indexed in vegetation layer order. Keep
- * the C array outside the reflected component: Comet does not support C
- * arrays as inspector fields. */
-typedef struct LDKTerrainVegetationDensity
-{
-  u8 *samples[LDK_TERRAIN_VEGETATION_LAYER_COUNT];
-} LDKTerrainVegetationDensity;
-
-/** Changed heightmap texels, in image coordinates, inclusive of no padding.
- * Only valid while heightmap_dirty_valid is true. */
+/** Rectangle of changed samples in terrain grid coordinates. */
 typedef struct LDKTerrainHeightmapRegion
 {
   u32 x;
@@ -35,6 +26,17 @@ typedef struct LDKTerrainHeightmapRegion
   u32 width;
   u32 height;
 } LDKTerrainHeightmapRegion;
+
+/** Scene-owned R8 density masks in vegetation-layer order. Separate revision
+ * and dirty rectangle per layer let GrassSystem update only brushed patches. */
+typedef struct LDKTerrainVegetationDensity
+{
+  u8 *samples[LDK_TERRAIN_VEGETATION_LAYER_COUNT];
+  u64 revisions[LDK_TERRAIN_VEGETATION_LAYER_COUNT];
+  LDKTerrainHeightmapRegion dirty_regions[LDK_TERRAIN_VEGETATION_LAYER_COUNT];
+  u64 dirty_base_revisions[LDK_TERRAIN_VEGETATION_LAYER_COUNT];
+  bool dirty_valid[LDK_TERRAIN_VEGETATION_LAYER_COUNT];
+} LDKTerrainVegetationDensity;
 
 /** @group ldk.component.terrain */
 //@component
@@ -140,6 +142,11 @@ LDK_API bool ldk_terrain_component_surface_paint_remove(
     LDKTerrainComponent *component, u32 index);
 LDK_API bool ldk_terrain_component_vegetation_density_set(
     LDKTerrainComponent *component, u64 layer_id, const u8 *samples);
+/** Publish a rectangular edit from a complete R8 layer buffer without
+ * replacing the owned mask. Unmodified samples and other layers survive. */
+LDK_API bool ldk_terrain_component_vegetation_density_region_set(
+    LDKTerrainComponent *component, u64 layer_id, const u8 *samples,
+    u32 x, u32 y, u32 width, u32 height);
 /** Add/remove a vegetation layer while keeping its owned mask aligned. */
 LDK_API bool ldk_terrain_component_vegetation_layer_add(
     LDKTerrainComponent *component, const LDKGrassTypeDesc *type,

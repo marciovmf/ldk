@@ -25,6 +25,13 @@
 /* Independent chunks for editor-authored terrain vegetation. The mask is
  * sampled per instance; the tile only bounds candidate generation. */
 #define LDK_GRASS_TERRAIN_PATCH_CELLS 32u
+/* A patch can contain hundreds of thousands of scattered candidates. A
+ * density brush must not reevaluate their random/clump positions every dab.
+ * Bin all candidates once, keeping the RNG state after placement so a
+ * refreshed candidate reproduces the exact same transform. */
+#define LDK_GRASS_TERRAIN_CANDIDATE_BINS 32u
+#define LDK_GRASS_TERRAIN_CANDIDATE_BIN_COUNT \
+  (LDK_GRASS_TERRAIN_CANDIDATE_BINS * LDK_GRASS_TERRAIN_CANDIDATE_BINS)
 #define LDK_GRASS_TERRAIN_PATCH_LIMIT 65536u
 #define LDK_GRASS_INVALID_BATCH UINT32_MAX
 #define LDK_GRASS_RIBBON_VERTEX_COUNT                                        \
@@ -108,12 +115,37 @@ typedef struct LDKGrassResolvedDesc
   bool unlit;
 } LDKGrassResolvedDesc;
 
+typedef struct LDKGrassTerrainCandidate
+{
+  Vec2 position;
+  u32 random_state;
+  u32 next;
+} LDKGrassTerrainCandidate;
+
+typedef struct LDKGrassTerrainCandidateIndex
+{
+  LDKGrassTerrainCandidate *candidates;
+  /* Candidate ID -> accepted instance slot; inverse maps dense slots back
+   * to stable candidate IDs. These are rebuilt with the candidate scatter and
+   * updated in O(touched candidates) for regional density brush strokes. */
+  u32 *candidate_slots;
+  u32 *slot_candidates;
+  u32 count;
+  u32 heads[LDK_GRASS_TERRAIN_CANDIDATE_BIN_COUNT];
+  bool ready;
+} LDKGrassTerrainCandidateIndex;
+
 typedef struct LDKGrassPatchEntry
 {
   LDKGrassPatchDesc desc;
   LDKGrassTypeDesc type;
   Mat4 *instances;
+  /* World-space terrain normal at each accepted instance. Sculpt can
+   * reproject an existing instance without rerunning its random scatter. */
+  Vec3 *terrain_normals;
+  LDKGrassTerrainCandidateIndex *candidate_index;
   u32 instance_count;
+  u32 instance_capacity;
   u32 instance_offset;
   u32 lod_selected_count;
   u32 batch_index;
@@ -217,6 +249,8 @@ typedef struct LDKGrassTerrainLayerCache
   u64 layer_id;
   u64 hash;
   u64 heightmap_revision;
+  u64 density_revision;
+  u64 asset_revision;
   bool seen;
 } LDKGrassTerrainLayerCache;
 
@@ -1568,16 +1602,27 @@ static void s_patch_bounds_calculate(const LDKGrassResolvedDesc *desc,
     half_width = desc->shape.profile[0].width * 5.0f;
   }
 
+  /* An affine transform of a box has an exact axis-aligned bounding box.
+   * Computing its center and extent directly avoids transforming all eight
+   * corners of every grass blade during a regional editor stroke. */
   for (u32 i = 0u; i < instance_count; ++i)
   {
-    for (u32 corner = 0u; corner < 8u; ++corner)
-    {
-      Vec3 local = vec3_make((corner & 1u) ? half_width : -half_width,
-          (corner & 2u) ? 1.0f : 0.0f,
-          (corner & 4u) ? half_width : -half_width);
-      s_bounds_add_point(&bounds_min, &bounds_max,
-          mat4_mul_point(instances[i], local));
-    }
+    const float *m = instances[i].m;
+    const float cx = m[12] + 0.5f * m[4];
+    const float cy = m[13] + 0.5f * m[5];
+    const float cz = m[14] + 0.5f * m[6];
+    const float ex = half_width * (fabsf(m[0]) + fabsf(m[8])) +
+        0.5f * fabsf(m[4]);
+    const float ey = half_width * (fabsf(m[1]) + fabsf(m[9])) +
+        0.5f * fabsf(m[5]);
+    const float ez = half_width * (fabsf(m[2]) + fabsf(m[10])) +
+        0.5f * fabsf(m[6]);
+    bounds_min.x = fminf(bounds_min.x, cx - ex);
+    bounds_min.y = fminf(bounds_min.y, cy - ey);
+    bounds_min.z = fminf(bounds_min.z, cz - ez);
+    bounds_max.x = fmaxf(bounds_max.x, cx + ex);
+    bounds_max.y = fmaxf(bounds_max.y, cy + ey);
+    bounds_max.z = fmaxf(bounds_max.z, cz + ez);
   }
 
   if (instance_count == 0u)
@@ -1960,20 +2005,189 @@ static float s_terrain_mask_sample(
       (c + (d - c) * tx) * tz;
 }
 
+typedef struct LDKGrassTerrainClip
+{
+  float min_x;
+  float min_z;
+  float max_x;
+  float max_z;
+} LDKGrassTerrainClip;
+
+static bool s_terrain_clip_contains(const LDKGrassTerrainClip *clip,
+    float x, float z)
+{
+  return !clip || (x >= clip->min_x && x <= clip->max_x &&
+      z >= clip->min_z && z <= clip->max_z);
+}
+
+static void s_terrain_candidate_index_destroy(
+    LDKGrassTerrainCandidateIndex *index)
+{
+  if (!index)
+  {
+    return;
+  }
+  free(index->candidates);
+  free(index->candidate_slots);
+  free(index->slot_candidates);
+  free(index);
+}
+
+static LDKGrassTerrainCandidateIndex *s_terrain_candidate_index_make(
+    u32 count)
+{
+  if (!count || !s_allocation_size_is_valid(
+          count, sizeof(LDKGrassTerrainCandidate)))
+  {
+    return NULL;
+  }
+  LDKGrassTerrainCandidateIndex *index = calloc(1u, sizeof(*index));
+  if (!index)
+  {
+    return NULL;
+  }
+  index->candidates = malloc((size_t)count * sizeof(*index->candidates));
+  index->candidate_slots = malloc((size_t)count * sizeof(u32));
+  index->slot_candidates = malloc((size_t)count * sizeof(u32));
+  if (!index->candidates || !index->candidate_slots ||
+      !index->slot_candidates)
+  {
+    s_terrain_candidate_index_destroy(index);
+    return NULL;
+  }
+  index->count = count;
+  for (u32 i = 0u; i < count; ++i)
+    index->candidate_slots[i] = UINT32_MAX;
+  for (u32 i = 0u; i < LDK_GRASS_TERRAIN_CANDIDATE_BIN_COUNT; ++i)
+  {
+    index->heads[i] = UINT32_MAX;
+  }
+  return index;
+}
+
+static u32 s_terrain_candidate_bin(float coord)
+{
+  if (!(coord > 0.0f))
+  {
+    return 0u;
+  }
+  if (coord >= 1.0f)
+  {
+    return LDK_GRASS_TERRAIN_CANDIDATE_BINS - 1u;
+  }
+  return (u32)(coord * (float)LDK_GRASS_TERRAIN_CANDIDATE_BINS);
+}
+
+static u32 s_terrain_candidate_bucket(const LDKGrassPlane *plane,
+    float x, float z)
+{
+  const u32 bx = s_terrain_candidate_bin(
+      (x - plane->origin.x) / plane->axis_u.x);
+  const u32 bz = s_terrain_candidate_bin(
+      (plane->origin.z - z) / -plane->axis_v.z);
+  return bz * LDK_GRASS_TERRAIN_CANDIDATE_BINS + bx;
+}
+
+static void s_terrain_candidate_index_insert(
+    LDKGrassTerrainCandidateIndex *index, const LDKGrassPlane *plane,
+    u32 id, Vec3 position, u32 random_state)
+{
+  const u32 bucket = s_terrain_candidate_bucket(
+      plane, position.x, position.z);
+  LDKGrassTerrainCandidate *item = &index->candidates[id];
+  item->position = vec2_make(position.x, position.z);
+  item->random_state = random_state;
+  item->next = index->heads[bucket];
+  index->heads[bucket] = id;
+}
+
+typedef struct LDKGrassTerrainCandidateIterator
+{
+  const LDKGrassTerrainCandidateIndex *index;
+  u32 min_x;
+  u32 max_x;
+  u32 max_z;
+  u32 x;
+  u32 z;
+  u32 next;
+} LDKGrassTerrainCandidateIterator;
+
+static void s_terrain_candidate_iterator_init(
+    LDKGrassTerrainCandidateIterator *it,
+    const LDKGrassTerrainCandidateIndex *index,
+    const LDKGrassPlane *plane, const LDKGrassTerrainClip *clip)
+{
+  const float size_x = plane->axis_u.x;
+  const float size_z = -plane->axis_v.z;
+  it->index = index;
+  it->min_x = s_terrain_candidate_bin(
+      (clip->min_x - plane->origin.x) / size_x);
+  it->max_x = s_terrain_candidate_bin(
+      (clip->max_x - plane->origin.x) / size_x);
+  it->z = s_terrain_candidate_bin(
+      (plane->origin.z - clip->max_z) / size_z);
+  it->max_z = s_terrain_candidate_bin(
+      (plane->origin.z - clip->min_z) / size_z);
+  it->x = it->min_x;
+  it->next = UINT32_MAX;
+}
+
+static bool s_terrain_candidate_iterator_next(
+    LDKGrassTerrainCandidateIterator *it, Vec3 *position,
+    u32 *random_state, u32 *candidate_id)
+{
+  while (it->next == UINT32_MAX)
+  {
+    if (it->z > it->max_z)
+    {
+      return false;
+    }
+    const u32 bucket = it->z * LDK_GRASS_TERRAIN_CANDIDATE_BINS + it->x;
+    it->next = it->index->heads[bucket];
+    if (it->x == it->max_x)
+    {
+      it->x = it->min_x;
+      ++it->z;
+    }
+    else
+    {
+      ++it->x;
+    }
+  }
+  const u32 id = it->next;
+  const LDKGrassTerrainCandidate *item = &it->index->candidates[id];
+  it->next = item->next;
+  *position = vec3_make(item->position.x, 0.0f, item->position.y);
+  *random_state = item->random_state;
+  if (candidate_id) *candidate_id = id;
+  return true;
+}
+
 static bool s_patch_instances_generate(const LDKGrassResolvedDesc *desc,
-    Mat4 **out_instances, u32 *out_count)
+    Mat4 **out_instances, Vec3 **out_normals, u32 *out_count,
+    const LDKGrassTerrainClip *clip,
+    LDKGrassTerrainCandidateIndex **index_io,
+    u32 **out_candidate_ids)
 {
   Mat4 *instances = NULL;
+  Vec3 *normals = NULL;
+  u32 normals_capacity = 0u;
   Vec3 normal;
   float area;
   double expected_count;
   u32 count;
   u32 random;
   u32 accepted = 0u;
+  u32 instance_capacity = 0u;
   Quat align;
   LDKGrassTerrainPlacement placement;
+  LDKGrassTerrainCandidateIndex *index = NULL;
+  LDKGrassTerrainCandidateIterator iterator = {0};
+  u32 *partial_ids = NULL;
+  u32 partial_capacity = 0u;
+  bool use_index = false;
 
-  if (!out_instances || !out_count ||
+  if (!out_instances || !out_normals || !out_count ||
       !s_desc_is_valid(desc, &area, &normal) ||
       !s_terrain_placement_resolve(desc, &placement))
   {
@@ -1981,7 +2195,9 @@ static bool s_patch_instances_generate(const LDKGrassResolvedDesc *desc,
   }
 
   *out_instances = NULL;
+  *out_normals = NULL;
   *out_count = 0u;
+  if (out_candidate_ids) *out_candidate_ids = NULL;
   random = s_random_state(desc->seed);
   expected_count = (double)area * (double)desc->density;
   if (desc->clumping > 0.0f)
@@ -2001,6 +2217,11 @@ static bool s_patch_instances_generate(const LDKGrassResolvedDesc *desc,
 
   if (count == 0u)
   {
+    if (index_io)
+    {
+      s_terrain_candidate_index_destroy(*index_io);
+      *index_io = NULL;
+    }
     return true;
   }
   if (!s_allocation_size_is_valid(count, sizeof(*instances)))
@@ -2008,64 +2229,117 @@ static bool s_patch_instances_generate(const LDKGrassResolvedDesc *desc,
     return false;
   }
 
-  instances = (Mat4 *)malloc((size_t)count * sizeof(*instances));
-  if (!instances)
+  /* The full scatter builds a spatial index as it already visits every
+   * candidate. Later brush strokes visit only bins that overlap the mask
+   * rectangle. Non-terrain patches keep the original generation path. */
+  if (index_io && placement.terrain &&
+      desc->terrain_vegetation_layer_id &&
+      desc->plane.axis_u.x > STDXM_EPS &&
+      desc->plane.axis_v.z < -STDXM_EPS)
   {
-    return false;
+    index = *index_io;
+    if (index && index->count != count)
+    {
+      s_terrain_candidate_index_destroy(index);
+      index = NULL;
+      *index_io = NULL;
+    }
+    if (!index)
+    {
+      index = s_terrain_candidate_index_make(count);
+      *index_io = index;
+    }
+    use_index = index && index->ready && clip;
+    if (use_index)
+      s_terrain_candidate_iterator_init(&iterator, index,
+          &desc->plane, clip);
   }
 
+  /* A regional update may accept only a tiny fraction of the candidates.
+   * Do not allocate one full-patch array for every brush sample. */
+  instance_capacity = clip && placement.terrain
+      ? (count < 64u ? count : 64u) : count;
+  instances = (Mat4 *)malloc((size_t)instance_capacity * sizeof(*instances));
+  if (!instances) return false;
+
   align = quat_from_to(vec3_make(0.0f, 1.0f, 0.0f), normal);
-  for (u32 i = 0u; i < count; ++i)
+  for (u32 i = 0u;; ++i)
   {
-    /* Terrain masks must not perturb positions of surviving blades when the
-     * painter changes other pixels. Each candidate owns its RNG sequence. */
-    u32 candidate_random = s_random_state(
-        desc->seed ^ (0x9e3779b9u * (i + 1u)));
-    u32 *rng = placement.terrain ? &candidate_random : &random;
-    float u = s_random_unit(rng);
-    float v = s_random_unit(rng);
-    if (desc->clumping > 0.0f &&
-        s_random_unit(rng) < desc->clumping)
+    u32 candidate_random = 0u;
+    u32 candidate_id = i;
+    Vec3 position;
+    if (use_index)
     {
-      Vec3 sample = vec3_add(desc->plane.origin,
+      if (!s_terrain_candidate_iterator_next(
+              &iterator, &position, &candidate_random,
+              &candidate_id)) break;
+    }
+    else
+    {
+      if (i >= count) break;
+      /* A candidate owns its random sequence. This also allows the cache to
+       * reproduce its mask decision, height and rotation independently. */
+      candidate_random = s_random_state(
+          desc->seed ^ (0x9e3779b9u * (i + 1u)));
+      u32 *position_rng = placement.terrain ? &candidate_random : &random;
+      float u = s_random_unit(position_rng);
+      float v = s_random_unit(position_rng);
+      if (desc->clumping > 0.0f &&
+          s_random_unit(position_rng) < desc->clumping)
+      {
+        Vec3 sample = vec3_add(desc->plane.origin,
+            vec3_add(vec3_mul(desc->plane.axis_u, u),
+                vec3_mul(desc->plane.axis_v, v)));
+        Vec2 center = s_clump_center_at(sample.x, sample.z, position_rng);
+        float theta = s_random_unit(position_rng) * 2.0f * LDK_GRASS_PI;
+        float distance = desc->clump_radius * sqrtf(s_random_unit(position_rng));
+        Vec3 target = vec3_make(center.x + cosf(theta) * distance,
+            sample.y, center.y + sinf(theta) * distance);
+        Vec3 offset = vec3_sub(target, desc->plane.origin);
+        Vec3 axis_u = desc->plane.axis_u;
+        Vec3 axis_v = desc->plane.axis_v;
+        float uu = vec3_dot(axis_u, axis_u);
+        float uv = vec3_dot(axis_u, axis_v);
+        float vv = vec3_dot(axis_v, axis_v);
+        float det = uu * vv - uv * uv;
+
+        /* Do not clamp to patch edges; clumps can cross patch borders. */
+        if (det > STDXM_EPS)
+        {
+          float du = vec3_dot(offset, axis_u);
+          float dv = vec3_dot(offset, axis_v);
+          u = (du * vv - dv * uv) / det;
+          v = (dv * uu - du * uv) / det;
+        }
+      }
+      position = vec3_add(desc->plane.origin,
           vec3_add(vec3_mul(desc->plane.axis_u, u),
               vec3_mul(desc->plane.axis_v, v)));
-      Vec2 center = s_clump_center_at(sample.x, sample.z, rng);
-      float theta = s_random_unit(rng) * 2.0f * LDK_GRASS_PI;
-      float distance = desc->clump_radius * sqrtf(s_random_unit(rng));
-      Vec3 target = vec3_make(center.x + cosf(theta) * distance,
-          sample.y, center.y + sinf(theta) * distance);
-      Vec3 offset = vec3_sub(target, desc->plane.origin);
-      Vec3 axis_u = desc->plane.axis_u;
-      Vec3 axis_v = desc->plane.axis_v;
-      float uu = vec3_dot(axis_u, axis_u);
-      float uv = vec3_dot(axis_u, axis_v);
-      float vv = vec3_dot(axis_v, axis_v);
-      float det = uu * vv - uv * uv;
-
-      /* Map the shared world-space clump center back onto this patch's
-       * plane. Do not clamp to patch borders: doing so would break clumps
-       * that span multiple patches, especially at radius zero. */
-      if (det > STDXM_EPS)
-      {
-        float du = vec3_dot(offset, axis_u);
-        float dv = vec3_dot(offset, axis_v);
-        u = (du * vv - dv * uv) / det;
-        v = (dv * uu - du * uv) / det;
-      }
+      if (index && !index->ready)
+        s_terrain_candidate_index_insert(index,
+            &desc->plane, i, position, candidate_random);
     }
-    Vec3 position = vec3_add(desc->plane.origin,
-        vec3_add(vec3_mul(desc->plane.axis_u, u),
-            vec3_mul(desc->plane.axis_v, v)));
+    u32 *rng = placement.terrain ? &candidate_random : &random;
+    if (clip && placement.terrain && !s_terrain_clip_contains(
+            clip, position.x, position.z)) continue;
+    /* A regional density refresh must generate only newly accepted
+     * candidates. Existing instances are kept or removed by the caller
+     * after testing their original random threshold against the new mask. */
+    if (use_index && out_candidate_ids &&
+        index->candidate_slots[candidate_id] != UINT32_MAX)
+      continue;
+    Vec3 ground_normal = vec3_make(0.0f, 1.0f, 0.0f);
     if (placement.terrain)
     {
       float ground_y;
-      Vec3 ground_normal;
-      if (!ldk_terrain_surface_sample(placement.terrain,
+      /* Reject candidates outside painted density first. This avoids an
+       * expensive height/normal sample for the overwhelmingly empty parts
+       * of sparse vegetation masks, without changing candidate RNG order. */
+      if (s_random_unit(rng) >
+              s_terrain_mask_sample(&placement, position.x, position.z) ||
+          !ldk_terrain_surface_sample(placement.terrain,
               placement.has_heights ? &placement.heights : NULL,
-              position.x, position.z, &ground_y, &ground_normal) ||
-          s_random_unit(rng) >
-              s_terrain_mask_sample(&placement, position.x, position.z))
+              position.x, position.z, &ground_y, &ground_normal))
       {
         continue;
       }
@@ -2106,6 +2380,74 @@ static bool s_patch_instances_generate(const LDKGrassResolvedDesc *desc,
         tilt_angle);
     Quat rotation = quat_mul(align, quat_mul(tilt, yaw));
 
+    if (accepted == instance_capacity)
+    {
+      u32 capacity = instance_capacity <= UINT32_MAX / 2u
+          ? instance_capacity * 2u : count;
+      if (capacity > count) capacity = count;
+      if (capacity <= instance_capacity ||
+          !s_allocation_size_is_valid(capacity, sizeof(*instances)))
+      {
+        free(normals);
+        free(instances);
+        free(partial_ids);
+        return false;
+      }
+      Mat4 *grown = realloc(instances,
+          (size_t)capacity * sizeof(*instances));
+      if (!grown)
+      {
+        free(normals);
+        free(instances);
+        free(partial_ids);
+        return false;
+      }
+      instances = grown;
+      instance_capacity = capacity;
+    }
+    /* Allocate normals only for accepted blades, not rejected mask
+     * candidates. Sparse masks can reject most of the requested count. */
+    if (placement.terrain && accepted == normals_capacity)
+    {
+      u32 capacity = normals_capacity ? normals_capacity * 2u : 64u;
+      if (capacity < normals_capacity || capacity > count)
+        capacity = count;
+      Vec3 *grown = realloc(normals, (size_t)capacity * sizeof(*normals));
+      if (!grown)
+      {
+        free(normals);
+        free(instances);
+        free(partial_ids);
+        return false;
+      }
+      normals = grown;
+      normals_capacity = capacity;
+    }
+
+    if (out_candidate_ids && index && clip &&
+        accepted == partial_capacity)
+    {
+      u32 capacity = partial_capacity ? partial_capacity * 2u : 64u;
+      if (capacity < partial_capacity || capacity > count)
+        capacity = count;
+      u32 *grown = realloc(partial_ids, (size_t)capacity * sizeof(u32));
+      if (!grown)
+      {
+        free(normals);
+        free(instances);
+        free(partial_ids);
+        return false;
+      }
+      partial_ids = grown;
+      partial_capacity = capacity;
+    }
+    if (index && !clip)
+    {
+      index->candidate_slots[candidate_id] = accepted;
+      index->slot_candidates[accepted] = candidate_id;
+    }
+    if (partial_ids) partial_ids[accepted] = candidate_id;
+
     if (desc->kind != LDK_GRASS_LAYER_VEGETATION)
     {
       float rx = deg_to_rad(desc->rotation_min.x +
@@ -2130,17 +2472,23 @@ static bool s_patch_instances_generate(const LDKGrassResolvedDesc *desc,
               s_random_unit(rng),
           desc->scale_min.z + (desc->scale_max.z - desc->scale_min.z) *
               s_random_unit(rng));
+      if (normals) normals[accepted] = ground_normal;
       instances[accepted++] = mat4_compose(position, rotation, scale);
     }
     else
     {
+      if (normals) normals[accepted] = ground_normal;
       instances[accepted++] = mat4_compose(
           position, rotation, vec3_make(1.0f, height, 1.0f));
     }
   }
 
+  if (index) index->ready = true;
   *out_instances = instances;
+  *out_normals = normals;
   *out_count = accepted;
+  if (out_candidate_ids) *out_candidate_ids = partial_ids;
+  else free(partial_ids);
   return true;
 }
 
@@ -3398,6 +3746,8 @@ typedef struct LDKGrassPatchRebuild
 {
   LDKGrassResolvedDesc resolved;
   Mat4 *instances;
+  Vec3 *terrain_normals;
+  LDKGrassTerrainCandidateIndex *candidate_index;
   u32 instance_count;
   Vec3 bounds_min;
   Vec3 bounds_max;
@@ -3503,12 +3853,15 @@ static bool s_config_rebuild(LDKGrassSystem *system)
       continue;
     }
 
-    if (!s_patch_instances_generate(
-            &item->resolved, &item->instances, &item->instance_count))
+    if (!s_patch_instances_generate(&item->resolved, &item->instances,
+            &item->terrain_normals, &item->instance_count, NULL,
+            &item->candidate_index, NULL))
     {
       for (u32 j = 0u; j <= i; ++j)
       {
         free(rebuilt[j].instances);
+        free(rebuilt[j].terrain_normals);
+        s_terrain_candidate_index_destroy(rebuilt[j].candidate_index);
       }
       free(rebuilt);
       s_grass.color_noise_image = old_image;
@@ -3533,8 +3886,13 @@ static bool s_config_rebuild(LDKGrassSystem *system)
     }
 
     free(entry->instances);
+    free(entry->terrain_normals);
+    s_terrain_candidate_index_destroy(entry->candidate_index);
+    entry->candidate_index = NULL;
     entry->instances = NULL;
+    entry->terrain_normals = NULL;
     entry->instance_count = 0u;
+    entry->instance_capacity = 0u;
     entry->instance_offset = 0u;
     entry->batch_index = LDK_GRASS_INVALID_BATCH;
 
@@ -3548,12 +3906,19 @@ static bool s_config_rebuild(LDKGrassSystem *system)
     if (batch_index == LDK_GRASS_INVALID_BATCH)
     {
       free(item->instances);
+      free(item->terrain_normals);
+      s_terrain_candidate_index_destroy(item->candidate_index);
       continue;
     }
 
     entry->instances = item->instances;
+    entry->terrain_normals = item->terrain_normals;
+    entry->candidate_index = item->candidate_index;
     item->instances = NULL;
+    item->terrain_normals = NULL;
+    item->candidate_index = NULL;
     entry->instance_count = item->instance_count;
+    entry->instance_capacity = item->instance_count;
     entry->batch_index = batch_index;
     entry->bounds_min = item->bounds_min;
     entry->bounds_max = item->bounds_max;
@@ -3636,6 +4001,8 @@ LDKGrassPatch ldk_grass_add(const LDKGrassTypeDesc *type,
   LDKGrassResolvedDesc resolved;
   LDKGrassPatchEntry *entry;
   Mat4 *instances;
+  Vec3 *terrain_normals;
+  LDKGrassTerrainCandidateIndex *candidate_index = NULL;
   u32 instance_count;
   u32 batch_index;
   u32 patch_index;
@@ -3644,8 +4011,10 @@ LDKGrassPatch ldk_grass_add(const LDKGrassTypeDesc *type,
 
   if (!s_grass.initialized || !s_grass.owner ||
       !s_resolved_desc_build(s_grass.owner, type, desc, &resolved) ||
-      !s_patch_instances_generate(&resolved, &instances, &instance_count))
+      !s_patch_instances_generate(&resolved, &instances,
+          &terrain_normals, &instance_count, NULL, &candidate_index, NULL))
   {
+    s_terrain_candidate_index_destroy(candidate_index);
     return ldk_grass_patch_null();
   }
 
@@ -3653,6 +4022,8 @@ LDKGrassPatch ldk_grass_add(const LDKGrassTypeDesc *type,
   if (batch_index == LDK_GRASS_INVALID_BATCH)
   {
     free(instances);
+    free(terrain_normals);
+    s_terrain_candidate_index_destroy(candidate_index);
     return ldk_grass_patch_null();
   }
   s_patch_bounds_calculate(
@@ -3671,6 +4042,8 @@ LDKGrassPatch ldk_grass_add(const LDKGrassTypeDesc *type,
     if (!s_patches_reserve(s_grass.patch_count + 1u))
     {
       free(instances);
+      free(terrain_normals);
+      s_terrain_candidate_index_destroy(candidate_index);
       return ldk_grass_patch_null();
     }
     s_grass.patch_count += 1u;
@@ -3684,7 +4057,10 @@ LDKGrassPatch ldk_grass_add(const LDKGrassTypeDesc *type,
   entry->desc = *desc;
   entry->type = *type;
   entry->instances = instances;
+  entry->terrain_normals = terrain_normals;
+  entry->candidate_index = candidate_index;
   entry->instance_count = instance_count;
+  entry->instance_capacity = instance_count;
   entry->instance_offset = 0u;
   entry->batch_index = batch_index;
   entry->bounds_min = bounds_min;
@@ -3701,6 +4077,8 @@ bool ldk_grass_update(LDKGrassPatch patch,
   LDKGrassPatchEntry *entry = s_patch_get(patch);
   LDKGrassResolvedDesc resolved;
   Mat4 *instances;
+  Vec3 *terrain_normals;
+  LDKGrassTerrainCandidateIndex *candidate_index = NULL;
   u32 instance_count;
   u32 batch_index;
   u32 old_batch_index;
@@ -3709,8 +4087,10 @@ bool ldk_grass_update(LDKGrassPatch patch,
 
   if (!entry || !s_grass.owner ||
       !s_resolved_desc_build(s_grass.owner, type, desc, &resolved) ||
-      !s_patch_instances_generate(&resolved, &instances, &instance_count))
+      !s_patch_instances_generate(&resolved, &instances,
+          &terrain_normals, &instance_count, NULL, &candidate_index, NULL))
   {
+    s_terrain_candidate_index_destroy(candidate_index);
     return false;
   }
 
@@ -3718,6 +4098,8 @@ bool ldk_grass_update(LDKGrassPatch patch,
   if (batch_index == LDK_GRASS_INVALID_BATCH)
   {
     free(instances);
+    free(terrain_normals);
+    s_terrain_candidate_index_destroy(candidate_index);
     return false;
   }
   s_patch_bounds_calculate(
@@ -3725,10 +4107,15 @@ bool ldk_grass_update(LDKGrassPatch patch,
 
   old_batch_index = entry->batch_index;
   free(entry->instances);
+  free(entry->terrain_normals);
+  s_terrain_candidate_index_destroy(entry->candidate_index);
   entry->desc = *desc;
   entry->type = *type;
   entry->instances = instances;
+  entry->terrain_normals = terrain_normals;
+  entry->candidate_index = candidate_index;
   entry->instance_count = instance_count;
+  entry->instance_capacity = instance_count;
   entry->instance_offset = 0u;
   entry->batch_index = batch_index;
   entry->bounds_min = bounds_min;
@@ -3753,8 +4140,13 @@ bool ldk_grass_remove(LDKGrassPatch patch)
 
   batch_index = entry->batch_index;
   free(entry->instances);
+  free(entry->terrain_normals);
+  s_terrain_candidate_index_destroy(entry->candidate_index);
   entry->instances = NULL;
+  entry->terrain_normals = NULL;
+  entry->candidate_index = NULL;
   entry->instance_count = 0u;
+  entry->instance_capacity = 0u;
   entry->instance_offset = 0u;
   entry->batch_index = LDK_GRASS_INVALID_BATCH;
   memset(&entry->type, 0, sizeof(entry->type));
@@ -3784,8 +4176,13 @@ void ldk_grass_clear(void)
     LDKGrassPatchEntry *entry = &s_grass.patches[i];
 
     free(entry->instances);
+    free(entry->terrain_normals);
+    s_terrain_candidate_index_destroy(entry->candidate_index);
     entry->instances = NULL;
+    entry->terrain_normals = NULL;
+    entry->candidate_index = NULL;
     entry->instance_count = 0u;
+    entry->instance_capacity = 0u;
     entry->instance_offset = 0u;
     entry->batch_index = LDK_GRASS_INVALID_BATCH;
     memset(&entry->type, 0, sizeof(entry->type));
@@ -3928,35 +4325,34 @@ static bool s_terrain_layer_cache_reserve(u32 required)
   return true;
 }
 
-/* Clump centers can be up to 2.85 world-space grid cells (3m each)
- * away from their source candidate, plus clump_radius. Do not use a fixed
- * one-tile halo when a user configures large clumps on small terrain cells. */
+/* Conservative reach of clumped positions, plus one texel for bilinear
+ * density/normal sampling. Return grid cells, not entire patch tiles: a small
+ * brush in the middle of one patch must not invalidate its eight neighbors. */
 static u32 s_terrain_region_halo(const LDKTerrain *terrain,
     const LDKTerrainVegetationLayer *layer)
 {
-  float reach = layer->type.clumping > 0.0f
+  const float reach = layer->type.clumping > 0.0f
       ? 9.0f + layer->type.clump_radius : 0.0f;
-  const float tile_size = LDK_GRASS_TERRAIN_PATCH_CELLS * terrain->cell_size;
-  const float value = ceilf(reach / tile_size);
-  const u32 max_tiles = 1u + (terrain->width + terrain->height) /
-      LDK_GRASS_TERRAIN_PATCH_CELLS;
-  return 1u + (value >= (float)max_tiles ? max_tiles : (u32)value);
+  const float cells = 1.0f + ceilf(reach / terrain->cell_size);
+  const u64 limit = (u64)terrain->width + terrain->height;
+  return cells >= (float)limit ? (u32)(limit > UINT32_MAX
+      ? UINT32_MAX : limit) : (u32)cells;
 }
 
-/* Include neighboring tiles for clumped positions and terrain normals. */
+/* Intersect an expanded sample rectangle against the actual patch grid
+ * rectangle. Expand by sample cells, not by entire neighboring patches. */
 static bool s_terrain_tile_in_region(u32 tx, u32 tz,
     const LDKTerrainHeightmapRegion *region, u32 halo)
 {
   if (!region) return true;
-  const u32 first_x = region->x / LDK_GRASS_TERRAIN_PATCH_CELLS;
-  const u32 first_z = region->y / LDK_GRASS_TERRAIN_PATCH_CELLS;
-  const u32 last_x = (region->x + region->width - 1u) /
-      LDK_GRASS_TERRAIN_PATCH_CELLS;
-  const u32 last_z = (region->y + region->height - 1u) /
-      LDK_GRASS_TERRAIN_PATCH_CELLS;
-  return (u64)tx + halo >= first_x && (u64)tz + halo >= first_z &&
-      (u64)tx <= (u64)last_x + halo &&
-      (u64)tz <= (u64)last_z + halo;
+  const u64 x0 = (u64)tx * LDK_GRASS_TERRAIN_PATCH_CELLS;
+  const u64 z0 = (u64)tz * LDK_GRASS_TERRAIN_PATCH_CELLS;
+  const u64 x1 = x0 + LDK_GRASS_TERRAIN_PATCH_CELLS;
+  const u64 z1 = z0 + LDK_GRASS_TERRAIN_PATCH_CELLS;
+  return x0 < (u64)region->x + region->width + halo &&
+      z0 < (u64)region->y + region->height + halo &&
+      (u64)region->x < x1 + halo &&
+      (u64)region->y < z1 + halo;
 }
 
 static void s_terrain_layer_patches_remove(LDKEntity entity, u64 layer_id)
@@ -3989,12 +4385,11 @@ static void s_terrain_layer_patches_remove_region(LDKEntity entity,
   }
 }
 
-/* Source identity and placement-relevant settings, never the revision of
- * unrelated layers/surfaces. The mask buffer is replaced before the previous
- * one is freed, so its pointer reliably detects a painted mask update. */
+/* Hash authored layer settings only. Density changes have their own revision
+ * and dirty region, so a brush can update a subset of patches even when a
+ * mask buffer is first allocated or a whole mask is replaced. */
 static u64 s_terrain_layer_hash(const LDKGrassTerrainSource *source,
-    const LDKTerrainVegetationLayer *layer, const u8 *mask,
-    u64 asset_revision)
+    const LDKTerrainVegetationLayer *layer, u64 asset_revision)
 {
   const LDKTerrain *terrain = &source->terrain;
   u64 hash = UINT64_C(14695981039346656037);
@@ -4013,8 +4408,12 @@ static u64 s_terrain_layer_hash(const LDKGrassTerrainSource *source,
   HASH_FIELD(layer->id);
   HASH_FIELD(layer->density_scale);
   HASH_FIELD(layer->type);
-  HASH_FIELD(mask);
-  HASH_FIELD(asset_revision);
+  /* Terrain vegetation uses embedded R8 masks and procedural blades; no
+   * external asset affects its scatter. A global asset-manager revision
+   * must not regenerate every vegetation patch while painting surfaces.
+   * Mesh-based Tree/Decoration layers still re-evaluate asset revisions. */
+  if (layer->type.kind != LDK_GRASS_LAYER_VEGETATION)
+    HASH_FIELD(asset_revision);
 #undef HASH_FIELD
   return hash;
 }
@@ -4025,7 +4424,7 @@ static bool s_terrain_layer_patches_create(const LDKGrassSystem *system,
     const LDKGrassTerrainSource *source,
     const LDKTerrainVegetationLayer *layer, const u8 *embedded,
     u32 *patch_total, const LDKTerrainHeightmapRegion *region,
-    u32 region_halo)
+    u32 region_halo, bool only_missing, bool empty_new)
 {
   const LDKTerrain *terrain = &source->terrain;
   if (!embedded || layer->density_scale <= 0.0f) return true;
@@ -4068,6 +4467,23 @@ static bool s_terrain_layer_patches_create(const LDKGrassSystem *system,
             break;
           }
       if (!covered) continue;
+      if (only_missing)
+      {
+        bool exists = false;
+        for (u32 j = 0u; j < s_grass.patch_count; ++j)
+        {
+          const LDKGrassPatchEntry *entry = &s_grass.patches[j];
+          if (entry->alive && entry->terrain_owned &&
+              s_entity_equal(entry->desc.terrain_entity, source->entity) &&
+              entry->desc.terrain_vegetation_layer_id == layer->id &&
+              entry->terrain_tile_x == tx && entry->terrain_tile_z == tz)
+          {
+            exists = true;
+            break;
+          }
+        }
+        if (exists) continue;
+      }
       if (*patch_total >= LDK_GRASS_TERRAIN_PATCH_LIMIT)
       {
         ldk_log_error("Too many terrain vegetation patches.\n");
@@ -4088,14 +4504,538 @@ static bool s_terrain_layer_patches_create(const LDKGrassSystem *system,
           (tx * 0x9e3779b9u) ^ (tz * 0x85ebca6bu));
       desc.terrain_entity = source->entity;
       desc.terrain_vegetation_layer_id = layer->id;
+      /* New tiles found during regional painting start with no instances.
+       * Their candidates are generated only inside the touched region by
+       * density_refresh(), not over the entire tile. */
+      const float final_density_scale = desc.density_scale;
+      if (empty_new) desc.density_scale = 0.0f;
       LDKGrassPatch patch = ldk_grass_add(&layer->type, &desc);
       if (!ldk_grass_patch_is_valid(patch)) return false;
       LDKGrassPatchEntry *entry = s_patch_get(patch);
+      entry->desc.density_scale = final_density_scale;
       entry->terrain_owned = true;
       entry->terrain_tile_x = tx;
       entry->terrain_tile_z = tz;
       ++*patch_total;
     }
+  }
+  return true;
+}
+
+/* Height-only edits leave candidate X/Z positions and density masks unchanged.
+ * Reproject retained instances instead of rerunning expensive random scatter
+ * for every brush sample. The saved normals make terrain alignment exact:
+ * align(new) * inverse(align(old)) preserves the original random yaw/tilt.
+ * Masks, layer settings and full heightmap replacements still rebuild patches.
+ */
+static bool s_terrain_layer_patches_reproject(
+    const LDKGrassSystem *system, const LDKGrassTerrainSource *source,
+    const LDKTerrainVegetationLayer *layer,
+    const LDKTerrainHeightmapRegion *region, u32 halo)
+{
+  const u64 perf_start = ldk_os_time_ticks_get();
+  u32 modified_patches = 0u;
+  u32 modified_instances = 0u;
+  u64 inspected_instances = 0u;
+  u32 indexed_patches = 0u;
+  double scan_ms = 0.0;
+  double bounds_ms = 0.0;
+  const LDKTerrain *terrain = &source->terrain;
+  const Vec3 up = vec3_make(0.0f, 1.0f, 0.0f);
+  LDKImageInfo heights = {0};
+  const LDKImageInfo *height_source = NULL;
+  if (source->component->heightmap)
+  {
+    if (!ldk_image_get_info(source->component->heightmap, &heights))
+      return false;
+    height_source = &heights;
+  }
+  bool invertible = false;
+  const Mat4 inverse = mat4_inverse_full(source->world, &invertible);
+  if (!invertible) return false;
+  float ox = terrain->origin_x;
+  float oz = terrain->origin_z;
+  if (terrain->center_on_origin)
+  {
+    ox -= (float)terrain->width * terrain->cell_size * 0.5f;
+    oz -= (float)terrain->height * terrain->cell_size * 0.5f;
+  }
+  /* The bilinear normal also depends on adjacent heightmap cells. */
+  const u32 x0 = region->x > 0u ? region->x - 1u : 0u;
+  const u32 z0 = region->y > 0u ? region->y - 1u : 0u;
+  const u32 x1 = region->x + region->width < terrain->width
+      ? region->x + region->width + 1u : terrain->width;
+  const u32 z1 = region->y + region->height < terrain->height
+      ? region->y + region->height + 1u : terrain->height;
+  const float min_x = ox + (float)x0 * terrain->cell_size;
+  const float min_z = oz + (float)z0 * terrain->cell_size;
+  const float max_x = ox + (float)x1 * terrain->cell_size;
+  const float max_z = oz + (float)z1 * terrain->cell_size;
+  for (u32 j = 0u; j < s_grass.patch_count; ++j)
+  {
+    LDKGrassPatchEntry *entry = &s_grass.patches[j];
+    if (!entry->alive || !entry->terrain_owned ||
+        !s_entity_equal(entry->desc.terrain_entity, source->entity) ||
+        entry->desc.terrain_vegetation_layer_id != layer->id ||
+        !s_terrain_tile_in_region(entry->terrain_tile_x,
+            entry->terrain_tile_z, region, halo)) continue;
+    if (entry->instance_count && !entry->terrain_normals) return false;
+    if (entry->type.kind != LDK_GRASS_LAYER_VEGETATION &&
+        !entry->type.follow_terrain) continue;
+    bool changed = false;
+    const LDKGrassTerrainCandidateIndex *index = entry->candidate_index;
+    const bool indexed = index && index->ready &&
+        index->candidate_slots && index->slot_candidates;
+    if (indexed) ++indexed_patches;
+    LDKGrassTerrainCandidateIterator it = {0};
+    const LDKGrassTerrainClip clip = {min_x, min_z, max_x, max_z};
+    if (indexed)
+      s_terrain_candidate_iterator_init(&it, index,
+          &entry->desc.plane, &clip);
+    u32 cursor = 0u;
+    const u64 scan_start = ldk_os_time_ticks_get();
+    while (true)
+    {
+      u32 i;
+      Vec3 local;
+      if (indexed)
+      {
+        Vec3 candidate;
+        u32 random_state;
+        u32 candidate_id;
+        if (!s_terrain_candidate_iterator_next(&it,
+                &candidate, &random_state, &candidate_id)) break;
+        (void)random_state;
+        if (!s_terrain_clip_contains(&clip,
+                candidate.x, candidate.z)) continue;
+        i = index->candidate_slots[candidate_id];
+        if (i == UINT32_MAX) continue;
+        if (i >= entry->instance_count) return false;
+        local = candidate;
+      }
+      else
+      {
+        if (cursor >= entry->instance_count) break;
+        i = cursor++;
+        const Mat4 *instance = &entry->instances[i];
+        const Vec3 world_position = vec3_make(instance->m[12],
+            instance->m[13], instance->m[14]);
+        local = mat4_mul_point(inverse, world_position);
+        if (!s_terrain_clip_contains(&clip, local.x, local.z)) continue;
+      }
+      ++inspected_instances;
+      Mat4 *instance = &entry->instances[i];
+      float height;
+      Vec3 terrain_normal;
+      if (!ldk_terrain_surface_sample(terrain, height_source,
+              local.x, local.z, &height, &terrain_normal)) continue;
+      Vec3 new_normal = vec3_make(
+          inverse.m[0] * terrain_normal.x +
+              inverse.m[1] * terrain_normal.y +
+              inverse.m[2] * terrain_normal.z,
+          inverse.m[4] * terrain_normal.x +
+              inverse.m[5] * terrain_normal.y +
+              inverse.m[6] * terrain_normal.z,
+          inverse.m[8] * terrain_normal.x +
+              inverse.m[9] * terrain_normal.y +
+              inverse.m[10] * terrain_normal.z);
+      new_normal = vec3_norm(new_normal);
+      const Vec3 new_position = mat4_mul_point(source->world,
+          vec3_make(local.x, height, local.z));
+      if (entry->type.kind == LDK_GRASS_LAYER_VEGETATION ||
+          entry->type.align_to_normal)
+      {
+        const Quat old_align = quat_from_to(up,
+            entry->terrain_normals[i]);
+        const Quat new_align = quat_from_to(up, new_normal);
+        const Quat delta = quat_mul(new_align,
+            quat_unit_inverse(old_align));
+        for (u32 axis = 0u; axis < 3u; ++axis)
+        {
+          Vec3 basis = vec3_make(instance->m[axis * 4u],
+              instance->m[axis * 4u + 1u],
+              instance->m[axis * 4u + 2u]);
+          basis = quat_mul_vec3(delta, basis);
+          instance->m[axis * 4u] = basis.x;
+          instance->m[axis * 4u + 1u] = basis.y;
+          instance->m[axis * 4u + 2u] = basis.z;
+        }
+      }
+      instance->m[12] = new_position.x;
+      instance->m[13] = new_position.y;
+      instance->m[14] = new_position.z;
+      entry->terrain_normals[i] = new_normal;
+      ++modified_instances;
+      changed = true;
+    }
+    scan_ms += ldk_os_time_ticks_interval_get_milliseconds(
+        scan_start, ldk_os_time_ticks_get());
+    if (changed)
+    {
+      const u64 bounds_start = ldk_os_time_ticks_get();
+      ++modified_patches;
+      LDKGrassResolvedDesc resolved;
+      if (!s_resolved_desc_build(system, &entry->type, &entry->desc,
+              &resolved)) return false;
+      s_patch_bounds_calculate(&resolved, entry->instances,
+          entry->instance_count, &entry->bounds_min, &entry->bounds_max);
+      bounds_ms += ldk_os_time_ticks_interval_get_milliseconds(
+          bounds_start, ldk_os_time_ticks_get());
+      if (entry->batch_index < s_grass.batch_count)
+        s_grass.batches[entry->batch_index].dirty = true;
+    }
+  }
+  const double elapsed = ldk_os_time_ticks_interval_get_milliseconds(
+      perf_start, ldk_os_time_ticks_get());
+  if (elapsed >= 10.0)
+  {
+    static u32 slow_reproject_count;
+    if (++slow_reproject_count <= 24u || slow_reproject_count % 60u == 0u)
+      ldk_log_warning("[TerrainPerf] grass reproject: %.2f ms, "
+          "patches=%u, indexed=%u, inspected=%llu, updated=%u, "
+          "scan=%.2f ms, bounds=%.2f ms\n", elapsed,
+          modified_patches, indexed_patches,
+          (unsigned long long)inspected_instances,
+          modified_instances, scan_ms, bounds_ms);
+  }
+  return true;
+}
+
+/* Matrix storage is dense, while candidate IDs remain stable for the
+ * lifetime of the scatter. Removing one accepted candidate swaps the final
+ * instance into its slot and updates both lookup directions. */
+static void s_terrain_patch_candidate_remove(LDKGrassPatchEntry *entry,
+    u32 candidate_id)
+{
+  LDKGrassTerrainCandidateIndex *index = entry->candidate_index;
+  const u32 slot = index->candidate_slots[candidate_id];
+  if (slot == UINT32_MAX) return;
+  LDK_ASSERT(slot < entry->instance_count);
+  const u32 last = --entry->instance_count;
+  if (slot != last)
+  {
+    const u32 moved_id = index->slot_candidates[last];
+    entry->instances[slot] = entry->instances[last];
+    entry->terrain_normals[slot] = entry->terrain_normals[last];
+    index->slot_candidates[slot] = moved_id;
+    index->candidate_slots[moved_id] = slot;
+  }
+  index->candidate_slots[candidate_id] = UINT32_MAX;
+}
+
+static bool s_terrain_patch_instance_reserve(LDKGrassPatchEntry *entry,
+    u32 needed)
+{
+  if (needed <= entry->instance_capacity) return true;
+  u32 capacity = entry->instance_capacity >= 64u
+      ? entry->instance_capacity : 64u;
+  while (capacity < needed)
+  {
+    if (capacity > UINT32_MAX / 2u)
+    {
+      capacity = needed;
+      break;
+    }
+    capacity *= 2u;
+  }
+  if (entry->candidate_index && capacity > entry->candidate_index->count)
+    capacity = entry->candidate_index->count;
+  if (capacity < needed ||
+      !s_allocation_size_is_valid(capacity, sizeof(*entry->instances)) ||
+      !s_allocation_size_is_valid(capacity, sizeof(*entry->terrain_normals)))
+    return false;
+
+  Mat4 *instances = realloc(entry->instances,
+      (size_t)capacity * sizeof(*entry->instances));
+  if (!instances) return false;
+  entry->instances = instances;
+  Vec3 *normals = realloc(entry->terrain_normals,
+      (size_t)capacity * sizeof(*entry->terrain_normals));
+  if (!normals) return false;
+  entry->terrain_normals = normals;
+  entry->instance_capacity = capacity;
+  return true;
+}
+
+/* Density changes preserve the candidate sequence. Only candidates whose
+ * mask acceptance changes need to be inserted into or removed from the
+ * existing dense instance array; untouched instances retain their matrices.
+ * A full scatter remains necessary when layer configuration changes. */
+static bool s_terrain_layer_patches_density_refresh(
+    const LDKGrassSystem *system, const LDKGrassTerrainSource *source,
+    const LDKTerrainVegetationLayer *layer,
+    const LDKTerrainHeightmapRegion *region, u32 halo,
+    u32 *out_updated, u32 *out_candidates, u32 *out_indexed)
+{
+  const LDKTerrain *terrain = &source->terrain;
+  float ox = terrain->origin_x;
+  float oz = terrain->origin_z;
+  if (terrain->center_on_origin)
+  {
+    ox -= (float)terrain->width * terrain->cell_size * 0.5f;
+    oz -= (float)terrain->height * terrain->cell_size * 0.5f;
+  }
+  /* Bilinear mask filtering reaches half a texel beyond adjacent samples.
+   * Include a conservative extra cell to avoid missed/doubled candidates. */
+  const float margin = 1.5f * terrain->cell_size;
+  const LDKGrassTerrainClip clip = {
+    ox + (float)region->x * terrain->cell_size - margin,
+    oz + (float)region->y * terrain->cell_size - margin,
+    ox + (float)(region->x + region->width) * terrain->cell_size + margin,
+    oz + (float)(region->y + region->height) * terrain->cell_size + margin
+  };
+  bool invertible = false;
+  const Mat4 inverse = mat4_inverse_full(source->world, &invertible);
+  if (!invertible) return false;
+  u32 updated = 0u;
+  u32 generated_count = 0u;
+  u32 indexed = 0u;
+  u64 inspected_instances = 0u;
+  double generate_ms = 0.0;
+  double compact_ms = 0.0;
+  double bounds_ms = 0.0;
+  const u64 refresh_start = ldk_os_time_ticks_get();
+  for (u32 j = 0u; j < s_grass.patch_count; ++j)
+  {
+    LDKGrassPatchEntry *entry = &s_grass.patches[j];
+    if (!entry->alive || !entry->terrain_owned ||
+        !s_entity_equal(entry->desc.terrain_entity, source->entity) ||
+        entry->desc.terrain_vegetation_layer_id != layer->id ||
+        !s_terrain_tile_in_region(entry->terrain_tile_x,
+            entry->terrain_tile_z, region, halo)) continue;
+
+    const u64 generate_start = ldk_os_time_ticks_get();
+    LDKGrassResolvedDesc resolved;
+    if (!s_resolved_desc_build(system, &entry->type, &entry->desc,
+            &resolved)) return false;
+    Mat4 *new_instances = NULL;
+    Vec3 *new_normals = NULL;
+    u32 *new_ids = NULL;
+    u32 new_count = 0u;
+    const bool had_index = entry->candidate_index &&
+        entry->candidate_index->ready;
+    if (!s_patch_instances_generate(&resolved, &new_instances,
+            &new_normals, &new_count, &clip,
+            &entry->candidate_index, &new_ids)) return false;
+    if (had_index) ++indexed;
+    generate_ms += ldk_os_time_ticks_interval_get_milliseconds(
+        generate_start, ldk_os_time_ticks_get());
+    const u64 compact_start = ldk_os_time_ticks_get();
+
+    LDKGrassTerrainCandidateIndex *candidate_index = entry->candidate_index;
+    const bool mapped = candidate_index && candidate_index->ready &&
+        candidate_index->candidate_slots &&
+        candidate_index->slot_candidates;
+    LDKGrassTerrainPlacement mask_placement = {0};
+    if (mapped && !s_terrain_placement_resolve(&resolved, &mask_placement))
+    {
+      free(new_instances);
+      free(new_normals);
+      free(new_ids);
+      return false;
+    }
+    if (mapped)
+    {
+      /* First count removals and reserve capacity, so allocation failure
+       * cannot leave a partially edited patch. All positions are local to
+       * the terrain and stay fixed during Sculpt and density changes. */
+      u32 removals = 0u;
+      LDKGrassTerrainCandidateIterator it;
+      s_terrain_candidate_iterator_init(&it, candidate_index,
+          &entry->desc.plane, &clip);
+      Vec3 position;
+      u32 random_state;
+      u32 candidate_id;
+      while (s_terrain_candidate_iterator_next(&it, &position,
+              &random_state, &candidate_id))
+      {
+        (void)random_state;
+        if (!s_terrain_clip_contains(&clip, position.x, position.z))
+          continue;
+        ++inspected_instances;
+        if (candidate_index->candidate_slots[candidate_id] != UINT32_MAX &&
+            s_random_unit(&random_state) >
+                s_terrain_mask_sample(&mask_placement,
+                    position.x, position.z))
+          ++removals;
+      }
+      /* A mask can change numerically without changing which candidates
+       * survive its deterministic threshold. In that case the matrices,
+       * bounds and batch GPU data are already correct. */
+      if (removals == 0u && new_count == 0u)
+      {
+        free(new_instances);
+        free(new_normals);
+        free(new_ids);
+        continue;
+      }
+      if (removals > entry->instance_count ||
+          (u64)entry->instance_count - removals + new_count > UINT32_MAX ||
+          (entry->instance_count && !entry->terrain_normals))
+      {
+        free(new_instances);
+        free(new_normals);
+        free(new_ids);
+        return false;
+      }
+      const u32 target_count = entry->instance_count - removals + new_count;
+      if (!s_terrain_patch_instance_reserve(entry, target_count))
+      {
+        free(new_instances);
+        free(new_normals);
+        free(new_ids);
+        return false;
+      }
+      s_terrain_candidate_iterator_init(&it, candidate_index,
+          &entry->desc.plane, &clip);
+      while (s_terrain_candidate_iterator_next(&it, &position,
+              &random_state, &candidate_id))
+      {
+        if (s_terrain_clip_contains(&clip, position.x, position.z) &&
+            candidate_index->candidate_slots[candidate_id] != UINT32_MAX &&
+            s_random_unit(&random_state) >
+                s_terrain_mask_sample(&mask_placement,
+                    position.x, position.z))
+          s_terrain_patch_candidate_remove(entry, candidate_id);
+      }
+      for (u32 i = 0u; i < new_count; ++i)
+      {
+        const u32 id = new_ids[i];
+        if (id >= candidate_index->count ||
+            candidate_index->candidate_slots[id] != UINT32_MAX)
+        {
+          free(new_instances);
+          free(new_normals);
+          free(new_ids);
+          return false;
+        }
+        const u32 slot = entry->instance_count++;
+        entry->instances[slot] = new_instances[i];
+        entry->terrain_normals[slot] = new_normals[i];
+        candidate_index->candidate_slots[id] = slot;
+        candidate_index->slot_candidates[slot] = id;
+      }
+      LDK_ASSERT(entry->instance_count == target_count);
+      free(new_instances);
+      free(new_normals);
+      free(new_ids);
+    }
+    else
+    {
+      /* Fallback when the optional candidate index could not be built. */
+        inspected_instances += entry->instance_count;
+      u32 retained = 0u;
+      for (u32 i = 0u; i < entry->instance_count; ++i)
+      {
+        const Mat4 *matrix = &entry->instances[i];
+        const Vec3 local = mat4_mul_point(inverse, vec3_make(
+            matrix->m[12], matrix->m[13], matrix->m[14]));
+        if (!s_terrain_clip_contains(&clip, local.x, local.z)) ++retained;
+      }
+      if ((u64)retained + new_count > UINT32_MAX ||
+          (retained && !entry->terrain_normals))
+      {
+        free(new_instances);
+        free(new_normals);
+        return false;
+      }
+      const u32 combined_count = retained + new_count;
+      /* Reuse patch storage when the accepted count shrinks or stays equal.
+       * Avoid a second full-patch allocation/copy for each brush sample. */
+      if (combined_count > entry->instance_count)
+      {
+        if (!s_allocation_size_is_valid(combined_count,
+                sizeof(*entry->instances)) ||
+            !s_allocation_size_is_valid(combined_count,
+                sizeof(*entry->terrain_normals)))
+        {
+          free(new_instances);
+          free(new_normals);
+          free(new_ids);
+          return false;
+        }
+        Mat4 *grown = realloc(entry->instances,
+            (size_t)combined_count * sizeof(*entry->instances));
+        if (!grown)
+        {
+          free(new_instances);
+          free(new_normals);
+          free(new_ids);
+          return false;
+        }
+        entry->instances = grown;
+        Vec3 *grown_normals = realloc(entry->terrain_normals,
+            (size_t)combined_count * sizeof(*entry->terrain_normals));
+        if (!grown_normals)
+        {
+          free(new_instances);
+          free(new_normals);
+          free(new_ids);
+          return false;
+        }
+        entry->terrain_normals = grown_normals;
+        entry->instance_capacity = combined_count;
+      }
+      u32 out = 0u;
+      for (u32 i = 0u; i < entry->instance_count; ++i)
+      {
+        const Mat4 *matrix = &entry->instances[i];
+        const Vec3 local = mat4_mul_point(inverse, vec3_make(
+            matrix->m[12], matrix->m[13], matrix->m[14]));
+        if (s_terrain_clip_contains(&clip, local.x, local.z)) continue;
+        if (out != i)
+        {
+          entry->instances[out] = *matrix;
+          entry->terrain_normals[out] = entry->terrain_normals[i];
+        }
+        ++out;
+      }
+      if (new_count)
+      {
+        memcpy(entry->instances + out, new_instances,
+            (size_t)new_count * sizeof(*entry->instances));
+        memcpy(entry->terrain_normals + out, new_normals,
+            (size_t)new_count * sizeof(*entry->terrain_normals));
+      }
+      free(new_instances);
+      free(new_normals);
+      if (!combined_count)
+      {
+        free(entry->instances);
+        free(entry->terrain_normals);
+        entry->instances = NULL;
+        entry->terrain_normals = NULL;
+        entry->instance_capacity = 0u;
+      }
+      entry->instance_count = combined_count;
+      free(new_ids);
+    }
+    compact_ms += ldk_os_time_ticks_interval_get_milliseconds(
+        compact_start, ldk_os_time_ticks_get());
+    const u64 bounds_start = ldk_os_time_ticks_get();
+    s_patch_bounds_calculate(&resolved, entry->instances,
+        entry->instance_count, &entry->bounds_min, &entry->bounds_max);
+    bounds_ms += ldk_os_time_ticks_interval_get_milliseconds(
+        bounds_start, ldk_os_time_ticks_get());
+    if (entry->batch_index < s_grass.batch_count)
+      s_grass.batches[entry->batch_index].dirty = true;
+    ++updated;
+    generated_count += new_count;
+  }
+  if (out_updated) *out_updated = updated;
+  if (out_candidates) *out_candidates = generated_count;
+  if (out_indexed) *out_indexed = indexed;
+  const double refresh_ms = ldk_os_time_ticks_interval_get_milliseconds(
+      refresh_start, ldk_os_time_ticks_get());
+  if (refresh_ms >= 25.0)
+  {
+    static u32 slow_detail_count;
+    if (++slow_detail_count <= 24u || slow_detail_count % 60u == 0u)
+      ldk_log_warning("[TerrainPerf] grass density detail: %.2f ms, "
+          "indexed=%u, inspected=%llu, generated=%u, "
+          "generate=%.2f ms, compact=%.2f ms, bounds=%.2f ms\n",
+          refresh_ms, indexed, (unsigned long long)inspected_instances,
+          generated_count, generate_ms, compact_ms, bounds_ms);
   }
   return true;
 }
@@ -4166,7 +5106,10 @@ static bool s_terrain_patches_sync(const LDKGrassSystem *system)
       const u8 *embedded = ldk_terrain_component_vegetation_density_get(
           source->component, layer->id);
       const u64 layer_hash = s_terrain_layer_hash(
-          source, layer, embedded, asset_revision);
+          source, layer, asset_revision);
+      const LDKTerrainVegetationDensity *density =
+          source->component->vegetation_density;
+      const u64 density_revision = density ? density->revisions[i] : 0u;
       i32 index = s_terrain_layer_cache_find(source->entity, layer->id);
       if (index < 0)
       {
@@ -4185,18 +5128,107 @@ static bool s_terrain_patches_sync(const LDKGrassSystem *system)
       const u64 heightmap_revision = source->component->heightmap_revision;
       const bool layer_changed = cache->hash != layer_hash;
       const bool height_changed = cache->heightmap_revision != heightmap_revision;
-      if (!layer_changed && !height_changed) continue;
+      const bool density_changed = cache->density_revision != density_revision;
+      const bool asset_changed = layer->type.kind !=
+          LDK_GRASS_LAYER_VEGETATION && cache->asset_revision != asset_revision;
+      if (!layer_changed && !height_changed && !density_changed) continue;
 
-      /* A height-only brush refresh touches just neighboring terrain patches.
-       * Full terrain replacement, grid edits, or missed revisions fall back
-       * to rebuilding the affected layer, never unrelated terrains. */
-      const bool region_update = !layer_changed && height_changed &&
-          source->component->heightmap_grass_dirty_valid &&
-          cache->heightmap_revision ==
-              source->component->heightmap_grass_dirty_base_revision;
-      const LDKTerrainHeightmapRegion *region = region_update
-          ? &source->component->heightmap_grass_dirty_region : NULL;
+      /* A mask brush modifies only the touched patch tiles; a Sculpt brush
+       * merely reprojects existing instances. For simultaneous edits, rebuild
+       * the union of both regions. Missing revisions or new layer settings
+       * require a full update. */
+      const bool height_regional = !height_changed ||
+          (source->component->heightmap_grass_dirty_valid &&
+           cache->heightmap_revision ==
+              source->component->heightmap_grass_dirty_base_revision);
+      const bool density_regional = !density_changed ||
+          (density && density->dirty_valid[i] &&
+           cache->density_revision == density->dirty_base_revisions[i]);
+      const bool region_update = !layer_changed && height_regional &&
+          density_regional && (height_changed || density_changed);
+      LDKTerrainHeightmapRegion merged = {0};
+      if (region_update)
+      {
+        if (height_changed)
+          merged = source->component->heightmap_grass_dirty_region;
+        if (density_changed)
+        {
+          const LDKTerrainHeightmapRegion changed = density->dirty_regions[i];
+          if (!height_changed) merged = changed;
+          else
+          {
+            const u32 x0 = merged.x < changed.x ? merged.x : changed.x;
+            const u32 y0 = merged.y < changed.y ? merged.y : changed.y;
+            const u32 x1 = merged.x + merged.width > changed.x + changed.width
+                ? merged.x + merged.width : changed.x + changed.width;
+            const u32 y1 = merged.y + merged.height > changed.y + changed.height
+                ? merged.y + merged.height : changed.y + changed.height;
+            merged = (LDKTerrainHeightmapRegion){x0, y0, x1-x0, y1-y0};
+          }
+        }
+      }
+      const LDKTerrainHeightmapRegion *region =
+          region_update ? &merged : NULL;
       const u32 region_halo = s_terrain_region_halo(terrain, layer);
+      if (region_update && !density_changed && height_changed &&
+          s_terrain_layer_patches_reproject(
+              system, source, layer, region, region_halo))
+      {
+        cache->hash = layer_hash;
+        cache->heightmap_revision = heightmap_revision;
+        cache->density_revision = density_revision;
+        cache->asset_revision = asset_revision;
+        continue;
+      }
+      /* A density-only brush must not regenerate the expensive complete
+       * scatter for each touched tile. Update only candidates whose sampled
+       * mask can change, preserving all instances outside the edit area. */
+      if (region_update && density_changed && !height_changed)
+      {
+        const u64 refresh_start = ldk_os_time_ticks_get();
+        u32 updated = 0u;
+        u32 indexed = 0u;
+        /* Newly painted tiles did not have a patch before. Create their
+         * metadata cheaply, then refresh the same small region once. */
+        patch_total = 0u;
+        for (u32 j = 0u; j < s_grass.patch_count; ++j)
+          if (s_grass.patches[j].alive && s_grass.patches[j].terrain_owned)
+            ++patch_total;
+        const u32 old_total = patch_total;
+        if (!s_terrain_layer_patches_create(system, source, layer,
+                embedded, &patch_total, region, region_halo, true, true))
+        {
+          cache->hash = 0u;
+          free(list.sources);
+          return false;
+        }
+        const u32 created = patch_total - old_total;
+        if (!s_terrain_layer_patches_density_refresh(system, source,
+                layer, region, region_halo, &updated, NULL, &indexed))
+        {
+          cache->hash = 0u;
+          free(list.sources);
+          return false;
+        }
+        cache->hash = layer_hash;
+        cache->heightmap_revision = heightmap_revision;
+        cache->density_revision = density_revision;
+        cache->asset_revision = asset_revision;
+        const double refresh_ms =
+            ldk_os_time_ticks_interval_get_milliseconds(
+                refresh_start, ldk_os_time_ticks_get());
+        if (refresh_ms >= 10.0)
+        {
+          static u32 slow_refresh_count;
+          if (++slow_refresh_count <= 24u || slow_refresh_count % 60u == 0u)
+            ldk_log_warning("[TerrainPerf] grass density refresh: %.2f ms, "
+                "updated_patches=%u, indexed_patches=%u, "
+                "created_patches=%u, patches_total=%u\n",
+                refresh_ms, updated, indexed, created, patch_total);
+        }
+        continue;
+      }
+      const u64 rebuild_start = ldk_os_time_ticks_get();
       if (region_update)
         s_terrain_layer_patches_remove_region(
             source->entity, layer->id, region, region_halo);
@@ -4207,7 +5239,7 @@ static bool s_terrain_patches_sync(const LDKGrassSystem *system)
         if (s_grass.patches[j].alive && s_grass.patches[j].terrain_owned)
           ++patch_total;
       if (!s_terrain_layer_patches_create(system, source, layer,
-              embedded, &patch_total, region, region_halo))
+              embedded, &patch_total, region, region_halo, false, false))
       {
         /* A failure forces a full refresh on retry, ensuring that a
          * partially updated layer cannot be considered synchronized. */
@@ -4218,6 +5250,22 @@ static bool s_terrain_patches_sync(const LDKGrassSystem *system)
       }
       cache->hash = layer_hash;
       cache->heightmap_revision = heightmap_revision;
+      cache->density_revision = density_revision;
+      cache->asset_revision = asset_revision;
+      const double rebuild_ms =
+          ldk_os_time_ticks_interval_get_milliseconds(
+              rebuild_start, ldk_os_time_ticks_get());
+      if (rebuild_ms >= 10.0)
+      {
+        static u32 slow_rebuild_count;
+        if (++slow_rebuild_count <= 24u || slow_rebuild_count % 60u == 0u)
+          ldk_log_warning("[TerrainPerf] grass rebuild: %.2f ms, "
+              "layer_changed=%u, height_changed=%u, density_changed=%u, "
+              "asset_changed=%u, regional=%u, patches_total=%u\n", rebuild_ms,
+              layer_changed ? 1u : 0u, height_changed ? 1u : 0u,
+              density_changed ? 1u : 0u, asset_changed ? 1u : 0u,
+              region_update ? 1u : 0u, patch_total);
+      }
     }
   }
 
@@ -4227,9 +5275,13 @@ static bool s_terrain_patches_sync(const LDKGrassSystem *system)
   {
     LDKTerrainComponent *component = ldk_ecs_component_get(
         list.sources[n].entity, LDK_COMPONENT_TYPE_TERRAIN);
-    if (component && component->heightmap_grass_dirty_valid &&
-        component->revision == list.sources[n].revision)
+    if (!component || component->revision != list.sources[n].revision)
+      continue;
+    if (component->heightmap_grass_dirty_valid)
       component->heightmap_grass_dirty_valid = false;
+    if (component->vegetation_density)
+      for (u32 i = 0u; i < component->terrain.vegetation_layer_count; ++i)
+        component->vegetation_density->dirty_valid[i] = false;
   }
   s_grass.terrain_sync_hash = hash;
   free(list.sources);
@@ -4706,6 +5758,7 @@ void ldk_grass_system_update(
     return;
   }
 
+  const u64 perf_start = ldk_os_time_ticks_get();
   config_hash = s_system_config_hash(system);
   if (config_hash != s_grass.config_hash)
   {
@@ -4721,6 +5774,7 @@ void ldk_grass_system_update(
   {
     return;
   }
+  const u64 perf_sync_end = ldk_os_time_ticks_get();
 
   s_interaction_components_collect();
   if (!s_interaction_field_update(dt))
@@ -4729,6 +5783,22 @@ void ldk_grass_system_update(
   }
 
   s_grass_submit();
+  const u64 perf_end = ldk_os_time_ticks_get();
+  const double elapsed = ldk_os_time_ticks_interval_get_milliseconds(
+      perf_start, perf_end);
+  if (elapsed >= 5.0)
+  {
+    static u32 slow_grass_count;
+    ++slow_grass_count;
+    if (slow_grass_count <= 24u || slow_grass_count % 60u == 0u)
+      ldk_log_warning("[TerrainPerf] grass: %.2f ms, "
+          "sync=%.2f ms, interaction+submit=%.2f ms, "
+          "patches=%u\n", elapsed,
+          ldk_os_time_ticks_interval_get_milliseconds(perf_start,
+              perf_sync_end),
+          ldk_os_time_ticks_interval_get_milliseconds(perf_sync_end,
+              perf_end), s_grass.patch_count);
+  }
 }
 
 void ldk_grass_system_on_editor_update(

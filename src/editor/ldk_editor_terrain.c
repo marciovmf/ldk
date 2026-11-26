@@ -14,6 +14,7 @@
 #include <ldk_mesh_asset.h>
 #include <ldk_material_asset.h>
 #include <ldk_os.h>
+#include <ldk.h>
 #include <module/ldk_asset_source.h>
 #include <module/ldk_asset_manager.h>
 #include <stdx/stdx_filesystem.h>
@@ -686,6 +687,7 @@ static void s_terrain_stroke_finish(LDKEditorContext *editor)
 {
   LDKEditorTerrainState *state = &editor->terrain_editor;
   if (!state->stroke_active) return;
+  const u64 perf_start = ldk_os_time_ticks_get();
   state->stroke_active = false;
   const bool vegetation = state->stroke_kind == 1u;
   const bool painting = state->stroke_kind == 2u;
@@ -768,6 +770,11 @@ static void s_terrain_stroke_finish(LDKEditorContext *editor)
   state->stroke_kind = 0u;
   state->stroke_paint_dirty = false;
   state->stroke_sculpt_full_scan = false;
+  const double elapsed = ldk_os_time_ticks_interval_get_milliseconds(
+      perf_start, ldk_os_time_ticks_get());
+  if (elapsed >= 5.0)
+    ldk_log_warning("[TerrainPerf] brush stroke finish: %.2f ms, "
+        "mode=%u\n", elapsed, (u32)state->edit_mode);
 }
 
 bool ldki_editor_terrain_undo_is_key(LDKEditorUndoKey key)
@@ -865,8 +872,9 @@ bool ldki_editor_terrain_undo_apply(LDKEditorContext *editor,
     for (u32 z = 0u; z < region.height; ++z)
       memcpy(pixels + (size_t)(region.y + z) * component->terrain.width +
               region.x, source + (size_t)z * region.width, region.width);
-    bool ok = ldk_terrain_component_vegetation_density_set(
-        component, region.layer_id, pixels);
+    bool ok = ldk_terrain_component_vegetation_density_region_set(
+        component, region.layer_id, pixels, region.x, region.y,
+        region.width, region.height);
     if (ok)
     {
       LDKEditorTerrainState *state = &editor->terrain_editor;
@@ -1234,8 +1242,10 @@ static bool s_terrain_vegetation_brush_apply(
     }
   if (!changed) return false;
   LDKTerrainComponent *component = s_terrain_owned_component(state);
-  if (!component || !ldk_terrain_component_vegetation_density_set(
-          component, state->vegetation_layer_id, state->vegetation_pixels))
+  if (!component || !ldk_terrain_component_vegetation_density_region_set(
+          component, state->vegetation_layer_id, state->vegetation_pixels,
+          (u32)x0, (u32)z0, (u32)(x1 - x0 + 1),
+          (u32)(z1 - z0 + 1)))
     return false;
   state->observed_revision = component->revision;
   state->dirty = true;
@@ -1602,7 +1612,14 @@ void ldki_editor_terrain_view_update(
     LDKEditorContext *editor, LDKUIRect scene_view_rect)
 {
   LDKEditorTerrainState *state = &editor->terrain_editor;
+  const u64 perf_selection_start = ldk_os_time_ticks_get();
   s_terrain_selection_sync(editor);
+  const double selection_elapsed = ldk_os_time_ticks_interval_get_milliseconds(
+      perf_selection_start, ldk_os_time_ticks_get());
+  if (selection_elapsed >= 5.0)
+    ldk_log_warning("[TerrainPerf] selection rebind: %.2f ms, "
+        "size=%ux%u\n", selection_elapsed,
+        state->data.width, state->data.height);
   state->hovered = false;
   LDKUIContext *ui = &editor->ui;
   if (!state->enabled || !state->loaded || !state->pixels ||
@@ -1629,8 +1646,20 @@ void ldki_editor_terrain_view_update(
       !ldk_rectf_contains(&ui->clip_rect, cursor.x, cursor.y) ||
       ui->active_id || ui->hot_id) return;
   Vec3 hit;
-  if (!s_terrain_ray_hit(editor, scene_view_rect,
-          ldk_pointf(cursor.x, cursor.y), &hit)) return;
+  const u64 ray_start = ldk_os_time_ticks_get();
+  const bool ray_hit = s_terrain_ray_hit(editor, scene_view_rect,
+      ldk_pointf(cursor.x, cursor.y), &hit);
+  const double ray_elapsed = ldk_os_time_ticks_interval_get_milliseconds(
+      ray_start, ldk_os_time_ticks_get());
+  if (ray_elapsed >= 5.0)
+  {
+    static u32 slow_ray_count;
+    ++slow_ray_count;
+    if (slow_ray_count <= 24u || slow_ray_count % 60u == 0u)
+      ldk_log_warning("[TerrainPerf] brush raycast: %.2f ms, "
+          "hit=%u\n", ray_elapsed, ray_hit ? 1u : 0u);
+  }
+  if (!ray_hit) return;
   state->hovered = true;
   state->hover_position = hit;
   Mat4 world, inverse;
@@ -1639,17 +1668,38 @@ void ldki_editor_terrain_view_update(
   if (!state->stroke_active &&
       ldk_os_mouse_button_down((LDKMouseState *)ui->mouse,
           LDK_MOUSE_BUTTON_LEFT))
+  {
+    const u64 begin = ldk_os_time_ticks_get();
     (void)s_terrain_stroke_begin(editor);
+    const double elapsed = ldk_os_time_ticks_interval_get_milliseconds(
+        begin, ldk_os_time_ticks_get());
+    if (elapsed >= 5.0)
+      ldk_log_warning("[TerrainPerf] brush stroke begin: %.2f ms, "
+          "mode=%u, size=%ux%u\n", elapsed, (u32)state->edit_mode,
+          state->data.width, state->data.height);
+  }
   if (state->stroke_active &&
       ldk_os_mouse_button_is_pressed((LDKMouseState *)ui->mouse,
           LDK_MOUSE_BUTTON_LEFT))
   {
+    const u64 begin = ldk_os_time_ticks_get();
     if (s_terrain_distribution_mode(state->edit_mode))
       (void)s_terrain_vegetation_brush_apply(editor, local_hit);
     else if (state->edit_mode == LDK_EDITOR_TERRAIN_EDIT_PAINT)
       (void)s_terrain_surface_paint_apply(editor, local_hit);
     else
       (void)s_terrain_brush_apply(editor, local_hit);
+    const double elapsed = ldk_os_time_ticks_interval_get_milliseconds(
+        begin, ldk_os_time_ticks_get());
+    if (elapsed >= 5.0)
+    {
+      static u32 slow_brush_count;
+      ++slow_brush_count;
+      if (slow_brush_count <= 24u || slow_brush_count % 60u == 0u)
+        ldk_log_warning("[TerrainPerf] brush apply: %.2f ms, "
+            "mode=%u, radius=%.2f\n", elapsed,
+            (u32)state->edit_mode, state->radius);
+    }
   }
 }
 

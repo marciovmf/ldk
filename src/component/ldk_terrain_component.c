@@ -58,7 +58,7 @@ bool ldk_terrain_component_set(LDKTerrainComponent *component,
 
   /* Preserve masks for unchanged layer IDs, but never retain a mask whose
    * dimensions no longer match the replaced terrain grid. */
-  u8 *masks[LDK_TERRAIN_VEGETATION_LAYER_COUNT] = {0};
+  LDKTerrainVegetationDensity ordered = {0};
   const bool same_grid = component->terrain.width == terrain->width &&
       component->terrain.height == terrain->height;
   LDKTerrainVegetationDensity *density = component->vegetation_density;
@@ -70,13 +70,15 @@ bool ldk_terrain_component_set(LDKTerrainComponent *component,
           if (terrain->vegetation_layers[i].id ==
               component->terrain.vegetation_layers[j].id)
           {
-            masks[i] = density->samples[j];
+            ordered.samples[i] = density->samples[j];
+            ordered.revisions[i] = density->revisions[j];
+            /* A full terrain replacement invalidates any pending region. */
             density->samples[j] = NULL;
             break;
           }
     for (u32 i = 0u; i < LDK_TERRAIN_VEGETATION_LAYER_COUNT; ++i)
       free(density->samples[i]);
-    memcpy(density->samples, masks, sizeof(masks));
+    *density = ordered;
   }
   if (!same_grid)
   {
@@ -113,20 +115,24 @@ bool ldk_terrain_component_metadata_set(
   LDKTerrainVegetationDensity *density = component->vegetation_density;
   if (density)
   {
-    u8 *ordered[LDK_TERRAIN_VEGETATION_LAYER_COUNT] = {0};
+    LDKTerrainVegetationDensity ordered = {0};
     bool retained[LDK_TERRAIN_VEGETATION_LAYER_COUNT] = {0};
     for (u32 i = 0u; i < terrain->vegetation_layer_count; ++i)
       for (u32 j = 0u; j < component->terrain.vegetation_layer_count; ++j)
         if (terrain->vegetation_layers[i].id ==
             component->terrain.vegetation_layers[j].id)
         {
-          ordered[i] = density->samples[j];
+          ordered.samples[i] = density->samples[j];
+          ordered.revisions[i] = density->revisions[j];
+          ordered.dirty_regions[i] = density->dirty_regions[j];
+          ordered.dirty_base_revisions[i] = density->dirty_base_revisions[j];
+          ordered.dirty_valid[i] = density->dirty_valid[j];
           retained[j] = true;
           break;
         }
     for (u32 i = 0u; i < LDK_TERRAIN_VEGETATION_LAYER_COUNT; ++i)
       if (!retained[i]) free(density->samples[i]);
-    memcpy(density->samples, ordered, sizeof(ordered));
+    *density = ordered;
   }
   component->terrain = *terrain;
   component->revision = component->revision == UINT64_MAX
@@ -340,8 +346,51 @@ bool ldk_terrain_component_vegetation_density_set(
       return false;
     }
   }
-  free(component->vegetation_density->samples[i]);
-  component->vegetation_density->samples[i] = owned;
+  LDKTerrainVegetationDensity *density = component->vegetation_density;
+  free(density->samples[i]);
+  density->samples[i] = owned;
+  density->revisions[i] = density->revisions[i] == UINT64_MAX
+      ? 1u : density->revisions[i] + 1u;
+  density->dirty_valid[i] = false; /* Whole-mask replacement. */
+  component->revision = component->revision == UINT64_MAX
+      ? 1u : component->revision + 1u;
+  return true;
+}
+
+bool ldk_terrain_component_vegetation_density_region_set(
+    LDKTerrainComponent *component, u64 layer_id, const u8 *samples,
+    u32 x, u32 y, u32 width, u32 height)
+{
+  const i32 index = s_terrain_vegetation_index(component, layer_id);
+  if (index < 0 || !samples || !width || !height ||
+      x >= component->terrain.width || y >= component->terrain.height ||
+      width > component->terrain.width - x ||
+      height > component->terrain.height - y)
+    return false;
+  const u64 count = (u64)component->terrain.width * component->terrain.height;
+  if (!count || count > SIZE_MAX) return false;
+  if (!component->vegetation_density)
+  {
+    component->vegetation_density = calloc(1u,
+        sizeof(*component->vegetation_density));
+    if (!component->vegetation_density) return false;
+  }
+  LDKTerrainVegetationDensity *density = component->vegetation_density;
+  if (!density->samples[index])
+  {
+    density->samples[index] = calloc((size_t)count, 1u);
+    if (!density->samples[index]) return false;
+  }
+  for (u32 row = y; row < y + height; ++row)
+  {
+    const size_t offset = (size_t)row * component->terrain.width + x;
+    memcpy(density->samples[index] + offset, samples + offset, width);
+  }
+  s_terrain_region_accumulate(&density->dirty_regions[index],
+      &density->dirty_base_revisions[index], &density->dirty_valid[index],
+      density->revisions[index], x, y, width, height);
+  density->revisions[index] = density->revisions[index] == UINT64_MAX
+      ? 1u : density->revisions[index] + 1u;
   component->revision = component->revision == UINT64_MAX
       ? 1u : component->revision + 1u;
   return true;
@@ -370,12 +419,21 @@ bool ldk_terrain_component_vegetation_layer_remove(
   if (!ldk_terrain_vegetation_layer_remove(&updated, layer_id)) return false;
   if (component->vegetation_density)
   {
-    u8 **masks = component->vegetation_density->samples;
-    free(masks[i]);
-    memmove(masks + i, masks + i + 1,
-        (size_t)(component->terrain.vegetation_layer_count - (u32)i - 1u) *
-        sizeof(masks[0]));
-    masks[updated.vegetation_layer_count] = NULL;
+    LDKTerrainVegetationDensity *density = component->vegetation_density;
+    free(density->samples[i]);
+    const size_t remaining =
+        component->terrain.vegetation_layer_count - (u32)i - 1u;
+#define SHIFT_DENSITY_FIELD(field) \
+    memmove(density->field + i, density->field + i + 1, \
+        remaining * sizeof(density->field[0])); \
+    memset(&density->field[updated.vegetation_layer_count], 0, \
+        sizeof(density->field[0]))
+    SHIFT_DENSITY_FIELD(samples);
+    SHIFT_DENSITY_FIELD(revisions);
+    SHIFT_DENSITY_FIELD(dirty_regions);
+    SHIFT_DENSITY_FIELD(dirty_base_revisions);
+    SHIFT_DENSITY_FIELD(dirty_valid);
+#undef SHIFT_DENSITY_FIELD
   }
   component->terrain = updated;
   component->revision = component->revision == UINT64_MAX
@@ -452,6 +510,10 @@ static bool s_terrain_attach(LDKEntityRegistry *entities,
     }
     return false;
   }
+  if (target->vegetation_density && source->vegetation_density)
+    for (u32 i = 0u; i < source->terrain.vegetation_layer_count; ++i)
+      target->vegetation_density->revisions[i] =
+          source->vegetation_density->revisions[i];
   target->surface_paint_revision = source->surface_paint_revision;
   target->revision = source->revision;
   return true;
